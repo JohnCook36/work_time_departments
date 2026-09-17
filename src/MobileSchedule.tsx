@@ -133,12 +133,12 @@ export function MobileSchedule(props: Props) {
       {props.departments.map((department) => (
         <MobileDepartment
           key={department.id}
+          {...props}
           department={department}
           employees={props.employees.filter((e) => e.departmentId === department.id)}
           days={days}
           editing={editing}
           setEditing={setEditing}
-          {...props}
         />
       ))}
     </MobileScheduleShell>
