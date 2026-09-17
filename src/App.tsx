@@ -48,6 +48,7 @@ import {
   validateShiftInput,
 } from './utils';
 import { EmployeeWishDrawer } from './WishDrawer';
+import { MobileSchedule } from './MobileSchedule';
 import { getTheme, ThemeMode } from './theme';
 import {
   ActionButton,
@@ -105,6 +106,7 @@ import {
   TotalRow,
   WishCount,
   DragHandle,
+  DesktopScheduleOnly,
 } from './styles';
 
 function generateId(): string {
@@ -263,6 +265,9 @@ function App() {
   const [showHelp, setShowHelp] = useState(false);
   const [showDepartments, setShowDepartments] = useState(false);
   const [wishEmployeeId, setWishEmployeeId] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 760px)').matches
+  );
 
   const theme = useMemo(() => getTheme(themeMode), [themeMode]);
   const periodKey = getPeriodKey(year, month);
@@ -286,6 +291,16 @@ function App() {
       // ignore
     }
   }, [themeMode]);
+
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 760px)');
+    const handleChange = (event: MediaQueryListEvent) => setIsMobile(event.matches);
+
+    setIsMobile(media.matches);
+    media.addEventListener('change', handleChange);
+
+    return () => media.removeEventListener('change', handleChange);
+  }, []);
 
   useEffect(() => {
     if (!departments.some((department) => department.id === newEmployeeDepartmentId)) {
@@ -888,6 +903,35 @@ function App() {
             collisionDetection={closestCenter}
             onDragEnd={handleDragEnd}
           >
+            {isMobile ? (
+              <MobileSchedule
+                departments={departments}
+                employees={employees}
+                daysInMonth={daysInMonth}
+                year={year}
+                month={month}
+                getEntry={getEntry}
+                updateCell={updateCell}
+                getDisplayValue={getDisplayValue}
+                getEmployeeTotals={getEmployeeTotals}
+                removeEmployee={removeEmployee}
+                getWishCount={(employeeId) =>
+                  wishes[employeeId]?.[periodKey]?.length || 0
+                }
+                getWishSummary={(employeeId) =>
+                  (wishes[employeeId]?.[periodKey] || [])
+                    .slice(0, 3)
+                    .map((wish) =>
+                      (wish.day === null ? 'Общее' : String(wish.day)) +
+                      ': ' +
+                      wish.text
+                    )
+                    .join('\n')
+                }
+                onOpenWishes={setWishEmployeeId}
+              />
+            ) : (
+              <DesktopScheduleOnly>
             <TableShell>
               <TableScroll>
                 <ScheduleTable>
@@ -1001,6 +1045,8 @@ function App() {
                 </div>
               )}
             </TableShell>
+              </DesktopScheduleOnly>
+            )}
           </DndContext>
 
           <ErrorPanel
