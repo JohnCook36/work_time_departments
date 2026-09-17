@@ -1,494 +1,1411 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
-import { Employee, ScheduleData, ShiftEntry } from './types';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Global, ThemeProvider } from '@emotion/react';
 import {
-  validateShiftInput,
+  DndContext,
+  DragEndEvent,
+  PointerSensor,
+  closestCenter,
+  useDroppable,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import {
+  AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
+  GripVertical,
+  Info,
+  Layers3,
+  MessageSquare,
+  Moon,
+  Pencil,
+  Plus,
+  Sun,
+  Trash2,
+} from 'lucide-react';
+import {
+  Department,
+  DepartmentKind,
+  Employee,
+  EmployeeWish,
+  EmployeeWishesData,
+  ScheduleData,
+  SchedulePeriodsData,
+  ShiftEntry,
+} from './types';
+import {
   calculateShiftHours,
-  getDaysInMonth,
+  DAY_NAMES_SHORT,
   getDayOfWeek,
+  getDaysInMonth,
   MONTH_NAMES,
-  DAY_NAMES_SHORT
+  validateShiftInput,
 } from './utils';
+import { EmployeeWishDrawer } from './WishDrawer';
+import { MobileSchedule } from './MobileSchedule';
+import { getTheme, ThemeMode } from './theme';
+import {
+  ActionButton,
+  BrandBlock,
+  BrandTitle,
+  Card,
+  Container,
+  ControlsCard,
+  ControlsRow,
+  DepartmentBadge,
+  DepartmentCard,
+  DepartmentGrid,
+  DepartmentMeta,
+  DepartmentName,
+  DepartmentPanel,
+  DepartmentRowCell,
+  DepartmentRowInner,
+  Divider,
+  EmployeeCell,
+  EmployeeCellInner,
+  EmployeeNameText,
+  EmployeeRow,
+  ErrorCard,
+  Footer,
+  HeaderActions,
+  HeaderCard,
+  HeaderCell,
+  HeaderLeft,
+  HeaderRow,
+  HelpCard,
+  HelpGrid,
+  IconButton,
+  Legend,
+  MetricCell,
+  MonthLabel,
+  Muted,
+  Page,
+  PanelTitle,
+  PanelTitleRow,
+  RowIconButton,
+  ScheduleTable,
+  Select,
+  ShiftCell,
+  ShiftDisplay,
+  ShiftInput,
+  StickyHeaderCell,
+  StickyTotalCell,
+  TableHeadRow,
+  TableScroll,
+  TableShell,
+  TextInput,
+  ThemeButton,
+  TinyText,
+  TotalCell,
+  TotalRow,
+  WishCount,
+  DragHandle,
+  DesktopScheduleOnly,
+} from './styles';
 
 function generateId(): string {
-  return Math.random().toString(36).substr(2, 9);
+  return Math.random().toString(36).slice(2, 11);
 }
 
+function getPeriodKey(year: number, month: number): string {
+  return year + '-' + String(month + 1).padStart(2, '0');
+}
+
+const DEFAULT_DEPARTMENT_ID = 'front-office';
+
+const DEFAULT_DEPARTMENTS: Department[] = [
+  { id: DEFAULT_DEPARTMENT_ID, name: 'Front Office', kind: 'general' },
+];
+
 const DEFAULT_EMPLOYEES: Employee[] = [
-  { id: '1', name: 'Иванова А.М.' },
-  { id: '2', name: 'Петров С.В.' },
-  { id: '3', name: 'Сидорова Е.К.' },
-  { id: '4', name: 'Козлов Д.И.' },
+  { id: '1', name: 'Иванова А.М.', departmentId: DEFAULT_DEPARTMENT_ID },
+  { id: '2', name: 'Петров С.В.', departmentId: DEFAULT_DEPARTMENT_ID },
+  { id: '3', name: 'Сидорова Е.К.', departmentId: DEFAULT_DEPARTMENT_ID },
+  { id: '4', name: 'Козлов Д.И.', departmentId: DEFAULT_DEPARTMENT_ID },
 ];
 
 const STORAGE_KEY = 'hotel-shift-planner';
+const THEME_KEY = 'hotel-shift-planner-theme';
 
-function loadFromStorage(): { employees: Employee[]; schedule: ScheduleData } | null {
-  try {
-    const data = localStorage.getItem(STORAGE_KEY);
-    if (data) return JSON.parse(data);
-  } catch { /* ignore */ }
-  return null;
+interface StoredData {
+  employees?: Array<Employee | Omit<Employee, 'departmentId'>>;
+  departments?: Department[];
+  schedule?: ScheduleData;
+  schedules?: SchedulePeriodsData;
+  wishes?: EmployeeWishesData;
 }
 
-function saveToStorage(employees: Employee[], schedule: ScheduleData) {
+interface LoadedData {
+  employees: Employee[];
+  departments: Department[];
+  schedules: SchedulePeriodsData;
+  wishes: EmployeeWishesData;
+}
+
+function loadFromStorage(initialPeriodKey: string): LoadedData | null {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ employees, schedule }));
-  } catch { /* ignore */ }
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+
+    const data = JSON.parse(raw) as StoredData;
+    const departments =
+      Array.isArray(data.departments) && data.departments.length > 0
+        ? data.departments
+        : DEFAULT_DEPARTMENTS;
+
+    const fallbackDepartmentId = departments[0].id;
+    const employees = Array.isArray(data.employees)
+      ? data.employees.map((employee) => ({
+          ...employee,
+          departmentId:
+            'departmentId' in employee && employee.departmentId
+              ? employee.departmentId
+              : fallbackDepartmentId,
+        }))
+      : DEFAULT_EMPLOYEES;
+
+    const schedules =
+      data.schedules ||
+      (data.schedule ? { [initialPeriodKey]: data.schedule } : {});
+
+    return {
+      employees,
+      departments,
+      schedules,
+      wishes: data.wishes || {},
+    };
+  } catch {
+    return null;
+  }
+}
+
+function saveToStorage(
+  employees: Employee[],
+  departments: Department[],
+  schedules: SchedulePeriodsData,
+  wishes: EmployeeWishesData
+) {
+  try {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ employees, departments, schedules, wishes })
+    );
+  } catch {
+    // Browser storage may be unavailable.
+  }
+}
+
+function loadThemeMode(): ThemeMode {
+  try {
+    const stored = localStorage.getItem(THEME_KEY);
+    if (stored === 'light' || stored === 'dark') return stored;
+  } catch {
+    // ignore
+  }
+
+  if (
+    typeof window !== 'undefined' &&
+    window.matchMedia &&
+    window.matchMedia('(prefers-color-scheme: dark)').matches
+  ) {
+    return 'dark';
+  }
+
+  return 'light';
+}
+
+function departmentKindLabel(kind: DepartmentKind): string {
+  if (kind === 'fo') return 'FO';
+  if (kind === 'night') return 'Night';
+  return 'Отдел';
 }
 
 function App() {
-  const now = new Date();
-  const [year, setYear] = useState(now.getFullYear());
-  const [month, setMonth] = useState(now.getMonth());
-  
-  const stored = useMemo(() => loadFromStorage(), []);
-  const [employees, setEmployees] = useState<Employee[]>(stored?.employees || DEFAULT_EMPLOYEES);
-  const [schedule, setSchedule] = useState<ScheduleData>(stored?.schedule || {});
-  const [newEmployeeName, setNewEmployeeName] = useState('');
-  const [editingCell, setEditingCell] = useState<{ empId: string; day: number } | null>(null);
-  const [showHelp, setShowHelp] = useState(false);
+  const initialNow = useMemo(() => new Date(), []);
+  const initialPeriodKey = getPeriodKey(
+    initialNow.getFullYear(),
+    initialNow.getMonth()
+  );
+  const stored = useMemo(() => loadFromStorage(initialPeriodKey), [initialPeriodKey]);
 
+  const [year, setYear] = useState(initialNow.getFullYear());
+  const [month, setMonth] = useState(initialNow.getMonth());
+  const [themeMode, setThemeMode] = useState<ThemeMode>(loadThemeMode);
+
+  const [departments, setDepartments] = useState<Department[]>(
+    stored?.departments || DEFAULT_DEPARTMENTS
+  );
+  const [employees, setEmployees] = useState<Employee[]>(
+    stored?.employees || DEFAULT_EMPLOYEES
+  );
+  const [schedules, setSchedules] = useState<SchedulePeriodsData>(
+    stored?.schedules || {}
+  );
+  const [wishes, setWishes] = useState<EmployeeWishesData>(
+    stored?.wishes || {}
+  );
+
+  const [newEmployeeName, setNewEmployeeName] = useState('');
+  const [newEmployeeDepartmentId, setNewEmployeeDepartmentId] = useState(
+    (stored?.departments || DEFAULT_DEPARTMENTS)[0].id
+  );
+  const [newDepartmentName, setNewDepartmentName] = useState('');
+  const [newDepartmentKind, setNewDepartmentKind] =
+    useState<DepartmentKind>('general');
+  const [editingCell, setEditingCell] = useState<{
+    empId: string;
+    day: number;
+  } | null>(null);
+  const [showHelp, setShowHelp] = useState(false);
+  const [showDepartments, setShowDepartments] = useState(false);
+  const [wishEmployeeId, setWishEmployeeId] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 760px)').matches
+  );
+
+  const theme = useMemo(() => getTheme(themeMode), [themeMode]);
+  const periodKey = getPeriodKey(year, month);
+  const schedule = schedules[periodKey] || {};
   const daysInMonth = getDaysInMonth(year, month);
 
-  // Save to localStorage whenever data changes
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 6 },
+    })
+  );
+
   useEffect(() => {
-    saveToStorage(employees, schedule);
-  }, [employees, schedule]);
+    saveToStorage(employees, departments, schedules, wishes);
+  }, [employees, departments, schedules, wishes]);
 
-  // Get or create entry for a cell
-  const getEntry = useCallback((empId: string, day: number): ShiftEntry => {
-    return schedule[empId]?.[day] || { type: 'empty' };
-  }, [schedule]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(THEME_KEY, themeMode);
+    } catch {
+      // ignore
+    }
+  }, [themeMode]);
 
-  // Update a cell
-  const updateCell = useCallback((empId: string, day: number, value: string) => {
-    const entry = validateShiftInput(value);
-    setSchedule(prev => ({
-      ...prev,
-      [empId]: {
-        ...(prev[empId] || {}),
-        [day]: entry
-      }
-    }));
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 760px)');
+    const handleChange = (event: MediaQueryListEvent) => setIsMobile(event.matches);
+
+    setIsMobile(media.matches);
+    media.addEventListener('change', handleChange);
+
+    return () => media.removeEventListener('change', handleChange);
   }, []);
 
-  // Calculate totals for an employee
-  const getEmployeeTotals = useCallback((empId: string) => {
-    let totalDay = 0;
-    let totalNight = 0;
-    let totalHours = 0;
-    let workDays = 0;
-
-    for (let day = 1; day <= daysInMonth; day++) {
-      const entry = getEntry(empId, day);
-      if (entry.type === 'shift') {
-        const hours = calculateShiftHours(entry);
-        totalDay += hours.day;
-        totalNight += hours.night;
-        totalHours += hours.total;
-        workDays++;
-      }
+  useEffect(() => {
+    if (!departments.some((department) => department.id === newEmployeeDepartmentId)) {
+      setNewEmployeeDepartmentId(departments[0]?.id || '');
     }
+  }, [departments, newEmployeeDepartmentId]);
 
-    return {
-      day: Math.round(totalDay * 100) / 100,
-      night: Math.round(totalNight * 100) / 100,
-      total: Math.round(totalHours * 100) / 100,
-      workDays
-    };
-  }, [daysInMonth, getEntry]);
+  const updateCurrentSchedule = useCallback(
+    (updater: (current: ScheduleData) => ScheduleData) => {
+      setSchedules((prev) => ({
+        ...prev,
+        [periodKey]: updater(prev[periodKey] || {}),
+      }));
+    },
+    [periodKey]
+  );
 
-  // Add employee
+  const getEntry = useCallback(
+    (empId: string, day: number): ShiftEntry => {
+      return schedule[empId]?.[day] || { type: 'empty' };
+    },
+    [schedule]
+  );
+
+  const updateCell = useCallback(
+    (empId: string, day: number, value: string) => {
+      const entry = validateShiftInput(value);
+      updateCurrentSchedule((current) => ({
+        ...current,
+        [empId]: {
+          ...(current[empId] || {}),
+          [day]: entry,
+        },
+      }));
+    },
+    [updateCurrentSchedule]
+  );
+
+  const getEmployeeTotals = useCallback(
+    (empId: string) => {
+      let totalDay = 0;
+      let totalNight = 0;
+      let totalHours = 0;
+      let workDays = 0;
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        const entry = getEntry(empId, day);
+        if (entry.type === 'shift') {
+          const hours = calculateShiftHours(entry);
+          totalDay += hours.day;
+          totalNight += hours.night;
+          totalHours += hours.total;
+          workDays++;
+        }
+      }
+
+      return {
+        day: Math.round(totalDay * 100) / 100,
+        night: Math.round(totalNight * 100) / 100,
+        total: Math.round(totalHours * 100) / 100,
+        workDays,
+      };
+    },
+    [daysInMonth, getEntry]
+  );
+
   const addEmployee = () => {
-    if (!newEmployeeName.trim()) return;
-    setEmployees(prev => [...prev, { id: generateId(), name: newEmployeeName.trim() }]);
+    const name = newEmployeeName.trim();
+    if (!name || !newEmployeeDepartmentId) return;
+
+    setEmployees((prev) => [
+      ...prev,
+      {
+        id: generateId(),
+        name,
+        departmentId: newEmployeeDepartmentId,
+      },
+    ]);
     setNewEmployeeName('');
   };
 
-  // Remove employee
   const removeEmployee = (id: string) => {
-    if (!confirm('Удалить сотрудника и все его смены?')) return;
-    setEmployees(prev => prev.filter(e => e.id !== id));
-    setSchedule(prev => {
+    if (!confirm('Удалить сотрудника, его смены и пожелания?')) return;
+
+    setEmployees((prev) => prev.filter((employee) => employee.id !== id));
+    setSchedules((prev) => {
+      const next: SchedulePeriodsData = {};
+      Object.entries(prev).forEach(([key, periodSchedule]) => {
+        const periodNext = { ...periodSchedule };
+        delete periodNext[id];
+        next[key] = periodNext;
+      });
+      return next;
+    });
+    setWishes((prev) => {
       const next = { ...prev };
       delete next[id];
       return next;
     });
+
+    if (wishEmployeeId === id) setWishEmployeeId(null);
   };
 
-  // Navigate months
-  const prevMonth = () => {
-    if (month === 0) { setMonth(11); setYear(y => y - 1); }
-    else setMonth(m => m - 1);
-  };
-  const nextMonth = () => {
-    if (month === 11) { setMonth(0); setYear(y => y + 1); }
-    else setMonth(m => m + 1);
+  const addDepartment = () => {
+    const name = newDepartmentName.trim();
+    if (!name) return;
+
+    const department: Department = {
+      id: generateId(),
+      name,
+      kind: newDepartmentKind,
+    };
+
+    setDepartments((prev) => [...prev, department]);
+    setNewEmployeeDepartmentId(department.id);
+    setNewDepartmentName('');
+    setNewDepartmentKind('general');
   };
 
-  // Cell display value
-  const getDisplayValue = (entry: ShiftEntry): string => {
-    if (entry.type === 'shift' && entry.shift) return `${entry.shift.start}-${entry.shift.end}`;
-    if (entry.type === 'off') return 'OFF';
-    return '';
+  const renameDepartment = (department: Department) => {
+    const nextName = prompt('Новое название отдела', department.name)?.trim();
+    if (!nextName || nextName === department.name) return;
+
+    setDepartments((prev) =>
+      prev.map((item) =>
+        item.id === department.id ? { ...item, name: nextName } : item
+      )
+    );
   };
 
-  // Grand totals
-  const grandTotals = useMemo(() => {
-    let day = 0, night = 0, total = 0;
-    employees.forEach(emp => {
-      const t = getEmployeeTotals(emp.id);
-      day += t.day;
-      night += t.night;
-      total += t.total;
-    });
-    return { day: Math.round(day * 100) / 100, night: Math.round(night * 100) / 100, total: Math.round(total * 100) / 100 };
-  }, [employees, getEmployeeTotals]);
+  const changeDepartmentKind = (
+    departmentId: string,
+    kind: DepartmentKind
+  ) => {
+    setDepartments((prev) =>
+      prev.map((department) =>
+        department.id === departmentId ? { ...department, kind } : department
+      )
+    );
+  };
 
-  // Quick fill: set all empty cells to OFF
-  const fillOffAll = () => {
-    if (!confirm('Заполнить все пустые ячейки как OFF (выходной)?')) return;
-    setSchedule(prev => {
-      const next = { ...prev };
-      employees.forEach(emp => {
-        if (!next[emp.id]) next[emp.id] = {};
-        for (let day = 1; day <= daysInMonth; day++) {
-          if (!next[emp.id][day] || next[emp.id][day].type === 'empty') {
-            next[emp.id] = { ...next[emp.id], [day]: { type: 'off' } };
-          }
+  const removeDepartment = (departmentId: string) => {
+    if (departments.length === 1) {
+      alert('Должен остаться хотя бы один отдел.');
+      return;
+    }
+
+    if (employees.some((employee) => employee.departmentId === departmentId)) {
+      alert('Сначала перенесите сотрудников в другой отдел.');
+      return;
+    }
+
+    if (!confirm('Удалить пустой отдел?')) return;
+
+    setDepartments((prev) =>
+      prev.filter((department) => department.id !== departmentId)
+    );
+  };
+
+  const handleDragEnd = ({ active, over }: DragEndEvent) => {
+    if (!over) return;
+
+    const activeRaw = String(active.id);
+    const overRaw = String(over.id);
+    if (!activeRaw.startsWith('emp:')) return;
+
+    const activeEmployeeId = activeRaw.slice(4);
+    const overEmployeeId = overRaw.startsWith('emp:') ? overRaw.slice(4) : null;
+    const targetDepartmentId = overRaw.startsWith('dep:')
+      ? overRaw.slice(4)
+      : overEmployeeId
+        ? employees.find((employee) => employee.id === overEmployeeId)?.departmentId
+        : undefined;
+
+    if (!targetDepartmentId) return;
+
+    setEmployees((prev) => {
+      const sourceIndex = prev.findIndex(
+        (employee) => employee.id === activeEmployeeId
+      );
+      if (sourceIndex === -1) return prev;
+
+      const moved: Employee = {
+        ...prev[sourceIndex],
+        departmentId: targetDepartmentId,
+      };
+
+      const next = prev.filter(
+        (employee) => employee.id !== activeEmployeeId
+      );
+
+      if (overEmployeeId && overEmployeeId !== activeEmployeeId) {
+        const overIndex = next.findIndex(
+          (employee) => employee.id === overEmployeeId
+        );
+        if (overIndex >= 0) {
+          next.splice(overIndex, 0, moved);
+          return next;
         }
-      });
+      }
+
+      let insertIndex = -1;
+      for (let index = next.length - 1; index >= 0; index--) {
+        if (next[index].departmentId === targetDepartmentId) {
+          insertIndex = index + 1;
+          break;
+        }
+      }
+
+      if (insertIndex === -1) {
+        const departmentIndex = departments.findIndex(
+          (department) => department.id === targetDepartmentId
+        );
+        const laterDepartmentIds = new Set(
+          departments
+            .slice(departmentIndex + 1)
+            .map((department) => department.id)
+        );
+
+        insertIndex = next.findIndex((employee) =>
+          laterDepartmentIds.has(employee.departmentId)
+        );
+
+        if (insertIndex === -1) insertIndex = next.length;
+      }
+
+      next.splice(insertIndex, 0, moved);
       return next;
     });
   };
 
-  // Clear all
-  const clearAll = () => {
-    if (!confirm('Очистить все смены за текущий месяц?')) return;
-    setSchedule({});
+  const addWish = (employeeId: string, wish: Omit<EmployeeWish, 'id'>) => {
+    setWishes((prev) => ({
+      ...prev,
+      [employeeId]: {
+        ...(prev[employeeId] || {}),
+        [periodKey]: [
+          ...(prev[employeeId]?.[periodKey] || []),
+          { ...wish, id: generateId() },
+        ],
+      },
+    }));
   };
 
+  const removeWish = (employeeId: string, wishId: string) => {
+    setWishes((prev) => ({
+      ...prev,
+      [employeeId]: {
+        ...(prev[employeeId] || {}),
+        [periodKey]: (prev[employeeId]?.[periodKey] || []).filter(
+          (wish) => wish.id !== wishId
+        ),
+      },
+    }));
+  };
+
+  const prevMonth = () => {
+    if (month === 0) {
+      setMonth(11);
+      setYear((value) => value - 1);
+    } else {
+      setMonth((value) => value - 1);
+    }
+  };
+
+  const nextMonth = () => {
+    if (month === 11) {
+      setMonth(0);
+      setYear((value) => value + 1);
+    } else {
+      setMonth((value) => value + 1);
+    }
+  };
+
+  const getDisplayValue = (entry: ShiftEntry): string => {
+    if (entry.type === 'shift' && entry.shift) {
+      return entry.shift.start + '-' + entry.shift.end;
+    }
+
+    if (entry.type === 'off') return 'OFF';
+    return '';
+  };
+
+  const grandTotals = useMemo(() => {
+    let day = 0;
+    let night = 0;
+    let total = 0;
+
+    employees.forEach((employee) => {
+      const employeeTotals = getEmployeeTotals(employee.id);
+      day += employeeTotals.day;
+      night += employeeTotals.night;
+      total += employeeTotals.total;
+    });
+
+    return {
+      day: Math.round(day * 100) / 100,
+      night: Math.round(night * 100) / 100,
+      total: Math.round(total * 100) / 100,
+    };
+  }, [employees, getEmployeeTotals]);
+
+  const fillOffAll = () => {
+    if (!confirm('Заполнить все пустые ячейки текущего месяца как OFF?')) return;
+
+    updateCurrentSchedule((current) => {
+      const next = { ...current };
+
+      employees.forEach((employee) => {
+        let employeeSchedule = { ...(next[employee.id] || {}) };
+
+        for (let day = 1; day <= daysInMonth; day++) {
+          if (!employeeSchedule[day] || employeeSchedule[day].type === 'empty') {
+            employeeSchedule = {
+              ...employeeSchedule,
+              [day]: { type: 'off' },
+            };
+          }
+        }
+
+        next[employee.id] = employeeSchedule;
+      });
+
+      return next;
+    });
+  };
+
+  const clearAll = () => {
+    if (!confirm('Очистить все смены за текущий месяц?')) return;
+    setSchedules((prev) => ({ ...prev, [periodKey]: {} }));
+  };
+
+  const selectedWishEmployee =
+    wishEmployeeId === null
+      ? null
+      : employees.find((employee) => employee.id === wishEmployeeId) || null;
+
+  const columnCount = daysInMonth + 5;
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-3 md:p-6">
-      <div className="max-w-full mx-auto">
-        {/* Header */}
-        <div className="bg-white/90 backdrop-blur rounded-2xl shadow-lg p-4 md:p-6 mb-4 md:mb-6">
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div>
-              <h1 className="text-xl md:text-2xl font-bold text-gray-800 flex items-center gap-2">
-                <span className="text-2xl md:text-3xl">🏨</span>
-                <span>Планировщик смен</span>
-              </h1>
-              <p className="text-gray-500 text-xs md:text-sm mt-1">Расписание сотрудников отеля • Приватный доступ</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <button onClick={prevMonth} className="p-2 hover:bg-gray-100 rounded-lg transition-colors" title="Предыдущий месяц">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-              <span className="text-base md:text-lg font-semibold text-gray-700 min-w-[160px] text-center select-none">
-                {MONTH_NAMES[month]} {year}
-              </span>
-              <button onClick={nextMonth} className="p-2 hover:bg-gray-100 rounded-lg transition-colors" title="Следующий месяц">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-              <button
-                onClick={() => setShowHelp(!showHelp)}
-                className="ml-2 p-2 hover:bg-blue-50 rounded-lg transition-colors text-blue-500"
-                title="Справка"
+    <ThemeProvider theme={theme}>
+      <Global
+        styles={(activeTheme) => ({
+          '*': { boxSizing: 'border-box' },
+          html: { colorScheme: activeTheme.mode },
+          body: {
+            margin: 0,
+            minWidth: 320,
+            fontFamily:
+              'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+            background: activeTheme.colors.background,
+            color: activeTheme.colors.text,
+          },
+          button: { fontFamily: 'inherit' },
+          input: { fontFamily: 'inherit' },
+          select: { fontFamily: 'inherit' },
+          textarea: { fontFamily: 'inherit' },
+        })}
+      />
+
+      <Page>
+        <Container>
+          <HeaderCard>
+            <HeaderRow>
+              <HeaderLeft>
+                <ThemeButton
+                  type="button"
+                  onClick={() =>
+                    setThemeMode((value) =>
+                      value === 'light' ? 'dark' : 'light'
+                    )
+                  }
+                  title={
+                    themeMode === 'light'
+                      ? 'Включить тёмную тему'
+                      : 'Включить светлую тему'
+                  }
+                >
+                  {themeMode === 'light' ? <Moon size={19} /> : <Sun size={19} />}
+                </ThemeButton>
+
+                <BrandBlock>
+                  <BrandTitle>🏨 Планировщик смен</BrandTitle>
+                  <Muted>
+                    Расписание сотрудников отеля • Отделы • Drag & Drop • Пожелания
+                  </Muted>
+                </BrandBlock>
+              </HeaderLeft>
+
+              <HeaderActions>
+                <IconButton
+                  type="button"
+                  onClick={prevMonth}
+                  title="Предыдущий месяц"
+                >
+                  <ChevronLeft size={19} />
+                </IconButton>
+
+                <MonthLabel>
+                  {MONTH_NAMES[month]} {year}
+                </MonthLabel>
+
+                <IconButton
+                  type="button"
+                  onClick={nextMonth}
+                  title="Следующий месяц"
+                >
+                  <ChevronRight size={19} />
+                </IconButton>
+
+                <IconButton
+                  type="button"
+                  onClick={() => setShowHelp((value) => !value)}
+                  title="Справка"
+                >
+                  <Info size={18} />
+                </IconButton>
+              </HeaderActions>
+            </HeaderRow>
+          </HeaderCard>
+
+          {showHelp && (
+            <HelpCard>
+              <PanelTitleRow>
+                <div>
+                  <PanelTitle>Как пользоваться</PanelTitle>
+                  <Muted>
+                    Смены сохраняются отдельно для каждого месяца. Пожелания тоже
+                    привязаны к выбранному месяцу.
+                  </Muted>
+                </div>
+                <IconButton type="button" onClick={() => setShowHelp(false)}>
+                  ×
+                </IconButton>
+              </PanelTitleRow>
+
+              <HelpGrid>
+                <div>
+                  <TinyText>Смена: 08:00-16:00</TinyText>
+                  <TinyText>Выходной: OFF</TinyText>
+                  <TinyText>Ночная: 22:00-06:00</TinyText>
+                </div>
+                <div>
+                  <TinyText>⋮⋮ — перетащить сотрудника.</TinyText>
+                  <TinyText>💬 — открыть пожелания сотрудника.</TinyText>
+                  <TinyText>Можно переносить людей между отделами.</TinyText>
+                </div>
+              </HelpGrid>
+            </HelpCard>
+          )}
+
+          <ControlsCard>
+            <ControlsRow>
+              <TextInput
+                type="text"
+                value={newEmployeeName}
+                onChange={(event) => setNewEmployeeName(event.target.value)}
+                onKeyDown={(event) => event.key === 'Enter' && addEmployee()}
+                placeholder="ФИО нового сотрудника..."
+              />
+
+              <Select
+                value={newEmployeeDepartmentId}
+                onChange={(event) =>
+                  setNewEmployeeDepartmentId(event.target.value)
+                }
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </button>
-            </div>
-          </div>
-        </div>
+                {departments.map((department) => (
+                  <option key={department.id} value={department.id}>
+                    {department.name}
+                  </option>
+                ))}
+              </Select>
 
-        {/* Help panel */}
-        {showHelp && (
-          <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 mb-4 md:mb-6 animate-fade-in">
-            <div className="flex justify-between items-start">
-              <h3 className="font-semibold text-blue-800 mb-2">📋 Как пользоваться:</h3>
-              <button onClick={() => setShowHelp(false)} className="text-blue-400 hover:text-blue-600">✕</button>
-            </div>
-            <div className="grid md:grid-cols-2 gap-4 text-sm text-blue-700">
-              <div>
-                <p className="font-medium mb-1">Формат ввода:</p>
-                <ul className="space-y-1">
-                  <li>• Смена: <code className="bg-blue-100 px-1.5 py-0.5 rounded font-mono">08:00-16:00</code></li>
-                  <li>• Выходной: <code className="bg-blue-100 px-1.5 py-0.5 rounded font-mono">OFF</code></li>
-                  <li>• Ночная смена: <code className="bg-blue-100 px-1.5 py-0.5 rounded font-mono">22:00-06:00</code></li>
-                  <li>• Пустое поле — не заполнено</li>
-                </ul>
-              </div>
-              <div>
-                <p className="font-medium mb-1">Расчёт часов:</p>
-                <ul className="space-y-1">
-                  <li>☀️ Дневные: 06:00 – 22:00</li>
-                  <li>🌙 Ночные: 22:00 – 06:00</li>
-                  <li>• Ошибки подсвечиваются красным</li>
-                  <li>• Данные сохраняются автоматически</li>
-                </ul>
-              </div>
-            </div>
-          </div>
-        )}
+              <ActionButton type="button" $variant="primary" onClick={addEmployee}>
+                <Plus size={16} />
+                Сотрудник
+              </ActionButton>
 
-        {/* Controls */}
-        <div className="bg-white/90 backdrop-blur rounded-2xl shadow-lg p-3 md:p-4 mb-4 md:mb-6">
-          <div className="flex items-center gap-2 md:gap-3 flex-wrap">
-            <input
-              type="text"
-              value={newEmployeeName}
-              onChange={e => setNewEmployeeName(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && addEmployee()}
-              placeholder="ФИО нового сотрудника..."
-              className="px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 flex-1 min-w-[180px] text-sm"
-            />
-            <button
-              onClick={addEmployee}
-              className="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium text-sm whitespace-nowrap"
-            >
-              + Сотрудник
-            </button>
-            <div className="h-6 w-px bg-gray-200 hidden md:block"></div>
-            <button
-              onClick={fillOffAll}
-              className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm whitespace-nowrap"
-              title="Заполнить пустые ячейки как выходные"
-            >
-              📋 OFF все
-            </button>
-            <button
-              onClick={clearAll}
-              className="px-3 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm whitespace-nowrap"
-            >
-              🗑 Очистить
-            </button>
-          </div>
-        </div>
+              <ActionButton
+                type="button"
+                $variant="accent"
+                onClick={() => setShowDepartments((value) => !value)}
+              >
+                <Layers3 size={16} />
+                Отделы
+              </ActionButton>
 
-        {/* Schedule Table */}
-        <div className="bg-white/90 backdrop-blur rounded-2xl shadow-lg overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-xs md:text-sm">
-              <thead>
-                <tr className="bg-gradient-to-r from-gray-800 to-gray-700 text-white">
-                  <th className="sticky left-0 bg-gray-800 z-10 px-2 md:px-3 py-2 text-left font-medium min-w-[140px] md:min-w-[170px] border-r border-gray-600">
-                    Сотрудник
-                  </th>
-                  {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
-                    const dow = getDayOfWeek(year, month, day);
-                    const isWeekend = dow === 0 || dow === 6;
-                    return (
-                      <th
-                        key={day}
-                        className={`px-0.5 py-1 text-center font-medium min-w-[52px] md:min-w-[60px] ${
-                          isWeekend ? 'bg-red-900/30' : ''
-                        }`}
-                      >
-                        <div className="text-[10px] opacity-60">{DAY_NAMES_SHORT[dow]}</div>
-                        <div className="text-xs md:text-sm">{day}</div>
-                      </th>
-                    );
-                  })}
-                  <th className="px-1 md:px-2 py-2 text-center font-medium bg-emerald-800/50 min-w-[55px] md:min-w-[65px] border-l border-gray-600">
-                    <div className="text-[10px] opacity-70">☀️</div>
-                    <div>Днев.</div>
-                  </th>
-                  <th className="px-1 md:px-2 py-2 text-center font-medium bg-indigo-800/50 min-w-[55px] md:min-w-[65px]">
-                    <div className="text-[10px] opacity-70">🌙</div>
-                    <div>Ночн.</div>
-                  </th>
-                  <th className="px-1 md:px-2 py-2 text-center font-medium bg-blue-800/50 min-w-[55px] md:min-w-[65px]">
-                    <div className="text-[10px] opacity-70">Σ</div>
-                    <div>Итого</div>
-                  </th>
-                  <th className="px-1 md:px-2 py-2 text-center font-medium min-w-[40px] md:min-w-[50px]">
-                    <div className="text-[10px] opacity-70">📅</div>
-                    <div>Дней</div>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {employees.map((emp, idx) => {
-                  const totals = getEmployeeTotals(emp.id);
+              <Divider />
+
+              <ActionButton type="button" onClick={fillOffAll}>
+                OFF все
+              </ActionButton>
+
+              <ActionButton type="button" $variant="danger" onClick={clearAll}>
+                <Trash2 size={15} />
+                Очистить месяц
+              </ActionButton>
+            </ControlsRow>
+          </ControlsCard>
+
+          {showDepartments && (
+            <DepartmentPanel>
+              <PanelTitleRow>
+                <div>
+                  <PanelTitle>Отделы сотрудников</PanelTitle>
+                  <Muted>
+                    Создавайте отделы и переносите сотрудников между ними прямо
+                    в таблице.
+                  </Muted>
+                </div>
+
+                <ControlsRow>
+                  <TextInput
+                    value={newDepartmentName}
+                    onChange={(event) => setNewDepartmentName(event.target.value)}
+                    onKeyDown={(event) =>
+                      event.key === 'Enter' && addDepartment()
+                    }
+                    placeholder="Название отдела"
+                    style={{ flex: '0 1 220px' }}
+                  />
+
+                  <Select
+                    value={newDepartmentKind}
+                    onChange={(event) =>
+                      setNewDepartmentKind(
+                        event.target.value as DepartmentKind
+                      )
+                    }
+                  >
+                    <option value="general">Обычный</option>
+                    <option value="fo">FO Agents</option>
+                    <option value="night">Night Agents</option>
+                  </Select>
+
+                  <ActionButton
+                    type="button"
+                    $variant="accent"
+                    onClick={addDepartment}
+                  >
+                    <Plus size={15} />
+                    Отдел
+                  </ActionButton>
+                </ControlsRow>
+              </PanelTitleRow>
+
+              <DepartmentGrid>
+                {departments.map((department) => {
+                  const employeeCount = employees.filter(
+                    (employee) => employee.departmentId === department.id
+                  ).length;
+
                   return (
-                    <tr key={emp.id} className={`${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'} hover:bg-blue-50/30 transition-colors`}>
-                      <td className="sticky left-0 z-10 px-2 md:px-3 py-1.5 border-b border-r border-gray-200 font-medium bg-inherit backdrop-blur-sm">
-                        <div className="flex items-center justify-between gap-1">
-                          <span className="truncate text-xs md:text-sm">{emp.name}</span>
-                          <button
-                            onClick={() => removeEmployee(emp.id)}
-                            className="text-red-300 hover:text-red-500 text-xs flex-shrink-0 w-4 h-4 flex items-center justify-center rounded hover:bg-red-50"
-                            title="Удалить"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      </td>
-                      {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
-                        const entry = getEntry(emp.id, day);
-                        const dow = getDayOfWeek(year, month, day);
-                        const isWeekend = dow === 0 || dow === 6;
-                        const isEditing = editingCell?.empId === emp.id && editingCell?.day === day;
+                    <DepartmentCard key={department.id}>
+                      <DepartmentMeta>
+                        <DepartmentName>{department.name}</DepartmentName>
+                        <TinyText>{employeeCount} сотрудников</TinyText>
+                      </DepartmentMeta>
 
-                        let cellBg = '';
-                        if (entry.type === 'error') cellBg = 'bg-red-100';
-                        else if (entry.type === 'off') cellBg = 'bg-gray-100';
-                        else if (entry.type === 'shift') {
-                          // Check if it's a night shift
-                          const hours = calculateShiftHours(entry);
-                          if (hours.night > 0 && hours.day === 0) cellBg = 'bg-indigo-50';
-                          else if (hours.night > 0) cellBg = 'bg-amber-50';
-                          else cellBg = 'bg-emerald-50';
+                      <Select
+                        value={department.kind}
+                        onChange={(event) =>
+                          changeDepartmentKind(
+                            department.id,
+                            event.target.value as DepartmentKind
+                          )
                         }
+                        style={{ minHeight: 32, padding: '0 8px' }}
+                      >
+                        <option value="general">Отдел</option>
+                        <option value="fo">FO</option>
+                        <option value="night">Night</option>
+                      </Select>
 
-                        return (
-                          <td
-                            key={day}
-                            className={`px-px py-px border-b border-r border-gray-100 text-center ${
-                              isWeekend && entry.type === 'empty' ? 'bg-red-50/30' : ''
-                            } ${cellBg}`}
-                            onClick={() => setEditingCell({ empId: emp.id, day })}
-                          >
-                            {isEditing ? (
-                              <input
-                                type="text"
-                                defaultValue={getDisplayValue(entry)}
-                                autoFocus
-                                className="w-full px-1 py-0.5 text-center text-xs border border-blue-400 rounded-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
-                                onBlur={(e) => {
-                                  updateCell(emp.id, day, e.target.value);
-                                  setEditingCell(null);
-                                }}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    updateCell(emp.id, day, (e.target as HTMLInputElement).value);
-                                    setEditingCell(null);
-                                  }
-                                  if (e.key === 'Escape') {
-                                    setEditingCell(null);
-                                  }
-                                  // Tab to next cell
-                                  if (e.key === 'Tab') {
-                                    e.preventDefault();
-                                    updateCell(emp.id, day, (e.target as HTMLInputElement).value);
-                                    if (day < daysInMonth) {
-                                      setEditingCell({ empId: emp.id, day: day + 1 });
-                                    }
-                                  }
-                                }}
-                              />
-                            ) : (
-                              <div
-                                className={`px-0.5 py-0.5 text-[10px] md:text-xs rounded-sm cursor-pointer min-h-[22px] flex items-center justify-center transition-all ${
-                                  entry.type === 'error' ? 'text-red-600 font-bold' :
-                                  entry.type === 'off' ? 'text-gray-400 font-medium' :
-                                  entry.type === 'shift' ? 'text-gray-700 font-semibold' :
-                                  'text-gray-200 hover:text-gray-400'
-                                }`}
-                                title={entry.type === 'error' ? entry.error : entry.type === 'shift' && entry.shift ? `${entry.shift.start}-${entry.shift.end}` : ''}
-                              >
-                                {entry.type === 'empty' ? '·' :
-                                 entry.type === 'off' ? 'OFF' :
-                                 entry.type === 'shift' && entry.shift ? `${entry.shift.start.slice(0,2)}-${entry.shift.end.slice(0,2)}` :
-                                 '⚠️'}
-                              </div>
-                            )}
-                          </td>
-                        );
-                      })}
-                      <td className="px-1 md:px-2 py-1.5 border-b border-r border-gray-200 text-center font-semibold text-emerald-700 bg-emerald-50/50">
-                        {totals.day}
-                      </td>
-                      <td className="px-1 md:px-2 py-1.5 border-b border-r border-gray-200 text-center font-semibold text-indigo-700 bg-indigo-50/50">
-                        {totals.night}
-                      </td>
-                      <td className="px-1 md:px-2 py-1.5 border-b border-r border-gray-200 text-center font-bold text-blue-700 bg-blue-50/50">
-                        {totals.total}
-                      </td>
-                      <td className="px-1 md:px-2 py-1.5 border-b border-gray-200 text-center text-gray-500 text-xs">
-                        {totals.workDays}
-                      </td>
-                    </tr>
+                      <RowIconButton
+                        type="button"
+                        onClick={() => renameDepartment(department)}
+                        title="Переименовать"
+                      >
+                        <Pencil size={14} />
+                      </RowIconButton>
+
+                      <RowIconButton
+                        type="button"
+                        onClick={() => removeDepartment(department.id)}
+                        title="Удалить пустой отдел"
+                      >
+                        <Trash2 size={14} />
+                      </RowIconButton>
+                    </DepartmentCard>
                   );
                 })}
-                {/* Grand totals row */}
-                {employees.length > 0 && (
-                  <tr className="bg-gradient-to-r from-gray-100 to-gray-50 font-bold">
-                    <td className="sticky left-0 z-10 px-2 md:px-3 py-2 border-t-2 border-gray-300 bg-gray-100 text-xs md:text-sm">
-                      ИТОГО
-                    </td>
-                    {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
-                      let dayCount = 0;
-                      employees.forEach(emp => {
-                        const entry = getEntry(emp.id, day);
-                        if (entry.type === 'shift') dayCount++;
-                      });
+              </DepartmentGrid>
+            </DepartmentPanel>
+          )}
+
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            {isMobile ? (
+              <MobileSchedule
+                departments={departments}
+                employees={employees}
+                daysInMonth={daysInMonth}
+                year={year}
+                month={month}
+                getEntry={getEntry}
+                updateCell={updateCell}
+                getDisplayValue={getDisplayValue}
+                getEmployeeTotals={getEmployeeTotals}
+                removeEmployee={removeEmployee}
+                getWishCount={(employeeId) =>
+                  wishes[employeeId]?.[periodKey]?.length || 0
+                }
+                getWishSummary={(employeeId) =>
+                  (wishes[employeeId]?.[periodKey] || [])
+                    .slice(0, 3)
+                    .map((wish) =>
+                      (wish.day === null ? 'Общее' : String(wish.day)) +
+                      ': ' +
+                      wish.text
+                    )
+                    .join('\n')
+                }
+                onOpenWishes={setWishEmployeeId}
+              />
+            ) : (
+              <DesktopScheduleOnly>
+            <TableShell>
+              <TableScroll>
+                <ScheduleTable>
+                  <thead>
+                    <TableHeadRow>
+                      <StickyHeaderCell>Сотрудник</StickyHeaderCell>
+
+                      {Array.from(
+                        { length: daysInMonth },
+                        (_, index) => index + 1
+                      ).map((day) => {
+                        const dayOfWeek = getDayOfWeek(year, month, day);
+                        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
+                        return (
+                          <HeaderCell key={day} $weekend={isWeekend}>
+                            <div style={{ fontSize: 10, opacity: 0.68 }}>
+                              {DAY_NAMES_SHORT[dayOfWeek]}
+                            </div>
+                            <div>{day}</div>
+                          </HeaderCell>
+                        );
+                      })}
+
+                      <HeaderCell>☀️<br />Днев.</HeaderCell>
+                      <HeaderCell>🌙<br />Ночн.</HeaderCell>
+                      <HeaderCell>Σ<br />Итого</HeaderCell>
+                      <HeaderCell>📅<br />Дней</HeaderCell>
+                    </TableHeadRow>
+                  </thead>
+
+                  <tbody>
+                    {departments.map((department) => {
+                      const departmentEmployees = employees.filter(
+                        (employee) =>
+                          employee.departmentId === department.id
+                      );
+
                       return (
-                        <td key={day} className="px-0.5 py-1.5 border-t-2 border-gray-300 text-center text-[10px] md:text-xs text-gray-600">
-                          {dayCount > 0 ? dayCount : ''}
-                        </td>
+                        <DepartmentSection
+                          key={department.id}
+                          department={department}
+                          employees={departmentEmployees}
+                          columnCount={columnCount}
+                          daysInMonth={daysInMonth}
+                          year={year}
+                          month={month}
+                          editingCell={editingCell}
+                          setEditingCell={setEditingCell}
+                          getEntry={getEntry}
+                          updateCell={updateCell}
+                          getDisplayValue={getDisplayValue}
+                          getEmployeeTotals={getEmployeeTotals}
+                          removeEmployee={removeEmployee}
+                          getWishCount={(employeeId) =>
+                            wishes[employeeId]?.[periodKey]?.length || 0
+                          }
+                          getWishSummary={(employeeId) =>
+                            (wishes[employeeId]?.[periodKey] || [])
+                              .slice(0, 3)
+                              .map((wish) =>
+                                (wish.day === null
+                                  ? 'Общее'
+                                  : String(wish.day)) +
+                                ': ' +
+                                wish.text
+                              )
+                              .join('\n')
+                          }
+                          onOpenWishes={setWishEmployeeId}
+                        />
                       );
                     })}
-                    <td className="px-1 md:px-2 py-2 border-t-2 border-l border-gray-300 text-center text-emerald-700 text-xs md:text-sm">{grandTotals.day}</td>
-                    <td className="px-1 md:px-2 py-2 border-t-2 border-gray-300 text-center text-indigo-700 text-xs md:text-sm">{grandTotals.night}</td>
-                    <td className="px-1 md:px-2 py-2 border-t-2 border-gray-300 text-center text-blue-700 text-xs md:text-sm">{grandTotals.total}</td>
-                    <td className="px-1 md:px-2 py-2 border-t-2 border-gray-300 text-center text-gray-400 text-xs">—</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-          
-          {employees.length === 0 && (
-            <div className="p-8 text-center text-gray-400">
-              <p className="text-lg mb-2">Нет сотрудников</p>
-              <p className="text-sm">Добавьте сотрудников через поле выше</p>
-            </div>
-          )}
-        </div>
 
-        {/* Error messages */}
-        <ErrorPanel schedule={schedule} employees={employees} daysInMonth={daysInMonth} />
+                    {employees.length > 0 && (
+                      <TotalRow>
+                        <StickyTotalCell>ИТОГО</StickyTotalCell>
 
-        {/* Legend */}
-        <div className="mt-4 flex flex-wrap gap-3 text-xs text-gray-500">
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-emerald-50 border border-emerald-200"></span> Дневная смена</span>
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-indigo-50 border border-indigo-200"></span> Ночная смена</span>
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-amber-50 border border-amber-200"></span> Смешанная</span>
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-gray-100 border border-gray-200"></span> Выходной (OFF)</span>
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-red-100 border border-red-200"></span> Ошибка</span>
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-red-50/30 border border-red-100"></span> Выходной день</span>
-        </div>
+                        {Array.from(
+                          { length: daysInMonth },
+                          (_, index) => index + 1
+                        ).map((day) => {
+                          let dayCount = 0;
 
-        {/* Footer */}
-        <div className="mt-6 text-center text-xs text-gray-400 pb-4">
-          🔒 Приватный планировщик смен • Данные хранятся локально в вашем браузере
-        </div>
-      </div>
-    </div>
+                          employees.forEach((employee) => {
+                            if (getEntry(employee.id, day).type === 'shift') {
+                              dayCount++;
+                            }
+                          });
+
+                          return (
+                            <TotalCell key={day}>
+                              {dayCount > 0 ? dayCount : ''}
+                            </TotalCell>
+                          );
+                        })}
+
+                        <MetricCell $tone="day">{grandTotals.day}</MetricCell>
+                        <MetricCell $tone="night">{grandTotals.night}</MetricCell>
+                        <MetricCell $tone="total">{grandTotals.total}</MetricCell>
+                        <MetricCell $tone="muted">—</MetricCell>
+                      </TotalRow>
+                    )}
+                  </tbody>
+                </ScheduleTable>
+              </TableScroll>
+
+              {employees.length === 0 && (
+                <div style={{ padding: 28, textAlign: 'center' }}>
+                  Сотрудников пока нет.
+                </div>
+              )}
+            </TableShell>
+              </DesktopScheduleOnly>
+            )}
+          </DndContext>
+
+          <ErrorPanel
+            schedule={schedule}
+            employees={employees}
+            daysInMonth={daysInMonth}
+          />
+
+          <Legend>
+            <span>⋮⋮ Перетащить сотрудника</span>
+            <span>💬 Пожелания</span>
+            <span>☀️ Дневная смена</span>
+            <span>🌙 Ночная смена</span>
+            <span>OFF Выходной</span>
+          </Legend>
+
+          <Footer>
+            Данные сохраняются локально в браузере • Смены и пожелания раздельно
+            по месяцам
+          </Footer>
+        </Container>
+      </Page>
+
+      {selectedWishEmployee && (
+        <EmployeeWishDrawer
+          key={selectedWishEmployee.id + periodKey}
+          employee={selectedWishEmployee}
+          year={year}
+          month={month}
+          daysInMonth={daysInMonth}
+          wishes={wishes[selectedWishEmployee.id]?.[periodKey] || []}
+          onAdd={(wish) => addWish(selectedWishEmployee.id, wish)}
+          onRemove={(wishId) =>
+            removeWish(selectedWishEmployee.id, wishId)
+          }
+          onClose={() => setWishEmployeeId(null)}
+        />
+      )}
+    </ThemeProvider>
   );
 }
 
-// Error panel component
-function ErrorPanel({ schedule, employees, daysInMonth }: {
+interface DepartmentSectionProps {
+  department: Department;
+  employees: Employee[];
+  columnCount: number;
+  daysInMonth: number;
+  year: number;
+  month: number;
+  editingCell: { empId: string; day: number } | null;
+  setEditingCell: (value: { empId: string; day: number } | null) => void;
+  getEntry: (empId: string, day: number) => ShiftEntry;
+  updateCell: (empId: string, day: number, value: string) => void;
+  getDisplayValue: (entry: ShiftEntry) => string;
+  getEmployeeTotals: (empId: string) => {
+    day: number;
+    night: number;
+    total: number;
+    workDays: number;
+  };
+  removeEmployee: (id: string) => void;
+  getWishCount: (employeeId: string) => number;
+  getWishSummary: (employeeId: string) => string;
+  onOpenWishes: (employeeId: string) => void;
+}
+
+function DepartmentSection({
+  department,
+  employees,
+  columnCount,
+  daysInMonth,
+  year,
+  month,
+  editingCell,
+  setEditingCell,
+  getEntry,
+  updateCell,
+  getDisplayValue,
+  getEmployeeTotals,
+  removeEmployee,
+  getWishCount,
+  getWishSummary,
+  onOpenWishes,
+}: DepartmentSectionProps) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: 'dep:' + department.id,
+  });
+
+  return (
+    <>
+      <tr ref={setNodeRef}>
+        <DepartmentRowCell colSpan={columnCount} $over={isOver}>
+          <DepartmentRowInner>
+            <strong>{department.name}</strong>
+            <DepartmentBadge $kind={department.kind}>
+              {departmentKindLabel(department.kind)}
+            </DepartmentBadge>
+            <TinyText>{employees.length} сотрудников</TinyText>
+            {employees.length === 0 && (
+              <TinyText>Перетащите сотрудника сюда</TinyText>
+            )}
+          </DepartmentRowInner>
+        </DepartmentRowCell>
+      </tr>
+
+      <SortableContext
+        items={employees.map((employee) => 'emp:' + employee.id)}
+        strategy={verticalListSortingStrategy}
+      >
+        {employees.map((employee, index) => (
+          <SortableEmployeeRow
+            key={employee.id}
+            employee={employee}
+            index={index}
+            daysInMonth={daysInMonth}
+            year={year}
+            month={month}
+            editingCell={editingCell}
+            setEditingCell={setEditingCell}
+            getEntry={getEntry}
+            updateCell={updateCell}
+            getDisplayValue={getDisplayValue}
+            totals={getEmployeeTotals(employee.id)}
+            removeEmployee={removeEmployee}
+            wishCount={getWishCount(employee.id)}
+            wishSummary={getWishSummary(employee.id)}
+            onOpenWishes={onOpenWishes}
+          />
+        ))}
+      </SortableContext>
+    </>
+  );
+}
+
+interface SortableEmployeeRowProps {
+  employee: Employee;
+  index: number;
+  daysInMonth: number;
+  year: number;
+  month: number;
+  editingCell: { empId: string; day: number } | null;
+  setEditingCell: (value: { empId: string; day: number } | null) => void;
+  getEntry: (empId: string, day: number) => ShiftEntry;
+  updateCell: (empId: string, day: number, value: string) => void;
+  getDisplayValue: (entry: ShiftEntry) => string;
+  totals: { day: number; night: number; total: number; workDays: number };
+  removeEmployee: (id: string) => void;
+  wishCount: number;
+  wishSummary: string;
+  onOpenWishes: (employeeId: string) => void;
+}
+
+function SortableEmployeeRow({
+  employee,
+  index,
+  daysInMonth,
+  year,
+  month,
+  editingCell,
+  setEditingCell,
+  getEntry,
+  updateCell,
+  getDisplayValue,
+  totals,
+  removeEmployee,
+  wishCount,
+  wishSummary,
+  onOpenWishes,
+}: SortableEmployeeRowProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: 'emp:' + employee.id,
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <EmployeeRow
+      ref={setNodeRef}
+      style={style}
+      $dragging={isDragging}
+      $odd={index % 2 === 1}
+    >
+      <EmployeeCell>
+        <EmployeeCellInner>
+          <DragHandle
+            type="button"
+            title="Перетащить сотрудника"
+            {...attributes}
+            {...listeners}
+          >
+            <GripVertical size={16} />
+          </DragHandle>
+
+          <EmployeeNameText>{employee.name}</EmployeeNameText>
+
+          <RowIconButton
+            type="button"
+            $active={wishCount > 0}
+            onClick={() => onOpenWishes(employee.id)}
+            title={
+              wishSummary
+                ? 'Пожелания:\n' + wishSummary
+                : 'Добавить пожелания по графику'
+            }
+          >
+            <MessageSquare size={14} />
+            {wishCount > 0 && <WishCount>{wishCount}</WishCount>}
+          </RowIconButton>
+
+          <RowIconButton
+            type="button"
+            onClick={() => removeEmployee(employee.id)}
+            title="Удалить сотрудника"
+          >
+            <Trash2 size={14} />
+          </RowIconButton>
+        </EmployeeCellInner>
+      </EmployeeCell>
+
+      {Array.from({ length: daysInMonth }, (_, index) => index + 1).map(
+        (day) => {
+          const entry = getEntry(employee.id, day);
+          const dayOfWeek = getDayOfWeek(year, month, day);
+          const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+          const isEditing =
+            editingCell?.empId === employee.id &&
+            editingCell?.day === day;
+
+          let kind: 'empty' | 'error' | 'off' | 'day' | 'night' | 'mixed' =
+            'empty';
+
+          if (entry.type === 'error') {
+            kind = 'error';
+          } else if (entry.type === 'off') {
+            kind = 'off';
+          } else if (entry.type === 'shift') {
+            const hours = calculateShiftHours(entry);
+            kind =
+              hours.night > 0 && hours.day === 0
+                ? 'night'
+                : hours.night > 0
+                  ? 'mixed'
+                  : 'day';
+          }
+
+          return (
+            <ShiftCell
+              key={day}
+              $kind={kind}
+              $weekend={isWeekend}
+              onClick={() =>
+                setEditingCell({ empId: employee.id, day })
+              }
+            >
+              {isEditing ? (
+                <ShiftInput
+                  type="text"
+                  defaultValue={getDisplayValue(entry)}
+                  autoFocus
+                  onBlur={(event) => {
+                    updateCell(employee.id, day, event.target.value);
+                    setEditingCell(null);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      updateCell(
+                        employee.id,
+                        day,
+                        (event.target as HTMLInputElement).value
+                      );
+                      setEditingCell(null);
+                    }
+
+                    if (event.key === 'Escape') {
+                      setEditingCell(null);
+                    }
+
+                    if (event.key === 'Tab') {
+                      event.preventDefault();
+                      updateCell(
+                        employee.id,
+                        day,
+                        (event.target as HTMLInputElement).value
+                      );
+
+                      if (day < daysInMonth) {
+                        setEditingCell({
+                          empId: employee.id,
+                          day: day + 1,
+                        });
+                      }
+                    }
+                  }}
+                />
+              ) : (
+                <ShiftDisplay
+                  title={
+                    entry.type === 'error'
+                      ? entry.error
+                      : entry.type === 'shift' && entry.shift
+                        ? entry.shift.start + '-' + entry.shift.end
+                        : ''
+                  }
+                >
+                  {entry.type === 'empty'
+                    ? '·'
+                    : entry.type === 'off'
+                      ? 'OFF'
+                      : entry.type === 'shift' && entry.shift
+                        ? entry.shift.start.slice(0, 2) +
+                          '-' +
+                          entry.shift.end.slice(0, 2)
+                        : '⚠'}
+                </ShiftDisplay>
+              )}
+            </ShiftCell>
+          );
+        }
+      )}
+
+      <MetricCell $tone="day">{totals.day}</MetricCell>
+      <MetricCell $tone="night">{totals.night}</MetricCell>
+      <MetricCell $tone="total">{totals.total}</MetricCell>
+      <MetricCell $tone="muted">{totals.workDays}</MetricCell>
+    </EmployeeRow>
+  );
+}
+
+function ErrorPanel({
+  schedule,
+  employees,
+  daysInMonth,
+}: {
   schedule: ScheduleData;
   employees: Employee[];
   daysInMonth: number;
 }) {
   const errors: { empName: string; day: number; error: string }[] = [];
 
-  employees.forEach(emp => {
+  employees.forEach((employee) => {
     for (let day = 1; day <= daysInMonth; day++) {
-      const entry = schedule[emp.id]?.[day];
+      const entry = schedule[employee.id]?.[day];
+
       if (entry?.type === 'error') {
-        errors.push({ empName: emp.name, day, error: entry.error || 'Ошибка' });
+        errors.push({
+          empName: employee.name,
+          day,
+          error: entry.error || 'Ошибка',
+        });
       }
     }
   });
@@ -496,22 +1413,20 @@ function ErrorPanel({ schedule, employees, daysInMonth }: {
   if (errors.length === 0) return null;
 
   return (
-    <div className="mt-4 bg-red-50 border border-red-200 rounded-2xl p-4">
-      <h3 className="font-semibold text-red-800 mb-2 flex items-center gap-2">
-        <span>⚠️</span> Ошибки в заполнении ({errors.length})
-      </h3>
-      <ul className="text-sm text-red-700 space-y-1">
-        {errors.map((err, i) => (
-          <li key={i} className="flex items-center gap-2">
-            <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-400"></span>
-            <span className="font-medium">{err.empName}</span>
-            <span className="text-red-500">→</span>
-            <span>день {err.day}:</span>
-            <span className="italic">{err.error}</span>
-          </li>
+    <ErrorCard>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800 }}>
+        <AlertTriangle size={17} />
+        Ошибки в заполнении ({errors.length})
+      </div>
+
+      <div style={{ marginTop: 8, display: 'grid', gap: 4, fontSize: 13 }}>
+        {errors.map((error, index) => (
+          <div key={index}>
+            <strong>{error.empName}</strong> → день {error.day}: {error.error}
+          </div>
         ))}
-      </ul>
-    </div>
+      </div>
+    </ErrorCard>
   );
 }
 
