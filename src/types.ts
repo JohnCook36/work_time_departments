@@ -9,9 +9,18 @@ export interface ShiftEntry {
   error?: string;
 }
 
+export type DepartmentKind = 'general' | 'fo' | 'night';
+
+export interface Department {
+  id: string;
+  name: string;
+  kind: DepartmentKind;
+}
+
 export interface Employee {
   id: string;
   name: string;
+  departmentId: string;
 }
 
 export interface ScheduleData {
