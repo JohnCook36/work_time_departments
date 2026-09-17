@@ -22,7 +22,7 @@ import {
   GripVertical,
   Info,
   Layers3,
-  MessageSquareText,
+  MessageSquare,
   Moon,
   Pencil,
   Plus,
@@ -1216,7 +1216,7 @@ function SortableEmployeeRow({
                 : 'Добавить пожелания по графику'
             }
           >
-            <MessageSquareText size={14} />
+            <MessageSquare size={14} />
             {wishCount > 0 && <WishCount>{wishCount}</WishCount>}
           </RowIconButton>
 
