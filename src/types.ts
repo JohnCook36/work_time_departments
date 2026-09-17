@@ -23,6 +23,18 @@ export interface Employee {
   departmentId: string;
 }
 
+export interface EmployeeWish {
+  id: string;
+  day: number | null;
+  text: string;
+}
+
+export interface EmployeeWishesData {
+  [employeeId: string]: {
+    [periodKey: string]: EmployeeWish[];
+  };
+}
+
 export interface ScheduleData {
   [employeeId: string]: {
     [day: number]: ShiftEntry;
