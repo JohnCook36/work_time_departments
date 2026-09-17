@@ -178,6 +178,7 @@ function MobileDepartment({
           ) : employees.map((employee) => (
             <MobileEmployee
               key={employee.id}
+              employees={employees}
               employee={employee}
               days={days}
               editing={editing}
