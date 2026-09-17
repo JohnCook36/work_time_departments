@@ -1,1 +1,5 @@
-html, body, #root {\n  min-height: 100%;\n}\n
+html,
+body,
+#root {
+  min-height: 100%;
+}
