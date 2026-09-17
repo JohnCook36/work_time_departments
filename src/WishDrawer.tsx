@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { MessageSquareText, Plus, Trash2, X } from 'lucide-react';
+import { MessageSquare, Plus, Trash2, X } from 'lucide-react';
 import { Employee, EmployeeWish } from './types';
 import { MONTH_NAMES } from './utils';
 import {
@@ -144,7 +144,7 @@ export function EmployeeWishDrawer({
         <WishList>
           {sortedWishes.length === 0 ? (
             <EmptyState>
-              <MessageSquareText
+              <MessageSquare
                 size={26}
                 style={{ margin: '0 auto 8px', opacity: 0.55 }}
               />
