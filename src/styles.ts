@@ -25,6 +25,9 @@ export const Card = styled('section')(({ theme }) => ({
 export const HeaderCard = styled(Card)({
   padding: '18px 22px',
   marginBottom: 16,
+  '@media (max-width: 760px)': {
+    padding: 12,
+  },
 });
 
 export const HeaderRow = styled('div')({
@@ -33,6 +36,10 @@ export const HeaderRow = styled('div')({
   justifyContent: 'space-between',
   gap: 16,
   flexWrap: 'wrap',
+  '@media (max-width: 760px)': {
+    gap: 12,
+    alignItems: 'stretch',
+  },
 });
 
 export const HeaderLeft = styled('div')({
@@ -40,6 +47,9 @@ export const HeaderLeft = styled('div')({
   alignItems: 'center',
   gap: 12,
   minWidth: 0,
+  '@media (max-width: 760px)': {
+    width: '100%',
+  },
 });
 
 export const BrandBlock = styled('div')({
@@ -88,6 +98,10 @@ export const HeaderActions = styled('div')({
   display: 'flex',
   alignItems: 'center',
   gap: 8,
+  '@media (max-width: 760px)': {
+    width: '100%',
+    justifyContent: 'space-between',
+  },
 });
 
 export const MonthLabel = styled('div')(({ theme }) => ({
@@ -97,6 +111,11 @@ export const MonthLabel = styled('div')(({ theme }) => ({
   fontWeight: 700,
   fontSize: 17,
   userSelect: 'none',
+  '@media (max-width: 760px)': {
+    minWidth: 0,
+    flex: 1,
+    fontSize: 15,
+  },
 }));
 
 export const HelpCard = styled(Card)(({ theme }) => ({
@@ -115,6 +134,9 @@ export const HelpGrid = styled('div')({
 export const ControlsCard = styled(Card)({
   padding: 14,
   marginBottom: 16,
+  '@media (max-width: 760px)': {
+    padding: 10,
+  },
 });
 
 export const ControlsRow = styled('div')({
@@ -122,6 +144,25 @@ export const ControlsRow = styled('div')({
   alignItems: 'center',
   gap: 10,
   flexWrap: 'wrap',
+  '@media (max-width: 760px)': {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+    alignItems: 'stretch',
+    gap: 8,
+    '& > input': {
+      gridColumn: '1 / -1',
+      width: '100%',
+      minWidth: 0,
+    },
+    '& > select': {
+      gridColumn: '1 / -1',
+      width: '100%',
+    },
+    '& > button': {
+      width: '100%',
+      minWidth: 0,
+    },
+  },
 });
 
 const fieldStyles = (theme: any) => ({
@@ -197,6 +238,9 @@ export const Divider = styled('div')(({ theme }) => ({
 export const DepartmentPanel = styled(Card)({
   padding: 16,
   marginBottom: 16,
+  '@media (max-width: 760px)': {
+    padding: 12,
+  },
 });
 
 export const PanelTitleRow = styled('div')({
@@ -532,6 +576,9 @@ export const DrawerOverlay = styled('div')(({ theme }) => ({
   background: theme.colors.overlay,
   display: 'flex',
   justifyContent: 'flex-end',
+  '@media (max-width: 760px)': {
+    alignItems: 'flex-end',
+  },
 }));
 
 export const Drawer = styled('aside')(({ theme }) => ({
@@ -543,6 +590,15 @@ export const Drawer = styled('aside')(({ theme }) => ({
   padding: 20,
   overflowY: 'auto',
   borderLeft: '1px solid ' + theme.colors.border,
+  '@media (max-width: 760px)': {
+    width: '100%',
+    height: 'min(88vh, 760px)',
+    padding: 16,
+    borderLeft: 0,
+    borderTop: '1px solid ' + theme.colors.border,
+    borderRadius: '18px 18px 0 0',
+    boxShadow: '0 -18px 42px rgba(0,0,0,.24)',
+  },
 }));
 
 export const DrawerHeader = styled('div')({
