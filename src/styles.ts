@@ -629,3 +629,201 @@ export const EmptyState = styled('div')(({ theme }) => ({
   color: theme.colors.textMuted,
   fontSize: 13,
 }));
+
+export const MobileScheduleShell = styled('div')(({ theme }) => ({
+  display: 'grid',
+  gap: 12,
+  '@media (min-width: 761px)': {
+    display: 'none',
+  },
+}));
+
+export const MobileWeekBar = styled(Card)(({ theme }) => ({
+  padding: 10,
+  display: 'grid',
+  gridTemplateColumns: '40px 1fr 40px',
+  alignItems: 'center',
+  gap: 8,
+  position: 'sticky',
+  top: 8,
+  zIndex: 30,
+  border: '1px solid ' + theme.colors.border,
+}));
+
+export const MobileWeekLabel = styled('div')(({ theme }) => ({
+  textAlign: 'center',
+  color: theme.colors.text,
+  fontSize: 14,
+  fontWeight: 800,
+}));
+
+export const MobileDepartmentBlock = styled(Card)({
+  overflow: 'hidden',
+});
+
+export const MobileDepartmentHeader = styled('div')<{ $over: boolean }>(({ theme, $over }) => ({
+  padding: '11px 12px',
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  background: $over ? theme.colors.departmentDrop : theme.colors.department,
+  borderBottom: '1px solid ' + theme.colors.border,
+  transition: 'background 120ms ease',
+}));
+
+export const MobileEmployeesList = styled('div')({
+  display: 'grid',
+});
+
+export const MobileEmployeeCard = styled('article')<{ $dragging: boolean }>(({ theme, $dragging }) => ({
+  padding: 12,
+  borderBottom: '1px solid ' + theme.colors.border,
+  background: theme.colors.surfaceElevated,
+  opacity: $dragging ? 0.45 : 1,
+  transition: 'opacity 120ms ease, background 120ms ease',
+  ':last-of-type': {
+    borderBottom: 0,
+  },
+}));
+
+export const MobileEmployeeHeader = styled('div')({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 7,
+  marginBottom: 10,
+});
+
+export const MobileEmployeeName = styled('div')(({ theme }) => ({
+  flex: 1,
+  minWidth: 0,
+  color: theme.colors.text,
+  fontSize: 14,
+  fontWeight: 800,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+}));
+
+export const MobileTotals = styled('div')({
+  display: 'grid',
+  gridTemplateColumns: 'repeat(4, 1fr)',
+  gap: 6,
+  marginBottom: 10,
+});
+
+export const MobileTotalChip = styled('div')<{ $tone?: 'day' | 'night' | 'total' | 'muted' }>(({ theme, $tone = 'muted' }) => ({
+  border: '1px solid ' + theme.colors.border,
+  borderRadius: 9,
+  padding: '6px 4px',
+  textAlign: 'center',
+  background:
+    $tone === 'day'
+      ? theme.colors.successSoft
+      : $tone === 'night'
+        ? theme.colors.nightSoft
+        : $tone === 'total'
+          ? (theme.mode === 'dark' ? '#132b48' : '#eff6ff')
+          : theme.colors.offSoft,
+  color:
+    $tone === 'day'
+      ? (theme.mode === 'dark' ? '#6ee7b7' : '#047857')
+      : $tone === 'night'
+        ? (theme.mode === 'dark' ? '#a5b4fc' : '#4338ca')
+        : $tone === 'total'
+          ? theme.colors.primary
+          : theme.colors.textMuted,
+  fontSize: 10,
+  fontWeight: 700,
+  lineHeight: 1.25,
+}));
+
+export const MobileTotalValue = styled('div')({
+  fontSize: 14,
+  fontWeight: 900,
+  marginTop: 2,
+});
+
+export const MobileDaysList = styled('div')({
+  display: 'grid',
+  gap: 6,
+});
+
+export const MobileDayRow = styled('div')<{ $weekend: boolean; $kind: 'empty' | 'error' | 'off' | 'day' | 'night' | 'mixed' }>(({ theme, $weekend, $kind }) => {
+  const backgrounds = {
+    empty: $weekend ? theme.colors.weekendSoft : theme.colors.surface,
+    error: theme.colors.dangerSoft,
+    off: theme.colors.offSoft,
+    day: theme.colors.successSoft,
+    night: theme.colors.nightSoft,
+    mixed: theme.colors.mixedSoft,
+  };
+
+  return {
+    minHeight: 48,
+    display: 'grid',
+    gridTemplateColumns: '78px 1fr',
+    alignItems: 'center',
+    gap: 8,
+    padding: '6px 8px',
+    border: '1px solid ' + theme.colors.border,
+    borderRadius: 10,
+    background: backgrounds[$kind],
+  };
+});
+
+export const MobileDayLabel = styled('div')(({ theme }) => ({
+  color: theme.colors.textMuted,
+  fontSize: 11,
+  fontWeight: 700,
+  lineHeight: 1.2,
+}));
+
+export const MobileShiftButton = styled('button')(({ theme }) => ({
+  minHeight: 34,
+  width: '100%',
+  border: '1px solid ' + theme.colors.border,
+  borderRadius: 8,
+  background: theme.colors.surfaceElevated,
+  color: theme.colors.text,
+  padding: '4px 8px',
+  fontSize: 13,
+  fontWeight: 800,
+  cursor: 'pointer',
+  textAlign: 'center',
+}));
+
+export const MobileShiftInput = styled('input')(({ theme }) => ({
+  width: '100%',
+  minHeight: 36,
+  border: '1px solid ' + theme.colors.primary,
+  borderRadius: 8,
+  background: theme.colors.surfaceElevated,
+  color: theme.colors.text,
+  padding: '0 8px',
+  fontSize: 14,
+  textAlign: 'center',
+  outline: 'none',
+}));
+
+export const DesktopScheduleOnly = styled('div')({
+  display: 'block',
+  '@media (max-width: 760px)': {
+    display: 'none',
+  },
+});
+
+export const MobileEmptyDepartment = styled('div')(({ theme }) => ({
+  padding: 14,
+  color: theme.colors.textMuted,
+  fontSize: 12,
+  textAlign: 'center',
+  background: theme.colors.surface,
+}));
+
+export const MobileHint = styled('div')(({ theme }) => ({
+  color: theme.colors.textMuted,
+  fontSize: 11,
+  textAlign: 'center',
+  padding: '2px 8px 0',
+}));
+
