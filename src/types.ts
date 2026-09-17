@@ -40,3 +40,7 @@ export interface ScheduleData {
     [day: number]: ShiftEntry;
   };
 }
+
+export interface SchedulePeriodsData {
+  [periodKey: string]: ScheduleData;
+}
