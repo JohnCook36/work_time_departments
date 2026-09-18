@@ -5,6 +5,7 @@ import { DepartmentsModule } from './departments/departments.module';
 import { EmployeesModule } from './employees/employees.module';
 import { HealthModule } from './health/health.module';
 import { MembershipsModule } from './memberships/memberships.module';
+import { OnboardingModule } from './onboarding/onboarding.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { SchedulesModule } from './schedules/schedules.module';
 import { ShiftsModule } from './shifts/shifts.module';
@@ -20,6 +21,7 @@ import { WishesModule } from './wishes/wishes.module';
     EmployeesModule,
     UsersModule,
     MembershipsModule,
+    OnboardingModule,
     SchedulesModule,
     ShiftsModule,
     WishesModule,

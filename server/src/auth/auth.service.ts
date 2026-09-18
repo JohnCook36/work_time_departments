@@ -8,6 +8,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
+import { RoleType } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -22,6 +23,22 @@ const OTP_TTL_MS = 5 * 60 * 1000;
 const OTP_REQUEST_COOLDOWN_MS = 60 * 1000;
 const OTP_MAX_ATTEMPTS = 5;
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+export interface AuthUserContext {
+  id: string;
+  phoneE164: string;
+  employee: {
+    id: string;
+    displayName: string;
+    departmentId: string;
+    employmentRate: number;
+  } | null;
+  memberships: Array<{
+    id: string;
+    role: RoleType;
+    departmentId: string | null;
+  }>;
+}
 
 @Injectable()
 export class AuthService {
@@ -175,21 +192,7 @@ export class AuthService {
     };
   }
 
-  async getCurrentUser(rawToken: string): Promise<{
-    id: string;
-    phoneE164: string;
-    employee: {
-      id: string;
-      displayName: string;
-      departmentId: string;
-      employmentRate: number;
-    } | null;
-    memberships: Array<{
-      id: string;
-      role: string;
-      departmentId: string | null;
-    }>;
-  }> {
+  async getCurrentUser(rawToken: string): Promise<AuthUserContext> {
     const tokenHash = hashSessionToken(rawToken);
 
     const session = await this.prisma.authSession.findUnique({
