@@ -23,6 +23,7 @@ import {
   ChevronRight,
   GripVertical,
   Info,
+  Printer,
   Layers3,
   MessageSquare,
   Moon,
@@ -50,6 +51,7 @@ import {
   validateShiftInput,
 } from './utils';
 import { EmployeeWishDrawer } from './WishDrawer';
+import { getMonthWeekRanges, printSchedule } from './printSchedule';
 import { getTheme, ThemeMode } from './theme';
 import {
   ActionButton,
@@ -285,11 +287,16 @@ function App() {
   const [showDepartments, setShowDepartments] = useState(false);
   const [wishEmployeeId, setWishEmployeeId] = useState<string | null>(null);
   const [scheduleView, setScheduleView] = useState<ScheduleView>('schedule');
+  const [printRangeKey, setPrintRangeKey] = useState('month');
 
   const theme = useMemo(() => getTheme(themeMode), [themeMode]);
   const periodKey = getPeriodKey(year, month);
   const schedule = schedules[periodKey] || {};
   const daysInMonth = getDaysInMonth(year, month);
+  const printWeekRanges = useMemo(
+    () => getMonthWeekRanges(year, month, daysInMonth),
+    [year, month, daysInMonth]
+  );
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -688,6 +695,18 @@ function App() {
     setSchedules((prev) => ({ ...prev, [periodKey]: {} }));
   };
 
+  const handlePrintSchedule = () => {
+    printSchedule({
+      departments,
+      employees,
+      schedule,
+      year,
+      month,
+      daysInMonth,
+      rangeKey: printRangeKey,
+    });
+  };
+
   const selectedWishEmployee =
     wishEmployeeId === null
       ? null
@@ -870,6 +889,29 @@ function App() {
               </ActionButton>
 
               <Divider />
+
+              <Select
+                value={printRangeKey}
+                onChange={(event) => setPrintRangeKey(event.target.value)}
+                title="Что печатать"
+                style={{ minWidth: 150 }}
+              >
+                <option value="month">Весь месяц</option>
+                {printWeekRanges.map((range) => (
+                  <option key={range.key} value={range.key}>
+                    Неделя {range.label}
+                  </option>
+                ))}
+              </Select>
+
+              <ActionButton
+                type="button"
+                onClick={handlePrintSchedule}
+                title="Открыть печатную версию A4"
+              >
+                <Printer size={16} />
+                Печать
+              </ActionButton>
 
               <ActionButton type="button" onClick={fillOffAll}>
                 OFF все
