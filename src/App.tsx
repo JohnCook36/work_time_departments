@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Global, ThemeProvider } from '@emotion/react';
 import {
   DndContext,
@@ -25,6 +25,7 @@ import {
   ChevronLeft,
   ChevronRight,
   FileSpreadsheet,
+  FileUp,
   GripVertical,
   Info,
   Layers3,
@@ -55,6 +56,11 @@ import {
   validateShiftInput,
 } from './utils';
 import { EmployeeWishDrawer } from './WishDrawer';
+import { ExcelImportDrawer } from './ExcelImportDrawer';
+import {
+  ExcelImportPreview,
+  parseScheduleExcel,
+} from './importExcel';
 import { exportScheduleToExcel } from './exportExcel';
 import { getMonthWeekRanges, printSchedule } from './printSchedule';
 import { ShiftEditor } from './ShiftEditor';
@@ -293,6 +299,11 @@ function App() {
   const [wishEmployeeId, setWishEmployeeId] = useState<string | null>(null);
   const [scheduleView, setScheduleView] = useState<ScheduleView>('schedule');
   const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const [isImportingExcel, setIsImportingExcel] = useState(false);
+  const [excelImportPreview, setExcelImportPreview] =
+    useState<ExcelImportPreview | null>(null);
+  const [overwriteExcelCells, setOverwriteExcelCells] = useState(false);
+  const excelFileInputRef = useRef<HTMLInputElement | null>(null);
   const [printRangeKey, setPrintRangeKey] = useState('month');
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [dragTargetDepartmentId, setDragTargetDepartmentId] = useState<string | null>(null);
@@ -775,6 +786,93 @@ function App() {
     });
   };
 
+  const handleExcelFile = async (file: File | null) => {
+    if (!file || isImportingExcel) return;
+
+    try {
+      setIsImportingExcel(true);
+      const preview = await parseScheduleExcel(file, employees);
+      setOverwriteExcelCells(false);
+      setExcelImportPreview(preview);
+    } catch (error) {
+      console.error('Excel import failed', error);
+      alert(
+        error instanceof Error
+          ? error.message
+          : 'Не удалось прочитать Excel-файл.'
+      );
+    } finally {
+      setIsImportingExcel(false);
+      if (excelFileInputRef.current) {
+        excelFileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const excelImportConflictCount = useMemo(() => {
+    if (!excelImportPreview) return 0;
+
+    return excelImportPreview.entries.reduce((count, item) => {
+      if (!item.employeeId || item.day > daysInMonth) return count;
+      const existing = schedule[item.employeeId]?.[item.day];
+      return existing && existing.type !== 'empty' ? count + 1 : count;
+    }, 0);
+  }, [excelImportPreview, schedule, daysInMonth]);
+
+  const applyExcelImport = () => {
+    if (!excelImportPreview) return;
+
+    let applied = 0;
+    let skippedProtected = 0;
+    let skippedOutsideMonth = 0;
+
+    updateCurrentSchedule((current) => {
+      const next: ScheduleData = { ...current };
+
+      excelImportPreview.entries.forEach((item) => {
+        if (!item.employeeId) return;
+
+        if (item.day < 1 || item.day > daysInMonth) {
+          skippedOutsideMonth++;
+          return;
+        }
+
+        const employeeSchedule = { ...(next[item.employeeId] || {}) };
+        const existing = employeeSchedule[item.day];
+
+        if (
+          !overwriteExcelCells &&
+          existing &&
+          existing.type !== 'empty'
+        ) {
+          skippedProtected++;
+          return;
+        }
+
+        employeeSchedule[item.day] = validateShiftInput(item.value);
+        next[item.employeeId] = employeeSchedule;
+        applied++;
+      });
+
+      return next;
+    });
+
+    setExcelImportPreview(null);
+    setOverwriteExcelCells(false);
+
+    const details = [
+      'Импортировано смен: ' + applied,
+      skippedProtected > 0
+        ? 'Защищено заполненных ячеек: ' + skippedProtected
+        : null,
+      skippedOutsideMonth > 0
+        ? 'Пропущено дней вне текущего месяца: ' + skippedOutsideMonth
+        : null,
+    ].filter(Boolean);
+
+    alert(details.join('\n'));
+  };
+
   const selectedWishEmployee =
     wishEmployeeId === null
       ? null
@@ -973,6 +1071,26 @@ function App() {
 
               <Divider />
 
+              <input
+                ref={excelFileInputRef}
+                type="file"
+                accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                style={{ display: 'none' }}
+                onChange={(event) =>
+                  handleExcelFile(event.target.files?.[0] || null)
+                }
+              />
+
+              <ActionButton
+                type="button"
+                onClick={() => excelFileInputRef.current?.click()}
+                disabled={isImportingExcel}
+                title="Загрузить график из Excel с предпросмотром"
+              >
+                <FileUp size={16} />
+                {isImportingExcel ? 'Читаю…' : 'Импорт Excel'}
+              </ActionButton>
+
               <ActionButton
                 type="button"
                 $variant="accent"
@@ -981,7 +1099,7 @@ function App() {
                 title="Сформировать Excel-файл текущего месяца"
               >
                 <FileSpreadsheet size={16} />
-                {isExportingExcel ? 'Excel…' : 'Excel'}
+                {isExportingExcel ? 'Excel…' : 'Экспорт Excel'}
               </ActionButton>
 
               <Select
@@ -1339,6 +1457,20 @@ function App() {
           </Footer>
         </Container>
       </Page>
+
+      {excelImportPreview && (
+        <ExcelImportDrawer
+          preview={excelImportPreview}
+          conflictCount={excelImportConflictCount}
+          overwriteExisting={overwriteExcelCells}
+          onOverwriteChange={setOverwriteExcelCells}
+          onApply={applyExcelImport}
+          onClose={() => {
+            setExcelImportPreview(null);
+            setOverwriteExcelCells(false);
+          }}
+        />
+      )}
 
       {selectedShiftEmployee && editingCell && (
         <ShiftEditor
