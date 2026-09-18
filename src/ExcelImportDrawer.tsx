@@ -89,6 +89,9 @@ export function ExcelImportDrawer({
                   : '—'}
               </strong>
 
+              <TinyText>Некорректных смен</TinyText>
+              <strong>{preview.invalidCells.length}</strong>
+
               <TinyText>Конфликтов с текущим графиком</TinyText>
               <strong>{conflictCount}</strong>
             </div>
@@ -139,6 +142,112 @@ export function ExcelImportDrawer({
                   >
                     {name}
                   </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {preview.ambiguousEmployees.length > 0 && (
+            <div
+              style={{
+                padding: 12,
+                borderRadius: 12,
+                border: '1px solid rgba(245,158,11,.35)',
+                background: 'rgba(245,158,11,.08)',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 7,
+                  fontWeight: 800,
+                }}
+              >
+                <AlertTriangle size={17} />
+                Неоднозначное совпадение сотрудников
+              </div>
+
+              <TinyText style={{ marginTop: 7 }}>
+                В текущем графике найдено несколько сотрудников с одинаковым именем.
+                Такие строки будут пропущены до ручного уточнения.
+              </TinyText>
+
+              <div
+                style={{
+                  marginTop: 8,
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: 6,
+                }}
+              >
+                {preview.ambiguousEmployees.map((name) => (
+                  <span
+                    key={name}
+                    style={{
+                      padding: '4px 7px',
+                      borderRadius: 8,
+                      background: 'rgba(148,163,184,.14)',
+                      fontSize: 11,
+                    }}
+                  >
+                    {name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {preview.invalidCells.length > 0 && (
+            <div
+              style={{
+                padding: 12,
+                borderRadius: 12,
+                border: '1px solid rgba(220,38,38,.32)',
+                background: 'rgba(220,38,38,.06)',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 7,
+                  fontWeight: 800,
+                }}
+              >
+                <AlertTriangle size={17} />
+                Некорректные смены
+              </div>
+
+              <TinyText style={{ marginTop: 7 }}>
+                Эти ячейки не будут импортированы. Показаны первые 12 ошибок.
+              </TinyText>
+
+              <div
+                style={{
+                  marginTop: 8,
+                  display: 'grid',
+                  gap: 6,
+                  maxHeight: 210,
+                  overflowY: 'auto',
+                }}
+              >
+                {preview.invalidCells.slice(0, 12).map((item, index) => (
+                  <div
+                    key={item.employeeName + '-' + item.day + '-' + index}
+                    style={{
+                      padding: '7px 8px',
+                      borderRadius: 8,
+                      background: 'rgba(148,163,184,.10)',
+                      fontSize: 11,
+                    }}
+                  >
+                    <strong>{item.employeeName}</strong> · день {item.day}
+                    <div style={{ marginTop: 3, opacity: 0.8 }}>
+                      Значение: {item.scheduleValue || item.actualTimeValue || 'пусто'}
+                    </div>
+                    <div style={{ marginTop: 3 }}>{item.reason}</div>
+                  </div>
                 ))}
               </div>
             </div>
