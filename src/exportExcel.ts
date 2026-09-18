@@ -1,4 +1,4 @@
-import ExcelJS from 'exceljs';
+import ExcelJS, { type Row, type Worksheet } from 'exceljs';
 import { Department, Employee, ScheduleData, ShiftEntry } from './types';
 import {
   calculateShiftHours,
@@ -70,7 +70,7 @@ function getEmployeeTotals(
 }
 
 function applyWorkbookSheetLayout(
-  sheet: ExcelWorksheet,
+  sheet: Worksheet,
   daysInMonth: number
 ) {
   sheet.views = [{ state: 'frozen', xSplit: 1, ySplit: 1 }];
@@ -100,7 +100,7 @@ function applyWorkbookSheetLayout(
 }
 
 function styleHeader(
-  row: ExcelRow,
+  row: Row,
   year: number,
   month: number,
   daysInMonth: number
@@ -141,8 +141,8 @@ function styleHeader(
 }
 
 function styleDepartmentRow(
-  sheet: ExcelWorksheet,
-  row: ExcelRow,
+  sheet: Worksheet,
+  row: Row,
   totalColumns: number
 ) {
   sheet.mergeCells(row.number, 1, row.number, totalColumns);
@@ -161,7 +161,7 @@ function styleDepartmentRow(
 }
 
 function styleDataRow(
-  row: ExcelRow,
+  row: Row,
   year: number,
   month: number,
   daysInMonth: number
@@ -216,7 +216,7 @@ function buildHeaders(
 }
 
 function addDepartmentRows(
-  sheet: ExcelWorksheet,
+  sheet: Worksheet,
   departments: Department[],
   employees: Employee[],
   schedule: ScheduleData,
@@ -299,7 +299,7 @@ function addDepartmentRows(
 }
 
 function addDailyTotals(
-  sheet: ExcelWorksheet,
+  sheet: Worksheet,
   employees: Employee[],
   schedule: ScheduleData,
   daysInMonth: number,
