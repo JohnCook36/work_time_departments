@@ -21,6 +21,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  FileSpreadsheet,
   GripVertical,
   Info,
   Layers3,
@@ -50,6 +51,7 @@ import {
   validateShiftInput,
 } from './utils';
 import { EmployeeWishDrawer } from './WishDrawer';
+import { exportScheduleToExcel } from './exportExcel';
 import { getTheme, ThemeMode } from './theme';
 import {
   ActionButton,
@@ -285,6 +287,7 @@ function App() {
   const [showDepartments, setShowDepartments] = useState(false);
   const [wishEmployeeId, setWishEmployeeId] = useState<string | null>(null);
   const [scheduleView, setScheduleView] = useState<ScheduleView>('schedule');
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
 
   const theme = useMemo(() => getTheme(themeMode), [themeMode]);
   const periodKey = getPeriodKey(year, month);
@@ -688,6 +691,27 @@ function App() {
     setSchedules((prev) => ({ ...prev, [periodKey]: {} }));
   };
 
+  const handleExportExcel = async () => {
+    if (isExportingExcel) return;
+
+    try {
+      setIsExportingExcel(true);
+      await exportScheduleToExcel({
+        departments,
+        employees,
+        schedule,
+        year,
+        month,
+        daysInMonth,
+      });
+    } catch (error) {
+      console.error('Excel export failed', error);
+      alert('Не удалось сформировать Excel-файл.');
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
+
   const selectedWishEmployee =
     wishEmployeeId === null
       ? null
@@ -870,6 +894,17 @@ function App() {
               </ActionButton>
 
               <Divider />
+
+              <ActionButton
+                type="button"
+                $variant="accent"
+                onClick={handleExportExcel}
+                disabled={isExportingExcel}
+                title="Сформировать Excel-файл текущего месяца"
+              >
+                <FileSpreadsheet size={16} />
+                {isExportingExcel ? 'Excel…' : 'Excel'}
+              </ActionButton>
 
               <ActionButton type="button" onClick={fillOffAll}>
                 OFF все
