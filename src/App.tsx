@@ -3,6 +3,9 @@ import { Global, ThemeProvider } from '@emotion/react';
 import {
   DndContext,
   DragEndEvent,
+  DragOverlay,
+  DragOverEvent,
+  DragStartEvent,
   PointerSensor,
   closestCenter,
   useDroppable,
@@ -50,6 +53,7 @@ import {
   validateShiftInput,
 } from './utils';
 import { EmployeeWishDrawer } from './WishDrawer';
+import { ShiftEditor } from './ShiftEditor';
 import { getTheme, ThemeMode } from './theme';
 import {
   ActionButton,
@@ -94,7 +98,6 @@ import {
   Select,
   ShiftCell,
   ShiftDisplay,
-  ShiftInput,
   StickyHeaderCell,
   StickyTotalCell,
   TableHeadRow,
@@ -285,6 +288,8 @@ function App() {
   const [showDepartments, setShowDepartments] = useState(false);
   const [wishEmployeeId, setWishEmployeeId] = useState<string | null>(null);
   const [scheduleView, setScheduleView] = useState<ScheduleView>('schedule');
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
+  const [dragTargetDepartmentId, setDragTargetDepartmentId] = useState<string | null>(null);
 
   const theme = useMemo(() => getTheme(themeMode), [themeMode]);
   const periodKey = getPeriodKey(year, month);
@@ -484,7 +489,46 @@ function App() {
     );
   };
 
+  const resolveTargetDepartmentId = useCallback(
+    (overRaw: string): string | null => {
+      if (overRaw.startsWith('dep:')) return overRaw.slice(4);
+      if (overRaw.startsWith('dept:')) return overRaw.slice(5);
+      if (overRaw.startsWith('emp:')) {
+        const overEmployeeId = overRaw.slice(4);
+        return (
+          employees.find((employee) => employee.id === overEmployeeId)
+            ?.departmentId || null
+        );
+      }
+      return null;
+    },
+    [employees]
+  );
+
+  const clearDragState = () => {
+    setActiveDragId(null);
+    setDragTargetDepartmentId(null);
+  };
+
+  const handleDragStart = ({ active }: DragStartEvent) => {
+    setActiveDragId(String(active.id));
+    setDragTargetDepartmentId(null);
+  };
+
+  const handleDragOver = ({ active, over }: DragOverEvent) => {
+    const activeRaw = String(active.id);
+    if (!over || !activeRaw.startsWith('emp:')) {
+      setDragTargetDepartmentId(null);
+      return;
+    }
+
+    setDragTargetDepartmentId(
+      resolveTargetDepartmentId(String(over.id))
+    );
+  };
+
   const handleDragEnd = ({ active, over }: DragEndEvent) => {
+    clearDragState();
     if (!over) return;
 
     const activeRaw = String(active.id);
@@ -693,6 +737,21 @@ function App() {
       ? null
       : employees.find((employee) => employee.id === wishEmployeeId) || null;
 
+  const selectedShiftEmployee =
+    editingCell === null
+      ? null
+      : employees.find((employee) => employee.id === editingCell.empId) || null;
+
+  const draggedEmployee = activeDragId?.startsWith('emp:')
+    ? employees.find((employee) => employee.id === activeDragId.slice(4)) || null
+    : null;
+  const draggedDepartment = activeDragId?.startsWith('dept:')
+    ? departments.find((department) => department.id === activeDragId.slice(5)) || null
+    : null;
+  const dragTargetDepartment = dragTargetDepartmentId
+    ? departments.find((department) => department.id === dragTargetDepartmentId) || null
+    : null;
+
   const columnCount = daysInMonth + 5;
 
   return (
@@ -866,7 +925,7 @@ function App() {
                   setScheduleView('hours');
                 }}
               >
-                Часы
+                День / ночь
               </ActionButton>
 
               <Divider />
@@ -981,6 +1040,9 @@ function App() {
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
+            onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
+            onDragCancel={clearDragState}
             onDragEnd={handleDragEnd}
           >
             <TableShell>
@@ -1034,11 +1096,8 @@ function App() {
                           daysInMonth={daysInMonth}
                           year={year}
                           month={month}
-                          editingCell={editingCell}
                           setEditingCell={setEditingCell}
                           getEntry={getEntry}
-                          updateCell={updateCell}
-                          getDisplayValue={getDisplayValue}
                           getEmployeeTotals={getEmployeeTotals}
                           removeEmployee={removeEmployee}
                           getWishCount={(employeeId) =>
@@ -1058,6 +1117,10 @@ function App() {
                           }
                           onOpenWishes={setWishEmployeeId}
                           scheduleView={scheduleView}
+                          isDragTarget={
+                            dragTargetDepartmentId === department.id &&
+                            activeDragId?.startsWith('emp:') === true
+                          }
                           collapsed={collapsedDepartments.includes(department.id)}
                           onToggleCollapsed={() =>
                             toggleDepartmentCollapsed(department.id)
@@ -1115,6 +1178,61 @@ function App() {
                 </div>
               )}
             </TableShell>
+
+            <DragOverlay dropAnimation={{ duration: 140, easing: 'ease-out' }}>
+              {draggedEmployee ? (
+                <div
+                  style={{
+                    minWidth: 260,
+                    maxWidth: 360,
+                    padding: '11px 14px',
+                    borderRadius: 12,
+                    border: '1px solid ' + theme.colors.primary,
+                    background: theme.colors.surfaceElevated,
+                    color: theme.colors.text,
+                    boxShadow: '0 18px 45px rgba(15,23,42,.28)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                  }}
+                >
+                  <GripVertical size={17} />
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 800 }}>{draggedEmployee.name}</div>
+                    <div
+                      style={{
+                        marginTop: 2,
+                        fontSize: 11,
+                        color: theme.colors.textMuted,
+                      }}
+                    >
+                      {dragTargetDepartment
+                        ? 'Переместить в: ' + dragTargetDepartment.name
+                        : 'Перетащите в нужный отдел'}
+                    </div>
+                  </div>
+                </div>
+              ) : draggedDepartment ? (
+                <div
+                  style={{
+                    minWidth: 250,
+                    padding: '11px 14px',
+                    borderRadius: 12,
+                    border: '1px solid ' + theme.colors.primary,
+                    background: theme.colors.surfaceElevated,
+                    color: theme.colors.text,
+                    boxShadow: '0 18px 45px rgba(15,23,42,.28)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    fontWeight: 800,
+                  }}
+                >
+                  <GripVertical size={17} />
+                  {draggedDepartment.name}
+                </div>
+              ) : null}
+            </DragOverlay>
           </DndContext>
 
           <ErrorPanel
@@ -1127,7 +1245,7 @@ function App() {
             <span>⋮⋮ Перетащить сотрудника или отдел</span>
             <span>▾ / › Свернуть отдел</span>
             <span>💬 Пожелания</span>
-            <span>График / Часы — два режима таблицы</span>
+            <span>График / День-ночь — два режима таблицы</span>
             <span>☀️ Дневная смена</span>
             <span>🌙 Ночная смена</span>
             <span>OFF Выходной</span>
@@ -1139,6 +1257,22 @@ function App() {
           </Footer>
         </Container>
       </Page>
+
+      {selectedShiftEmployee && editingCell && (
+        <ShiftEditor
+          key={selectedShiftEmployee.id + '-' + editingCell.day + '-' + periodKey}
+          employee={selectedShiftEmployee}
+          day={editingCell.day}
+          year={year}
+          month={month}
+          entry={getEntry(selectedShiftEmployee.id, editingCell.day)}
+          onSave={(value) => {
+            updateCell(selectedShiftEmployee.id, editingCell.day, value);
+            setEditingCell(null);
+          }}
+          onClose={() => setEditingCell(null)}
+        />
+      )}
 
       {selectedWishEmployee && (
         <EmployeeWishDrawer
@@ -1166,11 +1300,8 @@ interface DepartmentSectionProps {
   daysInMonth: number;
   year: number;
   month: number;
-  editingCell: { empId: string; day: number } | null;
   setEditingCell: (value: { empId: string; day: number } | null) => void;
   getEntry: (empId: string, day: number) => ShiftEntry;
-  updateCell: (empId: string, day: number, value: string) => void;
-  getDisplayValue: (entry: ShiftEntry) => string;
   getEmployeeTotals: (empId: string) => {
     day: number;
     night: number;
@@ -1182,6 +1313,7 @@ interface DepartmentSectionProps {
   getWishSummary: (employeeId: string) => string;
   onOpenWishes: (employeeId: string) => void;
   scheduleView: ScheduleView;
+  isDragTarget: boolean;
   collapsed: boolean;
   onToggleCollapsed: () => void;
 }
@@ -1193,17 +1325,15 @@ function DepartmentSection({
   daysInMonth,
   year,
   month,
-  editingCell,
   setEditingCell,
   getEntry,
-  updateCell,
-  getDisplayValue,
   getEmployeeTotals,
   removeEmployee,
   getWishCount,
   getWishSummary,
   onOpenWishes,
   scheduleView,
+  isDragTarget,
   collapsed,
   onToggleCollapsed,
 }: DepartmentSectionProps) {
@@ -1234,7 +1364,7 @@ function DepartmentSection({
         <DepartmentRowCell
           ref={setDropNodeRef}
           colSpan={columnCount}
-          $over={isOver}
+          $over={isOver || isDragTarget}
         >
           <DepartmentRowInner>
             <DragHandle
@@ -1283,11 +1413,8 @@ function DepartmentSection({
               daysInMonth={daysInMonth}
               year={year}
               month={month}
-              editingCell={editingCell}
               setEditingCell={setEditingCell}
               getEntry={getEntry}
-              updateCell={updateCell}
-              getDisplayValue={getDisplayValue}
               totals={getEmployeeTotals(employee.id)}
               removeEmployee={removeEmployee}
               wishCount={getWishCount(employee.id)}
@@ -1308,11 +1435,8 @@ interface SortableEmployeeRowProps {
   daysInMonth: number;
   year: number;
   month: number;
-  editingCell: { empId: string; day: number } | null;
   setEditingCell: (value: { empId: string; day: number } | null) => void;
   getEntry: (empId: string, day: number) => ShiftEntry;
-  updateCell: (empId: string, day: number, value: string) => void;
-  getDisplayValue: (entry: ShiftEntry) => string;
   totals: { day: number; night: number; total: number; workDays: number };
   removeEmployee: (id: string) => void;
   wishCount: number;
@@ -1327,11 +1451,8 @@ function SortableEmployeeRow({
   daysInMonth,
   year,
   month,
-  editingCell,
   setEditingCell,
   getEntry,
-  updateCell,
-  getDisplayValue,
   totals,
   removeEmployee,
   wishCount,
@@ -1399,15 +1520,11 @@ function SortableEmployeeRow({
         </EmployeeCellInner>
       </EmployeeCell>
 
-      {Array.from({ length: daysInMonth }, (_, index) => index + 1).map(
+      {Array.from({ length: daysInMonth }, (_, itemIndex) => itemIndex + 1).map(
         (day) => {
           const entry = getEntry(employee.id, day);
           const dayOfWeek = getDayOfWeek(year, month, day);
           const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-          const isEditing =
-            scheduleView === 'schedule' &&
-            editingCell?.empId === employee.id &&
-            editingCell?.day === day;
 
           let kind: 'empty' | 'error' | 'off' | 'day' | 'night' | 'mixed' =
             'empty';
@@ -1417,11 +1534,11 @@ function SortableEmployeeRow({
           } else if (entry.type === 'off') {
             kind = 'off';
           } else if (entry.type === 'shift') {
-            const hours = calculateShiftHours(entry);
+            const shiftHours = calculateShiftHours(entry);
             kind =
-              hours.night > 0 && hours.day === 0
+              shiftHours.night > 0 && shiftHours.day === 0
                 ? 'night'
-                : hours.night > 0
+                : shiftHours.night > 0
                   ? 'mixed'
                   : 'day';
           }
@@ -1476,46 +1593,6 @@ function SortableEmployeeRow({
                     '·'
                   )}
                 </ShiftDisplay>
-              ) : isEditing ? (
-                <ShiftInput
-                  type="text"
-                  defaultValue={getDisplayValue(entry)}
-                  autoFocus
-                  onBlur={(event) => {
-                    updateCell(employee.id, day, event.target.value);
-                    setEditingCell(null);
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      updateCell(
-                        employee.id,
-                        day,
-                        (event.target as HTMLInputElement).value
-                      );
-                      setEditingCell(null);
-                    }
-
-                    if (event.key === 'Escape') {
-                      setEditingCell(null);
-                    }
-
-                    if (event.key === 'Tab') {
-                      event.preventDefault();
-                      updateCell(
-                        employee.id,
-                        day,
-                        (event.target as HTMLInputElement).value
-                      );
-
-                      if (day < daysInMonth) {
-                        setEditingCell({
-                          empId: employee.id,
-                          day: day + 1,
-                        });
-                      }
-                    }
-                  }}
-                />
               ) : (
                 <ShiftDisplay
                   title={
