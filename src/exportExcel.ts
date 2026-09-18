@@ -376,7 +376,7 @@ function addDailyTotals(
   };
 }
 
-function downloadWorkbook(buffer: ExcelJS.Buffer, fileName: string) {
+function downloadWorkbook(buffer: unknown, fileName: string) {
   const blob = new Blob([buffer as BlobPart], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
