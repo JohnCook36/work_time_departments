@@ -295,18 +295,31 @@ export const TinyText = styled('div')(({ theme }) => ({
 }));
 
 export const TableShell = styled(Card)({
+  position: 'relative',
   overflow: 'hidden',
 });
 
-export const TableScroll = styled('div')({
-  overflowX: 'auto',
-});
+export const TableScroll = styled('div')(({ theme }) => ({
+  overflow: 'auto',
+  maxHeight: 'calc(100vh - 245px)',
+  minHeight: 320,
+  scrollbarGutter: 'stable',
+  overscrollBehavior: 'contain',
+  WebkitOverflowScrolling: 'touch',
+  background: theme.colors.surfaceElevated,
+  '@media (max-width: 760px)': {
+    maxHeight: 'calc(100dvh - 200px)',
+    minHeight: 280,
+  },
+}));
 
 export const ScheduleTable = styled('table')(({ theme }) => ({
-  width: '100%',
+  width: 'max-content',
+  minWidth: '100%',
   borderCollapse: 'collapse',
   fontSize: 12,
   color: theme.colors.text,
+  background: theme.colors.surfaceElevated,
 }));
 
 export const TableHeadRow = styled('tr')(({ theme }) => ({
@@ -316,24 +329,34 @@ export const TableHeadRow = styled('tr')(({ theme }) => ({
   color: '#fff',
 }));
 
-export const HeaderCell = styled('th')<{ $weekend?: boolean }>(({ $weekend }) => ({
+export const HeaderCell = styled('th')<{ $weekend?: boolean }>(({ theme, $weekend }) => ({
+  position: 'sticky',
+  top: 0,
+  zIndex: 18,
   minWidth: 58,
   padding: '7px 3px',
   textAlign: 'center',
   fontWeight: 700,
-  background: $weekend ? 'rgba(127,29,29,.22)' : 'transparent',
+  background: $weekend
+    ? (theme.mode === 'dark' ? '#451f2b' : '#5f2630')
+    : (theme.mode === 'dark' ? '#172033' : '#273449'),
+  borderBottom: '1px solid rgba(255,255,255,.12)',
 }));
 
-export const StickyHeaderCell = styled('th')({
+export const StickyHeaderCell = styled('th')(({ theme }) => ({
   position: 'sticky',
+  top: 0,
   left: 0,
-  zIndex: 20,
+  zIndex: 32,
   minWidth: 230,
+  maxWidth: 230,
   padding: '9px 12px',
   textAlign: 'left',
-  background: '#1f2937',
+  background: theme.mode === 'dark' ? '#111827' : '#1f2937',
   borderRight: '1px solid rgba(255,255,255,.12)',
-});
+  borderBottom: '1px solid rgba(255,255,255,.12)',
+  boxShadow: '3px 0 8px rgba(15,23,42,.16)',
+}));
 
 export const DepartmentRowCell = styled('td')<{ $over: boolean }>(({ theme, $over }) => ({
   position: 'relative',
@@ -347,15 +370,16 @@ export const DepartmentRowCell = styled('td')<{ $over: boolean }>(({ theme, $ove
 export const DepartmentRowInner = styled('div')({
   position: 'sticky',
   left: 0,
-  zIndex: 12,
+  zIndex: 14,
   width: 'max-content',
   maxWidth: 'calc(100vw - 32px)',
   display: 'flex',
   alignItems: 'center',
   gap: 8,
   minHeight: 28,
-  paddingRight: 8,
+  paddingRight: 10,
   background: 'inherit',
+  boxShadow: '8px 0 12px -12px rgba(15,23,42,.45)',
 });
 
 export const DepartmentBadge = styled('span')<{ $kind: 'general' | 'fo' | 'night' }>(({ theme, $kind }) => ({
@@ -390,13 +414,14 @@ export const EmployeeRow = styled('tr')<{ $dragging: boolean; $odd: boolean }>((
 export const EmployeeCell = styled('td')(({ theme }) => ({
   position: 'sticky',
   left: 0,
-  zIndex: 10,
+  zIndex: 12,
   minWidth: 230,
   maxWidth: 230,
   padding: '6px 8px',
   borderBottom: '1px solid ' + theme.colors.border,
   borderRight: '1px solid ' + theme.colors.border,
   background: 'inherit',
+  boxShadow: '3px 0 8px rgba(15,23,42,.08)',
 }));
 
 export const EmployeeCellInner = styled('div')({
@@ -462,7 +487,11 @@ export const WishCount = styled('span')(({ theme }) => ({
   textAlign: 'center',
 }));
 
-export const ShiftCell = styled('td')<{ $kind: 'empty' | 'error' | 'off' | 'day' | 'night' | 'mixed'; $weekend: boolean }>(({ theme, $kind, $weekend }) => {
+export const ShiftCell = styled('td')<{
+  $kind: 'empty' | 'error' | 'off' | 'day' | 'night' | 'mixed';
+  $weekend: boolean;
+  $interactive: boolean;
+}>(({ theme, $kind, $weekend, $interactive }) => {
   const backgrounds = {
     empty: $weekend ? theme.colors.weekendSoft : 'transparent',
     error: theme.colors.dangerSoft,
@@ -479,7 +508,15 @@ export const ShiftCell = styled('td')<{ $kind: 'empty' | 'error' | 'off' | 'day'
     borderRight: '1px solid ' + theme.colors.border,
     textAlign: 'center',
     background: backgrounds[$kind],
-    cursor: 'pointer',
+    cursor: $interactive ? 'pointer' : 'default',
+    transition: 'background 120ms ease, box-shadow 120ms ease',
+    ...($interactive
+      ? {
+          ':hover': {
+            boxShadow: 'inset 0 0 0 2px ' + theme.colors.primary,
+          },
+        }
+      : {}),
   };
 });
 
@@ -548,10 +585,11 @@ export const TotalCell = styled('td')(({ theme }) => ({
 export const StickyTotalCell = styled(TotalCell)(({ theme }) => ({
   position: 'sticky',
   left: 0,
-  zIndex: 10,
+  zIndex: 12,
   textAlign: 'left',
   paddingLeft: 12,
   background: theme.colors.department,
+  boxShadow: '3px 0 8px rgba(15,23,42,.08)',
 }));
 
 export const ErrorCard = styled(Card)(({ theme }) => ({
