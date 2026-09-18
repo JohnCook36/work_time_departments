@@ -70,7 +70,7 @@ function getEmployeeTotals(
 }
 
 function applyWorkbookSheetLayout(
-  sheet: ExcelJS.Worksheet,
+  sheet: ExcelWorksheet,
   daysInMonth: number
 ) {
   sheet.views = [{ state: 'frozen', xSplit: 1, ySplit: 1 }];
@@ -100,7 +100,7 @@ function applyWorkbookSheetLayout(
 }
 
 function styleHeader(
-  row: ExcelJS.Row,
+  row: ExcelRow,
   year: number,
   month: number,
   daysInMonth: number
@@ -141,8 +141,8 @@ function styleHeader(
 }
 
 function styleDepartmentRow(
-  sheet: ExcelJS.Worksheet,
-  row: ExcelJS.Row,
+  sheet: ExcelWorksheet,
+  row: ExcelRow,
   totalColumns: number
 ) {
   sheet.mergeCells(row.number, 1, row.number, totalColumns);
@@ -161,7 +161,7 @@ function styleDepartmentRow(
 }
 
 function styleDataRow(
-  row: ExcelJS.Row,
+  row: ExcelRow,
   year: number,
   month: number,
   daysInMonth: number
@@ -216,7 +216,7 @@ function buildHeaders(
 }
 
 function addDepartmentRows(
-  sheet: ExcelJS.Worksheet,
+  sheet: ExcelWorksheet,
   departments: Department[],
   employees: Employee[],
   schedule: ScheduleData,
@@ -299,7 +299,7 @@ function addDepartmentRows(
 }
 
 function addDailyTotals(
-  sheet: ExcelJS.Worksheet,
+  sheet: ExcelWorksheet,
   employees: Employee[],
   schedule: ScheduleData,
   daysInMonth: number,
