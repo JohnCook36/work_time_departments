@@ -20,11 +20,11 @@ interface PrintScheduleOptions {
 
 function escapeHtml(value: string): string {
   return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;');
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 
 function getEntry(
@@ -243,12 +243,14 @@ export function printSchedule({
     )
     .join('');
 
-  const printWindow = window.open('', '_blank', 'noopener,noreferrer');
+  const printWindow = window.open('', '_blank');
 
   if (!printWindow) {
     alert('Браузер заблокировал окно печати. Разрешите всплывающие окна для сайта.');
     return;
   }
+
+  printWindow.opener = null;
 
   const title =
     'График · ' + MONTH_NAMES[month] + ' ' + year;
