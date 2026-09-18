@@ -38,53 +38,6 @@ export function safeHashEquals(left: string, right: string): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-
-export const SESSION_COOKIE_NAME = 'wtd_session';
-
-export function extractSessionToken(headers: {
-  authorization?: string;
-  cookie?: string;
-}): string | null {
-  const bearer = headers.authorization?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
-  if (bearer) return bearer;
-
-  const cookieHeader = headers.cookie;
-  if (!cookieHeader) return null;
-
-  for (const part of cookieHeader.split(';')) {
-    const [rawName, ...rest] = part.trim().split('=');
-    if (rawName !== SESSION_COOKIE_NAME) continue;
-
-    const value = rest.join('=').trim();
-    return value ? decodeURIComponent(value) : null;
-  }
-
-  return null;
-}
-
-export function serializeSessionCookie(
-  token: string,
-  maxAgeSeconds: number,
-  secure: boolean,
-): string {
-  const parts = [
-    SESSION_COOKIE_NAME + '=' + encodeURIComponent(token),
-    'HttpOnly',
-    'Path=/',
-    'SameSite=Lax',
-    'Max-Age=' + Math.max(0, Math.floor(maxAgeSeconds)),
-  ];
-
-  if (secure) parts.push('Secure');
-
-  return parts.join('; ');
-}
-
-export function serializeClearedSessionCookie(secure: boolean): string {
-  return serializeSessionCookie('', 0, secure);
-}
-
-
 export const SESSION_COOKIE_NAME = 'wtd_session';
 
 export function extractSessionToken(headers: {
