@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",
@@ -22,7 +23,8 @@
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.8.0",
     "recharts": "^2.10.0",
-    "uuid": "^9.0.1"
+    "uuid": "^9.0.1",
+    "exceljs": "^4.4.0"
   },
   "devDependencies": {
     "@types/canvas-confetti": "^1.6.4",
@@ -31,6 +33,7 @@
     "@types/uuid": "^9.0.7",
     "@vitejs/plugin-react": "^4.3.4",
     "typescript": "^5.7.0",
-    "vite": "^6.3.5"
+    "vite": "^6.3.5",
+    "vitest": "^5.0.1"
   }
 }

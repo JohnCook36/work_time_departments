@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Employee"
+ADD COLUMN "employmentRate" DOUBLE PRECISION NOT NULL DEFAULT 1;

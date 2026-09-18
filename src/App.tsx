@@ -1,8 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Global, ThemeProvider } from '@emotion/react';
 import {
   DndContext,
   DragEndEvent,
+  DragOverlay,
+  DragOverEvent,
+  DragStartEvent,
   PointerSensor,
   closestCenter,
   useDroppable,
@@ -21,6 +25,8 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  FileSpreadsheet,
+  FileUp,
   GripVertical,
   Info,
   Layers3,
@@ -28,6 +34,7 @@ import {
   Moon,
   Pencil,
   Plus,
+  Printer,
   Sun,
   Trash2,
 } from 'lucide-react';
@@ -35,6 +42,7 @@ import {
   Department,
   DepartmentKind,
   Employee,
+  EmploymentRate,
   EmployeeWish,
   EmployeeWishesData,
   ScheduleData,
@@ -50,6 +58,15 @@ import {
   validateShiftInput,
 } from './utils';
 import { EmployeeWishDrawer } from './WishDrawer';
+import { ExcelImportDrawer } from './ExcelImportDrawer';
+import {
+  ExcelImportPreview,
+  parseScheduleExcel,
+} from './importExcel';
+import { exportScheduleToExcel } from './exportExcel';
+import { getMonthWeekRanges, printSchedule } from './printSchedule';
+import { ShiftEditor } from './ShiftEditor';
+import { WeeklyHoursPanel } from './WeeklyHoursPanel';
 import { getTheme, ThemeMode } from './theme';
 import {
   ActionButton,
@@ -94,7 +111,6 @@ import {
   Select,
   ShiftCell,
   ShiftDisplay,
-  ShiftInput,
   StickyHeaderCell,
   StickyTotalCell,
   TableHeadRow,
@@ -116,6 +132,8 @@ function generateId(): string {
 function getPeriodKey(year: number, month: number): string {
   return year + '-' + String(month + 1).padStart(2, '0');
 }
+
+type ScheduleView = 'schedule' | 'hours';
 
 const DEFAULT_DEPARTMENT_ID = 'front-office';
 
@@ -169,8 +187,17 @@ function loadFromStorage(initialPeriodKey: string): LoadedData | null {
             'departmentId' in employee && employee.departmentId
               ? employee.departmentId
               : fallbackDepartmentId,
+          employmentRate:
+            employee.employmentRate === 0.5 ||
+            employee.employmentRate === 0.75 ||
+            employee.employmentRate === 1
+              ? employee.employmentRate
+              : 1,
         }))
-      : DEFAULT_EMPLOYEES;
+      : DEFAULT_EMPLOYEES.map((employee) => ({
+          ...employee,
+          employmentRate: employee.employmentRate || 1,
+        }));
 
     const schedules =
       data.schedules ||
@@ -282,11 +309,25 @@ function App() {
   const [showHelp, setShowHelp] = useState(false);
   const [showDepartments, setShowDepartments] = useState(false);
   const [wishEmployeeId, setWishEmployeeId] = useState<string | null>(null);
+  const [scheduleView, setScheduleView] = useState<ScheduleView>('schedule');
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const [isImportingExcel, setIsImportingExcel] = useState(false);
+  const [excelImportPreview, setExcelImportPreview] =
+    useState<ExcelImportPreview | null>(null);
+  const [overwriteExcelCells, setOverwriteExcelCells] = useState(false);
+  const excelFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [printRangeKey, setPrintRangeKey] = useState('month');
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
+  const [dragTargetDepartmentId, setDragTargetDepartmentId] = useState<string | null>(null);
 
   const theme = useMemo(() => getTheme(themeMode), [themeMode]);
   const periodKey = getPeriodKey(year, month);
   const schedule = schedules[periodKey] || {};
   const daysInMonth = getDaysInMonth(year, month);
+  const printWeekRanges = useMemo(
+    () => getMonthWeekRanges(year, month, daysInMonth),
+    [year, month, daysInMonth]
+  );
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -387,9 +428,23 @@ function App() {
         id: generateId(),
         name,
         departmentId: newEmployeeDepartmentId,
+        employmentRate: 1,
       },
     ]);
     setNewEmployeeName('');
+  };
+
+  const changeEmployeeRate = (
+    employeeId: string,
+    employmentRate: EmploymentRate
+  ) => {
+    setEmployees((prev) =>
+      prev.map((employee) =>
+        employee.id === employeeId
+          ? { ...employee, employmentRate }
+          : employee
+      )
+    );
   };
 
   const removeEmployee = (id: string) => {
@@ -481,7 +536,46 @@ function App() {
     );
   };
 
+  const resolveTargetDepartmentId = useCallback(
+    (overRaw: string): string | null => {
+      if (overRaw.startsWith('dep:')) return overRaw.slice(4);
+      if (overRaw.startsWith('dept:')) return overRaw.slice(5);
+      if (overRaw.startsWith('emp:')) {
+        const overEmployeeId = overRaw.slice(4);
+        return (
+          employees.find((employee) => employee.id === overEmployeeId)
+            ?.departmentId || null
+        );
+      }
+      return null;
+    },
+    [employees]
+  );
+
+  const clearDragState = () => {
+    setActiveDragId(null);
+    setDragTargetDepartmentId(null);
+  };
+
+  const handleDragStart = ({ active }: DragStartEvent) => {
+    setActiveDragId(String(active.id));
+    setDragTargetDepartmentId(null);
+  };
+
+  const handleDragOver = ({ active, over }: DragOverEvent) => {
+    const activeRaw = String(active.id);
+    if (!over || !activeRaw.startsWith('emp:')) {
+      setDragTargetDepartmentId(null);
+      return;
+    }
+
+    setDragTargetDepartmentId(
+      resolveTargetDepartmentId(String(over.id))
+    );
+  };
+
   const handleDragEnd = ({ active, over }: DragEndEvent) => {
+    clearDragState();
     if (!over) return;
 
     const activeRaw = String(active.id);
@@ -628,7 +722,8 @@ function App() {
 
   const getDisplayValue = (entry: ShiftEntry): string => {
     if (entry.type === 'shift' && entry.shift) {
-      return entry.shift.start + '-' + entry.shift.end;
+      const codePrefix = entry.shift.code ? entry.shift.code + ' ' : '';
+      return codePrefix + entry.shift.start + '-' + entry.shift.end;
     }
 
     if (entry.type === 'off') return 'OFF';
@@ -684,10 +779,145 @@ function App() {
     setSchedules((prev) => ({ ...prev, [periodKey]: {} }));
   };
 
+  const handleExportExcel = async () => {
+    if (isExportingExcel) return;
+
+    try {
+      setIsExportingExcel(true);
+      await exportScheduleToExcel({
+        departments,
+        employees,
+        schedule,
+        year,
+        month,
+        daysInMonth,
+      });
+    } catch (error) {
+      console.error('Excel export failed', error);
+      alert('Не удалось сформировать Excel-файл.');
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
+
+  const handlePrintSchedule = () => {
+    printSchedule({
+      departments,
+      employees,
+      schedule,
+      year,
+      month,
+      daysInMonth,
+      rangeKey: printRangeKey,
+    });
+  };
+
+  const handleExcelFile = async (file: File | null) => {
+    if (!file || isImportingExcel) return;
+
+    try {
+      setIsImportingExcel(true);
+      const preview = await parseScheduleExcel(file, employees);
+      setOverwriteExcelCells(false);
+      setExcelImportPreview(preview);
+    } catch (error) {
+      console.error('Excel import failed', error);
+      alert(
+        error instanceof Error
+          ? error.message
+          : 'Не удалось прочитать Excel-файл.'
+      );
+    } finally {
+      setIsImportingExcel(false);
+      if (excelFileInputRef.current) {
+        excelFileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const excelImportConflictCount = useMemo(() => {
+    if (!excelImportPreview) return 0;
+
+    return excelImportPreview.entries.reduce((count, item) => {
+      if (!item.employeeId || item.day > daysInMonth) return count;
+      const existing = schedule[item.employeeId]?.[item.day];
+      return existing && existing.type !== 'empty' ? count + 1 : count;
+    }, 0);
+  }, [excelImportPreview, schedule, daysInMonth]);
+
+  const applyExcelImport = () => {
+    if (!excelImportPreview) return;
+
+    let applied = 0;
+    let skippedProtected = 0;
+    let skippedOutsideMonth = 0;
+
+    updateCurrentSchedule((current) => {
+      const next: ScheduleData = { ...current };
+
+      excelImportPreview.entries.forEach((item) => {
+        if (!item.employeeId) return;
+
+        if (item.day < 1 || item.day > daysInMonth) {
+          skippedOutsideMonth++;
+          return;
+        }
+
+        const employeeSchedule = { ...(next[item.employeeId] || {}) };
+        const existing = employeeSchedule[item.day];
+
+        if (
+          !overwriteExcelCells &&
+          existing &&
+          existing.type !== 'empty'
+        ) {
+          skippedProtected++;
+          return;
+        }
+
+        employeeSchedule[item.day] = validateShiftInput(item.value);
+        next[item.employeeId] = employeeSchedule;
+        applied++;
+      });
+
+      return next;
+    });
+
+    setExcelImportPreview(null);
+    setOverwriteExcelCells(false);
+
+    const details = [
+      'Импортировано смен: ' + applied,
+      skippedProtected > 0
+        ? 'Защищено заполненных ячеек: ' + skippedProtected
+        : null,
+      skippedOutsideMonth > 0
+        ? 'Пропущено дней вне текущего месяца: ' + skippedOutsideMonth
+        : null,
+    ].filter(Boolean);
+
+    alert(details.join('\n'));
+  };
+
   const selectedWishEmployee =
     wishEmployeeId === null
       ? null
       : employees.find((employee) => employee.id === wishEmployeeId) || null;
+
+  const selectedShiftEmployee =
+    editingCell === null
+      ? null
+      : employees.find((employee) => employee.id === editingCell.empId) || null;
+
+  const draggedEmployee = activeDragId?.startsWith('emp:')
+    ? employees.find((employee) => employee.id === activeDragId.slice(4)) || null
+    : null;
+  const draggedDepartment = activeDragId?.startsWith('dept:')
+    ? departments.find((department) => department.id === activeDragId.slice(5)) || null
+    : null;
+  const dragTargetDepartment = dragTargetDepartmentId
+    ? departments.find((department) => department.id === dragTargetDepartmentId) || null
+    : null;
 
   const columnCount = daysInMonth + 5;
 
@@ -790,9 +1020,10 @@ function App() {
 
               <HelpGrid>
                 <div>
-                  <TinyText>Смена: 08:00-16:00</TinyText>
+                  <TinyText>Обычная смена: 08:00-17:00</TinyText>
+                  <TinyText>С кодом: E 07:00-16:00</TinyText>
+                  <TinyText>Ночная N: N 20:00-08:00</TinyText>
                   <TinyText>Выходной: OFF</TinyText>
-                  <TinyText>Ночная: 22:00-06:00</TinyText>
                 </div>
                 <div>
                   <TinyText>⋮⋮ — перетащить сотрудника.</TinyText>
@@ -842,7 +1073,83 @@ function App() {
                 Отделы
               </ActionButton>
 
+              <ActionButton
+                type="button"
+                $variant={scheduleView === 'schedule' ? 'primary' : 'secondary'}
+                onClick={() => {
+                  setEditingCell(null);
+                  setScheduleView('schedule');
+                }}
+              >
+                График
+              </ActionButton>
+
+              <ActionButton
+                type="button"
+                $variant={scheduleView === 'hours' ? 'primary' : 'secondary'}
+                onClick={() => {
+                  setEditingCell(null);
+                  setScheduleView('hours');
+                }}
+              >
+                День / ночь
+              </ActionButton>
+
               <Divider />
+
+              <input
+                ref={excelFileInputRef}
+                type="file"
+                accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                style={{ display: 'none' }}
+                onChange={(event) =>
+                  handleExcelFile(event.target.files?.[0] || null)
+                }
+              />
+
+              <ActionButton
+                type="button"
+                onClick={() => excelFileInputRef.current?.click()}
+                disabled={isImportingExcel}
+                title="Загрузить график из Excel с предпросмотром"
+              >
+                <FileUp size={16} />
+                {isImportingExcel ? 'Читаю…' : 'Импорт Excel'}
+              </ActionButton>
+
+              <ActionButton
+                type="button"
+                $variant="accent"
+                onClick={handleExportExcel}
+                disabled={isExportingExcel}
+                title="Сформировать Excel-файл текущего месяца"
+              >
+                <FileSpreadsheet size={16} />
+                {isExportingExcel ? 'Excel…' : 'Экспорт Excel'}
+              </ActionButton>
+
+              <Select
+                value={printRangeKey}
+                onChange={(event) => setPrintRangeKey(event.target.value)}
+                title="Что печатать"
+                style={{ minWidth: 150 }}
+              >
+                <option value="month">Весь месяц</option>
+                {printWeekRanges.map((range) => (
+                  <option key={range.key} value={range.key}>
+                    Неделя {range.label}
+                  </option>
+                ))}
+              </Select>
+
+              <ActionButton
+                type="button"
+                onClick={handlePrintSchedule}
+                title="Открыть печатную версию A4"
+              >
+                <Printer size={16} />
+                Печать
+              </ActionButton>
 
               <ActionButton type="button" onClick={fillOffAll}>
                 OFF все
@@ -954,6 +1261,9 @@ function App() {
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
+            onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
+            onDragCancel={clearDragState}
             onDragEnd={handleDragEnd}
           >
             <TableShell>
@@ -1007,11 +1317,8 @@ function App() {
                           daysInMonth={daysInMonth}
                           year={year}
                           month={month}
-                          editingCell={editingCell}
                           setEditingCell={setEditingCell}
                           getEntry={getEntry}
-                          updateCell={updateCell}
-                          getDisplayValue={getDisplayValue}
                           getEmployeeTotals={getEmployeeTotals}
                           removeEmployee={removeEmployee}
                           getWishCount={(employeeId) =>
@@ -1030,6 +1337,11 @@ function App() {
                               .join('\n')
                           }
                           onOpenWishes={setWishEmployeeId}
+                          scheduleView={scheduleView}
+                          isDragTarget={
+                            dragTargetDepartmentId === department.id &&
+                            activeDragId?.startsWith('emp:') === true
+                          }
                           collapsed={collapsedDepartments.includes(department.id)}
                           onToggleCollapsed={() =>
                             toggleDepartmentCollapsed(department.id)
@@ -1048,16 +1360,25 @@ function App() {
                           (_, index) => index + 1
                         ).map((day) => {
                           let dayCount = 0;
+                          let dayPaidHours = 0;
 
                           employees.forEach((employee) => {
-                            if (getEntry(employee.id, day).type === 'shift') {
+                            const entry = getEntry(employee.id, day);
+                            if (entry.type === 'shift') {
                               dayCount++;
+                              dayPaidHours += calculateShiftHours(entry).total;
                             }
                           });
 
                           return (
                             <TotalCell key={day}>
-                              {dayCount > 0 ? dayCount : ''}
+                              {scheduleView === 'hours'
+                                ? dayPaidHours > 0
+                                  ? Math.round(dayPaidHours * 100) / 100
+                                  : ''
+                                : dayCount > 0
+                                  ? dayCount
+                                  : ''}
                             </TotalCell>
                           );
                         })}
@@ -1078,7 +1399,80 @@ function App() {
                 </div>
               )}
             </TableShell>
+
+            {createPortal(
+              <DragOverlay
+                zIndex={10000}
+                adjustScale={false}
+                dropAnimation={{ duration: 140, easing: 'ease-out' }}
+              >
+                {draggedEmployee ? (
+                <div
+                  style={{
+                    minWidth: 260,
+                    maxWidth: 360,
+                    padding: '11px 14px',
+                    borderRadius: 12,
+                    border: '1px solid ' + theme.colors.primary,
+                    background: theme.colors.surfaceElevated,
+                    color: theme.colors.text,
+                    boxShadow: '0 18px 45px rgba(15,23,42,.28)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                  }}
+                >
+                  <GripVertical size={17} />
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 800 }}>{draggedEmployee.name}</div>
+                    <div
+                      style={{
+                        marginTop: 2,
+                        fontSize: 11,
+                        color: theme.colors.textMuted,
+                      }}
+                    >
+                      {dragTargetDepartment
+                        ? 'Переместить в: ' + dragTargetDepartment.name
+                        : 'Перетащите в нужный отдел'}
+                    </div>
+                  </div>
+                </div>
+              ) : draggedDepartment ? (
+                <div
+                  style={{
+                    minWidth: 250,
+                    padding: '11px 14px',
+                    borderRadius: 12,
+                    border: '1px solid ' + theme.colors.primary,
+                    background: theme.colors.surfaceElevated,
+                    color: theme.colors.text,
+                    boxShadow: '0 18px 45px rgba(15,23,42,.28)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    fontWeight: 800,
+                  }}
+                >
+                  <GripVertical size={17} />
+                  {draggedDepartment.name}
+                </div>
+                ) : null}
+              </DragOverlay>,
+              document.body
+            )}
           </DndContext>
+
+          {scheduleView === 'hours' && employees.length > 0 && (
+            <WeeklyHoursPanel
+              employees={employees}
+              schedule={schedule}
+              year={year}
+              month={month}
+              weeks={printWeekRanges}
+              onRateChange={changeEmployeeRate}
+            />
+          )}
 
           <ErrorPanel
             schedule={schedule}
@@ -1090,17 +1484,53 @@ function App() {
             <span>⋮⋮ Перетащить сотрудника или отдел</span>
             <span>▾ / › Свернуть отдел</span>
             <span>💬 Пожелания</span>
+            <span>График / День-ночь — два режима таблицы</span>
             <span>☀️ Дневная смена</span>
             <span>🌙 Ночная смена</span>
             <span>OFF Выходной</span>
           </Legend>
 
           <Footer>
-            Данные сохраняются локально в браузере • Смены и пожелания раздельно
-            по месяцам
+            <div>
+              Данные сохраняются локально в браузере • Смены и пожелания раздельно
+              по месяцам
+            </div>
+            <div style={{ marginTop: 6, fontWeight: 700 }}>
+              Powered by Anastasiya P.
+            </div>
           </Footer>
         </Container>
       </Page>
+
+      {excelImportPreview && (
+        <ExcelImportDrawer
+          preview={excelImportPreview}
+          conflictCount={excelImportConflictCount}
+          overwriteExisting={overwriteExcelCells}
+          onOverwriteChange={setOverwriteExcelCells}
+          onApply={applyExcelImport}
+          onClose={() => {
+            setExcelImportPreview(null);
+            setOverwriteExcelCells(false);
+          }}
+        />
+      )}
+
+      {selectedShiftEmployee && editingCell && (
+        <ShiftEditor
+          key={selectedShiftEmployee.id + '-' + editingCell.day + '-' + periodKey}
+          employee={selectedShiftEmployee}
+          day={editingCell.day}
+          year={year}
+          month={month}
+          entry={getEntry(selectedShiftEmployee.id, editingCell.day)}
+          onSave={(value) => {
+            updateCell(selectedShiftEmployee.id, editingCell.day, value);
+            setEditingCell(null);
+          }}
+          onClose={() => setEditingCell(null)}
+        />
+      )}
 
       {selectedWishEmployee && (
         <EmployeeWishDrawer
@@ -1128,11 +1558,8 @@ interface DepartmentSectionProps {
   daysInMonth: number;
   year: number;
   month: number;
-  editingCell: { empId: string; day: number } | null;
   setEditingCell: (value: { empId: string; day: number } | null) => void;
   getEntry: (empId: string, day: number) => ShiftEntry;
-  updateCell: (empId: string, day: number, value: string) => void;
-  getDisplayValue: (entry: ShiftEntry) => string;
   getEmployeeTotals: (empId: string) => {
     day: number;
     night: number;
@@ -1143,6 +1570,8 @@ interface DepartmentSectionProps {
   getWishCount: (employeeId: string) => number;
   getWishSummary: (employeeId: string) => string;
   onOpenWishes: (employeeId: string) => void;
+  scheduleView: ScheduleView;
+  isDragTarget: boolean;
   collapsed: boolean;
   onToggleCollapsed: () => void;
 }
@@ -1154,16 +1583,15 @@ function DepartmentSection({
   daysInMonth,
   year,
   month,
-  editingCell,
   setEditingCell,
   getEntry,
-  updateCell,
-  getDisplayValue,
   getEmployeeTotals,
   removeEmployee,
   getWishCount,
   getWishSummary,
   onOpenWishes,
+  scheduleView,
+  isDragTarget,
   collapsed,
   onToggleCollapsed,
 }: DepartmentSectionProps) {
@@ -1194,7 +1622,7 @@ function DepartmentSection({
         <DepartmentRowCell
           ref={setDropNodeRef}
           colSpan={columnCount}
-          $over={isOver}
+          $over={isOver || isDragTarget}
         >
           <DepartmentRowInner>
             <DragHandle
@@ -1243,16 +1671,14 @@ function DepartmentSection({
               daysInMonth={daysInMonth}
               year={year}
               month={month}
-              editingCell={editingCell}
               setEditingCell={setEditingCell}
               getEntry={getEntry}
-              updateCell={updateCell}
-              getDisplayValue={getDisplayValue}
               totals={getEmployeeTotals(employee.id)}
               removeEmployee={removeEmployee}
               wishCount={getWishCount(employee.id)}
               wishSummary={getWishSummary(employee.id)}
               onOpenWishes={onOpenWishes}
+              scheduleView={scheduleView}
             />
           ))}
         </SortableContext>
@@ -1267,16 +1693,14 @@ interface SortableEmployeeRowProps {
   daysInMonth: number;
   year: number;
   month: number;
-  editingCell: { empId: string; day: number } | null;
   setEditingCell: (value: { empId: string; day: number } | null) => void;
   getEntry: (empId: string, day: number) => ShiftEntry;
-  updateCell: (empId: string, day: number, value: string) => void;
-  getDisplayValue: (entry: ShiftEntry) => string;
   totals: { day: number; night: number; total: number; workDays: number };
   removeEmployee: (id: string) => void;
   wishCount: number;
   wishSummary: string;
   onOpenWishes: (employeeId: string) => void;
+  scheduleView: ScheduleView;
 }
 
 function SortableEmployeeRow({
@@ -1285,16 +1709,14 @@ function SortableEmployeeRow({
   daysInMonth,
   year,
   month,
-  editingCell,
   setEditingCell,
   getEntry,
-  updateCell,
-  getDisplayValue,
   totals,
   removeEmployee,
   wishCount,
   wishSummary,
   onOpenWishes,
+  scheduleView,
 }: SortableEmployeeRowProps) {
   const {
     attributes,
@@ -1356,14 +1778,11 @@ function SortableEmployeeRow({
         </EmployeeCellInner>
       </EmployeeCell>
 
-      {Array.from({ length: daysInMonth }, (_, index) => index + 1).map(
+      {Array.from({ length: daysInMonth }, (_, itemIndex) => itemIndex + 1).map(
         (day) => {
           const entry = getEntry(employee.id, day);
           const dayOfWeek = getDayOfWeek(year, month, day);
           const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-          const isEditing =
-            editingCell?.empId === employee.id &&
-            editingCell?.day === day;
 
           let kind: 'empty' | 'error' | 'off' | 'day' | 'night' | 'mixed' =
             'empty';
@@ -1373,71 +1792,74 @@ function SortableEmployeeRow({
           } else if (entry.type === 'off') {
             kind = 'off';
           } else if (entry.type === 'shift') {
-            const hours = calculateShiftHours(entry);
+            const shiftHours = calculateShiftHours(entry);
             kind =
-              hours.night > 0 && hours.day === 0
+              shiftHours.night > 0 && shiftHours.day === 0
                 ? 'night'
-                : hours.night > 0
+                : shiftHours.night > 0
                   ? 'mixed'
                   : 'day';
           }
+
+          const hours =
+            entry.type === 'shift'
+              ? calculateShiftHours(entry)
+              : { day: 0, night: 0, total: 0 };
 
           return (
             <ShiftCell
               key={day}
               $kind={kind}
               $weekend={isWeekend}
-              onClick={() =>
-                setEditingCell({ empId: employee.id, day })
+              $interactive={scheduleView === 'schedule'}
+              onClick={
+                scheduleView === 'schedule'
+                  ? () => setEditingCell({ empId: employee.id, day })
+                  : undefined
               }
             >
-              {isEditing ? (
-                <ShiftInput
-                  type="text"
-                  defaultValue={getDisplayValue(entry)}
-                  autoFocus
-                  onBlur={(event) => {
-                    updateCell(employee.id, day, event.target.value);
-                    setEditingCell(null);
+              {scheduleView === 'hours' ? (
+                <ShiftDisplay
+                  style={{
+                    flexDirection: 'column',
+                    gap: 1,
+                    lineHeight: 1.08,
+                    cursor: 'default',
                   }}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      updateCell(
-                        employee.id,
-                        day,
-                        (event.target as HTMLInputElement).value
-                      );
-                      setEditingCell(null);
-                    }
-
-                    if (event.key === 'Escape') {
-                      setEditingCell(null);
-                    }
-
-                    if (event.key === 'Tab') {
-                      event.preventDefault();
-                      updateCell(
-                        employee.id,
-                        day,
-                        (event.target as HTMLInputElement).value
-                      );
-
-                      if (day < daysInMonth) {
-                        setEditingCell({
-                          empId: employee.id,
-                          day: day + 1,
-                        });
-                      }
-                    }
-                  }}
-                />
+                  title={
+                    entry.type === 'shift'
+                      ? 'Дневные: ' + hours.day +
+                        ' • Ночные: ' + hours.night +
+                        ' • Итого: ' + hours.total
+                      : entry.type === 'error'
+                        ? entry.error
+                        : entry.type === 'off'
+                          ? 'Выходной'
+                          : ''
+                  }
+                >
+                  {entry.type === 'shift' ? (
+                    <>
+                      <span style={{ fontSize: 9 }}>Д {hours.day}</span>
+                      <span style={{ fontSize: 9 }}>Н {hours.night}</span>
+                      <strong style={{ fontSize: 10 }}>Σ {hours.total}</strong>
+                    </>
+                  ) : entry.type === 'off' ? (
+                    'OFF'
+                  ) : entry.type === 'error' ? (
+                    '⚠'
+                  ) : (
+                    '·'
+                  )}
+                </ShiftDisplay>
               ) : (
                 <ShiftDisplay
                   title={
                     entry.type === 'error'
                       ? entry.error
                       : entry.type === 'shift' && entry.shift
-                        ? entry.shift.start + '-' + entry.shift.end
+                        ? (entry.shift.code ? entry.shift.code + ' ' : '') +
+                          entry.shift.start + '-' + entry.shift.end
                         : ''
                   }
                 >
@@ -1446,9 +1868,10 @@ function SortableEmployeeRow({
                     : entry.type === 'off'
                       ? 'OFF'
                       : entry.type === 'shift' && entry.shift
-                        ? entry.shift.start.slice(0, 2) +
-                          '-' +
-                          entry.shift.end.slice(0, 2)
+                        ? entry.shift.code ||
+                          entry.shift.start.slice(0, 2) +
+                            '-' +
+                            entry.shift.end.slice(0, 2)
                         : '⚠'}
                 </ShiftDisplay>
               )}
