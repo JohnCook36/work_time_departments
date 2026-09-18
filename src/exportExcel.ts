@@ -83,7 +83,7 @@ function applyWorkbookSheetLayout(
   sheet.pageSetup.fitToWidth = 1;
   sheet.pageSetup.fitToHeight = 0;
   sheet.pageSetup.paperSize = 9;
-  sheet.pageMargins = {
+  sheet.pageSetup.margins = {
     left: 0.25,
     right: 0.25,
     top: 0.35,
