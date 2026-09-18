@@ -1,4 +1,4 @@
-import ExcelJS, { type Row, type Worksheet } from 'exceljs';
+import ExcelJS from 'exceljs';
 import { Department, Employee, ScheduleData, ShiftEntry } from './types';
 import {
   calculateShiftHours,
@@ -6,6 +6,10 @@ import {
   getDayOfWeek,
   MONTH_NAMES,
 } from './utils';
+
+type ExcelWorkbook = InstanceType<typeof ExcelJS.Workbook>;
+type Worksheet = ReturnType<ExcelWorkbook['addWorksheet']>;
+type Row = ReturnType<Worksheet['addRow']>;
 
 interface ExportScheduleOptions {
   departments: Department[];
