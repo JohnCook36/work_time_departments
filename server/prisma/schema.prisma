@@ -26,8 +26,9 @@ model Department {
 
 model Employee {
   id           String         @id @default(cuid())
-  displayName  String
-  departmentId String
+  displayName    String
+  employmentRate Float          @default(1)
+  departmentId   String
   position     Int            @default(0)
   isActive     Boolean        @default(true)
   createdAt    DateTime       @default(now())
