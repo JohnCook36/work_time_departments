@@ -40,6 +40,7 @@ model User {
   updatedAt   DateTime     @updatedAt
   employee    Employee?
   memberships Membership[]
+  sessions    AuthSession[]
 }
 
 model Employee {
@@ -118,4 +119,33 @@ model EmployeeWish {
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
 
   @@index([employeeId])
+}
+
+
+model AuthChallenge {
+  id          String    @id @default(cuid())
+  phoneE164   String    @db.VarChar(32)
+  codeHash    String    @db.VarChar(64)
+  expiresAt   DateTime
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(5)
+  consumedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([phoneE164, createdAt])
+  @@index([expiresAt])
+}
+
+model AuthSession {
+  id         String    @id @default(cuid())
+  userId     String
+  tokenHash  String    @unique @db.VarChar(64)
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  lastSeenAt DateTime?
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }
