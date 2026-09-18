@@ -925,7 +925,7 @@ function App() {
                   setScheduleView('hours');
                 }}
               >
-                Часы
+                День / ночь
               </ActionButton>
 
               <Divider />
@@ -1245,7 +1245,7 @@ function App() {
             <span>⋮⋮ Перетащить сотрудника или отдел</span>
             <span>▾ / › Свернуть отдел</span>
             <span>💬 Пожелания</span>
-            <span>График / Часы — два режима таблицы</span>
+            <span>График / День-ночь — два режима таблицы</span>
             <span>☀️ Дневная смена</span>
             <span>🌙 Ночная смена</span>
             <span>OFF Выходной</span>
