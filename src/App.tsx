@@ -117,6 +117,8 @@ function getPeriodKey(year: number, month: number): string {
   return year + '-' + String(month + 1).padStart(2, '0');
 }
 
+type ScheduleView = 'schedule' | 'hours';
+
 const DEFAULT_DEPARTMENT_ID = 'front-office';
 
 const DEFAULT_DEPARTMENTS: Department[] = [
@@ -282,6 +284,7 @@ function App() {
   const [showHelp, setShowHelp] = useState(false);
   const [showDepartments, setShowDepartments] = useState(false);
   const [wishEmployeeId, setWishEmployeeId] = useState<string | null>(null);
+  const [scheduleView, setScheduleView] = useState<ScheduleView>('schedule');
 
   const theme = useMemo(() => getTheme(themeMode), [themeMode]);
   const periodKey = getPeriodKey(year, month);
@@ -844,6 +847,28 @@ function App() {
                 Отделы
               </ActionButton>
 
+              <ActionButton
+                type="button"
+                $variant={scheduleView === 'schedule' ? 'primary' : 'secondary'}
+                onClick={() => {
+                  setEditingCell(null);
+                  setScheduleView('schedule');
+                }}
+              >
+                График
+              </ActionButton>
+
+              <ActionButton
+                type="button"
+                $variant={scheduleView === 'hours' ? 'primary' : 'secondary'}
+                onClick={() => {
+                  setEditingCell(null);
+                  setScheduleView('hours');
+                }}
+              >
+                Часы
+              </ActionButton>
+
               <Divider />
 
               <ActionButton type="button" onClick={fillOffAll}>
@@ -1032,6 +1057,7 @@ function App() {
                               .join('\n')
                           }
                           onOpenWishes={setWishEmployeeId}
+                          scheduleView={scheduleView}
                           collapsed={collapsedDepartments.includes(department.id)}
                           onToggleCollapsed={() =>
                             toggleDepartmentCollapsed(department.id)
@@ -1050,16 +1076,25 @@ function App() {
                           (_, index) => index + 1
                         ).map((day) => {
                           let dayCount = 0;
+                          let dayPaidHours = 0;
 
                           employees.forEach((employee) => {
-                            if (getEntry(employee.id, day).type === 'shift') {
+                            const entry = getEntry(employee.id, day);
+                            if (entry.type === 'shift') {
                               dayCount++;
+                              dayPaidHours += calculateShiftHours(entry).total;
                             }
                           });
 
                           return (
                             <TotalCell key={day}>
-                              {dayCount > 0 ? dayCount : ''}
+                              {scheduleView === 'hours'
+                                ? dayPaidHours > 0
+                                  ? Math.round(dayPaidHours * 100) / 100
+                                  : ''
+                                : dayCount > 0
+                                  ? dayCount
+                                  : ''}
                             </TotalCell>
                           );
                         })}
@@ -1092,6 +1127,7 @@ function App() {
             <span>⋮⋮ Перетащить сотрудника или отдел</span>
             <span>▾ / › Свернуть отдел</span>
             <span>💬 Пожелания</span>
+            <span>График / Часы — два режима таблицы</span>
             <span>☀️ Дневная смена</span>
             <span>🌙 Ночная смена</span>
             <span>OFF Выходной</span>
@@ -1145,6 +1181,7 @@ interface DepartmentSectionProps {
   getWishCount: (employeeId: string) => number;
   getWishSummary: (employeeId: string) => string;
   onOpenWishes: (employeeId: string) => void;
+  scheduleView: ScheduleView;
   collapsed: boolean;
   onToggleCollapsed: () => void;
 }
@@ -1166,6 +1203,7 @@ function DepartmentSection({
   getWishCount,
   getWishSummary,
   onOpenWishes,
+  scheduleView,
   collapsed,
   onToggleCollapsed,
 }: DepartmentSectionProps) {
@@ -1255,6 +1293,7 @@ function DepartmentSection({
               wishCount={getWishCount(employee.id)}
               wishSummary={getWishSummary(employee.id)}
               onOpenWishes={onOpenWishes}
+              scheduleView={scheduleView}
             />
           ))}
         </SortableContext>
@@ -1279,6 +1318,7 @@ interface SortableEmployeeRowProps {
   wishCount: number;
   wishSummary: string;
   onOpenWishes: (employeeId: string) => void;
+  scheduleView: ScheduleView;
 }
 
 function SortableEmployeeRow({
@@ -1297,6 +1337,7 @@ function SortableEmployeeRow({
   wishCount,
   wishSummary,
   onOpenWishes,
+  scheduleView,
 }: SortableEmployeeRowProps) {
   const {
     attributes,
@@ -1364,6 +1405,7 @@ function SortableEmployeeRow({
           const dayOfWeek = getDayOfWeek(year, month, day);
           const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
           const isEditing =
+            scheduleView === 'schedule' &&
             editingCell?.empId === employee.id &&
             editingCell?.day === day;
 
@@ -1384,16 +1426,57 @@ function SortableEmployeeRow({
                   : 'day';
           }
 
+          const hours =
+            entry.type === 'shift'
+              ? calculateShiftHours(entry)
+              : { day: 0, night: 0, total: 0 };
+
           return (
             <ShiftCell
               key={day}
               $kind={kind}
               $weekend={isWeekend}
-              onClick={() =>
-                setEditingCell({ empId: employee.id, day })
+              onClick={
+                scheduleView === 'schedule'
+                  ? () => setEditingCell({ empId: employee.id, day })
+                  : undefined
               }
             >
-              {isEditing ? (
+              {scheduleView === 'hours' ? (
+                <ShiftDisplay
+                  style={{
+                    flexDirection: 'column',
+                    gap: 1,
+                    lineHeight: 1.08,
+                    cursor: 'default',
+                  }}
+                  title={
+                    entry.type === 'shift'
+                      ? 'Дневные: ' + hours.day +
+                        ' • Ночные: ' + hours.night +
+                        ' • Итого: ' + hours.total
+                      : entry.type === 'error'
+                        ? entry.error
+                        : entry.type === 'off'
+                          ? 'Выходной'
+                          : ''
+                  }
+                >
+                  {entry.type === 'shift' ? (
+                    <>
+                      <span style={{ fontSize: 9 }}>Д {hours.day}</span>
+                      <span style={{ fontSize: 9 }}>Н {hours.night}</span>
+                      <strong style={{ fontSize: 10 }}>Σ {hours.total}</strong>
+                    </>
+                  ) : entry.type === 'off' ? (
+                    'OFF'
+                  ) : entry.type === 'error' ? (
+                    '⚠'
+                  ) : (
+                    '·'
+                  )}
+                </ShiftDisplay>
+              ) : isEditing ? (
                 <ShiftInput
                   type="text"
                   defaultValue={getDisplayValue(entry)}
