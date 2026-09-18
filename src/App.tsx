@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Global, ThemeProvider } from '@emotion/react';
 import {
   DndContext,
@@ -1399,8 +1400,13 @@ function App() {
               )}
             </TableShell>
 
-            <DragOverlay dropAnimation={{ duration: 140, easing: 'ease-out' }}>
-              {draggedEmployee ? (
+            {createPortal(
+              <DragOverlay
+                zIndex={10000}
+                adjustScale={false}
+                dropAnimation={{ duration: 140, easing: 'ease-out' }}
+              >
+                {draggedEmployee ? (
                 <div
                   style={{
                     minWidth: 260,
@@ -1451,8 +1457,10 @@ function App() {
                   <GripVertical size={17} />
                   {draggedDepartment.name}
                 </div>
-              ) : null}
-            </DragOverlay>
+                ) : null}
+              </DragOverlay>,
+              document.body
+            )}
           </DndContext>
 
           {scheduleView === 'hours' && employees.length > 0 && (
