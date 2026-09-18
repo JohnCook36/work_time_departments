@@ -24,6 +24,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  FileSpreadsheet,
   GripVertical,
   Info,
   Layers3,
@@ -31,6 +32,7 @@ import {
   Moon,
   Pencil,
   Plus,
+  Printer,
   Sun,
   Trash2,
 } from 'lucide-react';
@@ -53,6 +55,8 @@ import {
   validateShiftInput,
 } from './utils';
 import { EmployeeWishDrawer } from './WishDrawer';
+import { exportScheduleToExcel } from './exportExcel';
+import { getMonthWeekRanges, printSchedule } from './printSchedule';
 import { ShiftEditor } from './ShiftEditor';
 import { getTheme, ThemeMode } from './theme';
 import {
@@ -288,6 +292,8 @@ function App() {
   const [showDepartments, setShowDepartments] = useState(false);
   const [wishEmployeeId, setWishEmployeeId] = useState<string | null>(null);
   const [scheduleView, setScheduleView] = useState<ScheduleView>('schedule');
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const [printRangeKey, setPrintRangeKey] = useState('month');
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [dragTargetDepartmentId, setDragTargetDepartmentId] = useState<string | null>(null);
 
@@ -295,6 +301,10 @@ function App() {
   const periodKey = getPeriodKey(year, month);
   const schedule = schedules[periodKey] || {};
   const daysInMonth = getDaysInMonth(year, month);
+  const printWeekRanges = useMemo(
+    () => getMonthWeekRanges(year, month, daysInMonth),
+    [year, month, daysInMonth]
+  );
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -732,6 +742,39 @@ function App() {
     setSchedules((prev) => ({ ...prev, [periodKey]: {} }));
   };
 
+  const handleExportExcel = async () => {
+    if (isExportingExcel) return;
+
+    try {
+      setIsExportingExcel(true);
+      await exportScheduleToExcel({
+        departments,
+        employees,
+        schedule,
+        year,
+        month,
+        daysInMonth,
+      });
+    } catch (error) {
+      console.error('Excel export failed', error);
+      alert('Не удалось сформировать Excel-файл.');
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
+
+  const handlePrintSchedule = () => {
+    printSchedule({
+      departments,
+      employees,
+      schedule,
+      year,
+      month,
+      daysInMonth,
+      rangeKey: printRangeKey,
+    });
+  };
+
   const selectedWishEmployee =
     wishEmployeeId === null
       ? null
@@ -929,6 +972,40 @@ function App() {
               </ActionButton>
 
               <Divider />
+
+              <ActionButton
+                type="button"
+                $variant="accent"
+                onClick={handleExportExcel}
+                disabled={isExportingExcel}
+                title="Сформировать Excel-файл текущего месяца"
+              >
+                <FileSpreadsheet size={16} />
+                {isExportingExcel ? 'Excel…' : 'Excel'}
+              </ActionButton>
+
+              <Select
+                value={printRangeKey}
+                onChange={(event) => setPrintRangeKey(event.target.value)}
+                title="Что печатать"
+                style={{ minWidth: 150 }}
+              >
+                <option value="month">Весь месяц</option>
+                {printWeekRanges.map((range) => (
+                  <option key={range.key} value={range.key}>
+                    Неделя {range.label}
+                  </option>
+                ))}
+              </Select>
+
+              <ActionButton
+                type="button"
+                onClick={handlePrintSchedule}
+                title="Открыть печатную версию A4"
+              >
+                <Printer size={16} />
+                Печать
+              </ActionButton>
 
               <ActionButton type="button" onClick={fillOffAll}>
                 OFF все
@@ -1252,8 +1329,13 @@ function App() {
           </Legend>
 
           <Footer>
-            Данные сохраняются локально в браузере • Смены и пожелания раздельно
-            по месяцам
+            <div>
+              Данные сохраняются локально в браузере • Смены и пожелания раздельно
+              по месяцам
+            </div>
+            <div style={{ marginTop: 6, fontWeight: 700 }}>
+              Powered by Anastasiya P.
+            </div>
           </Footer>
         </Container>
       </Page>
