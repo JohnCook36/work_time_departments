@@ -1767,6 +1767,7 @@ function SortableEmployeeRow({
               key={day}
               $kind={kind}
               $weekend={isWeekend}
+              $interactive={scheduleView === 'schedule'}
               onClick={
                 scheduleView === 'schedule'
                   ? () => setEditingCell({ empId: employee.id, day })
