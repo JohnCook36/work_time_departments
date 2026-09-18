@@ -1,6 +1,9 @@
+export type ShiftCode = 'E' | 'IN' | 'INN' | 'L' | 'N';
+
 export interface Shift {
   start: string; // "HH:MM"
   end: string;   // "HH:MM"
+  code?: ShiftCode;
 }
 
 export interface ShiftEntry {

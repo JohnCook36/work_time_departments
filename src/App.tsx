@@ -628,7 +628,8 @@ function App() {
 
   const getDisplayValue = (entry: ShiftEntry): string => {
     if (entry.type === 'shift' && entry.shift) {
-      return entry.shift.start + '-' + entry.shift.end;
+      const codePrefix = entry.shift.code ? entry.shift.code + ' ' : '';
+      return codePrefix + entry.shift.start + '-' + entry.shift.end;
     }
 
     if (entry.type === 'off') return 'OFF';
@@ -790,9 +791,10 @@ function App() {
 
               <HelpGrid>
                 <div>
-                  <TinyText>Смена: 08:00-16:00</TinyText>
+                  <TinyText>Обычная смена: 08:00-17:00</TinyText>
+                  <TinyText>С кодом: E 07:00-16:00</TinyText>
+                  <TinyText>Ночная N: N 20:00-08:00</TinyText>
                   <TinyText>Выходной: OFF</TinyText>
-                  <TinyText>Ночная: 22:00-06:00</TinyText>
                 </div>
                 <div>
                   <TinyText>⋮⋮ — перетащить сотрудника.</TinyText>
@@ -1437,7 +1439,8 @@ function SortableEmployeeRow({
                     entry.type === 'error'
                       ? entry.error
                       : entry.type === 'shift' && entry.shift
-                        ? entry.shift.start + '-' + entry.shift.end
+                        ? (entry.shift.code ? entry.shift.code + ' ' : '') +
+                          entry.shift.start + '-' + entry.shift.end
                         : ''
                   }
                 >
@@ -1446,9 +1449,10 @@ function SortableEmployeeRow({
                     : entry.type === 'off'
                       ? 'OFF'
                       : entry.type === 'shift' && entry.shift
-                        ? entry.shift.start.slice(0, 2) +
-                          '-' +
-                          entry.shift.end.slice(0, 2)
+                        ? entry.shift.code ||
+                          entry.shift.start.slice(0, 2) +
+                            '-' +
+                            entry.shift.end.slice(0, 2)
                         : '⚠'}
                 </ShiftDisplay>
               )}
