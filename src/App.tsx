@@ -1096,8 +1096,13 @@ function App() {
           </Legend>
 
           <Footer>
-            Данные сохраняются локально в браузере • Смены и пожелания раздельно
-            по месяцам
+            <div>
+              Данные сохраняются локально в браузере • Смены и пожелания раздельно
+              по месяцам
+            </div>
+            <div style={{ marginTop: 6, fontWeight: 700 }}>
+              Powered by Anastasiya P.
+            </div>
           </Footer>
         </Container>
       </Page>
