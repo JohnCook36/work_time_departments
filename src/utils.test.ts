@@ -12,15 +12,24 @@ describe('validateShiftInput', () => {
   });
 
   it.each([
-    ['08:00-17:00', '08:00', '17:00'],
-    ['8:05 - 16:30', '08:05', '16:30'],
-    ['15:00–23:00', '15:00', '23:00'],
-    ['22:00—6:00', '22:00', '06:00'],
-    ['23:59-00:00', '23:59', '00:00'],
-  ])('accepts %s and normalizes its times', (input, start, end) => {
+    ['08:00-17:00', '08:00', '17:00', undefined],
+    ['8:05 - 16:30', '08:05', '16:30', undefined],
+    ['15:00–23:00', '15:00', '23:00', undefined],
+    ['22:00—6:00', '22:00', '06:00', undefined],
+    ['23:59-00:00', '23:59', '00:00', undefined],
+    ['E 07:00-16:00', '07:00', '16:00', 'E'],
+    ['IN 08:00-17:00', '08:00', '17:00', 'IN'],
+    ['INN 10:00-19:00', '10:00', '19:00', 'INN'],
+    ['L 15:00-23:00', '15:00', '23:00', 'L'],
+    ['N 20:00-08:00', '20:00', '08:00', 'N'],
+  ])('accepts %s and normalizes its times', (input, start, end, code) => {
     expect(validateShiftInput(input)).toEqual({
       type: 'shift',
-      shift: { start, end },
+      shift: {
+        start,
+        end,
+        ...(code ? { code } : {}),
+      },
     });
   });
 
@@ -29,7 +38,7 @@ describe('validateShiftInput', () => {
     (input) => {
       expect(validateShiftInput(input)).toEqual({
         type: 'error',
-        error: 'Формат: ЧЧ:ММ-ЧЧ:ММ (напр. 08:00-16:00)',
+        error: 'Формат: ЧЧ:ММ-ЧЧ:ММ или КОД ЧЧ:ММ-ЧЧ:ММ (напр. N 20:00-08:00)',
       });
     },
   );
