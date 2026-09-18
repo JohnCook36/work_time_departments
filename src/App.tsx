@@ -11,12 +11,14 @@ import {
 } from '@dnd-kit/core';
 import {
   SortableContext,
+  arrayMove,
   useSortable,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import {
   AlertTriangle,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   GripVertical,
@@ -137,6 +139,7 @@ interface StoredData {
   schedule?: ScheduleData;
   schedules?: SchedulePeriodsData;
   wishes?: EmployeeWishesData;
+  collapsedDepartments?: string[];
 }
 
 interface LoadedData {
@@ -144,6 +147,7 @@ interface LoadedData {
   departments: Department[];
   schedules: SchedulePeriodsData;
   wishes: EmployeeWishesData;
+  collapsedDepartments: string[];
 }
 
 function loadFromStorage(initialPeriodKey: string): LoadedData | null {
@@ -177,6 +181,11 @@ function loadFromStorage(initialPeriodKey: string): LoadedData | null {
       departments,
       schedules,
       wishes: data.wishes || {},
+      collapsedDepartments: Array.isArray(data.collapsedDepartments)
+        ? data.collapsedDepartments.filter((id) =>
+            departments.some((department) => department.id === id)
+          )
+        : [],
     };
   } catch {
     return null;
@@ -187,12 +196,19 @@ function saveToStorage(
   employees: Employee[],
   departments: Department[],
   schedules: SchedulePeriodsData,
-  wishes: EmployeeWishesData
+  wishes: EmployeeWishesData,
+  collapsedDepartments: string[]
 ) {
   try {
     localStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ employees, departments, schedules, wishes })
+      JSON.stringify({
+        employees,
+        departments,
+        schedules,
+        wishes,
+        collapsedDepartments,
+      })
     );
   } catch {
     // Browser storage may be unavailable.
@@ -248,6 +264,9 @@ function App() {
   const [wishes, setWishes] = useState<EmployeeWishesData>(
     stored?.wishes || {}
   );
+  const [collapsedDepartments, setCollapsedDepartments] = useState<string[]>(
+    stored?.collapsedDepartments || []
+  );
 
   const [newEmployeeName, setNewEmployeeName] = useState('');
   const [newEmployeeDepartmentId, setNewEmployeeDepartmentId] = useState(
@@ -276,8 +295,14 @@ function App() {
   );
 
   useEffect(() => {
-    saveToStorage(employees, departments, schedules, wishes);
-  }, [employees, departments, schedules, wishes]);
+    saveToStorage(
+      employees,
+      departments,
+      schedules,
+      wishes,
+      collapsedDepartments
+    );
+  }, [employees, departments, schedules, wishes, collapsedDepartments]);
 
   useEffect(() => {
     try {
@@ -443,6 +468,17 @@ function App() {
     setDepartments((prev) =>
       prev.filter((department) => department.id !== departmentId)
     );
+    setCollapsedDepartments((prev) =>
+      prev.filter((id) => id !== departmentId)
+    );
+  };
+
+  const toggleDepartmentCollapsed = (departmentId: string) => {
+    setCollapsedDepartments((prev) =>
+      prev.includes(departmentId)
+        ? prev.filter((id) => id !== departmentId)
+        : [...prev, departmentId]
+    );
   };
 
   const handleDragEnd = ({ active, over }: DragEndEvent) => {
@@ -450,15 +486,45 @@ function App() {
 
     const activeRaw = String(active.id);
     const overRaw = String(over.id);
+
+    if (activeRaw.startsWith('dept:')) {
+      const activeDepartmentId = activeRaw.slice(5);
+      const overEmployeeId = overRaw.startsWith('emp:') ? overRaw.slice(4) : null;
+      const targetDepartmentId = overRaw.startsWith('dept:')
+        ? overRaw.slice(5)
+        : overRaw.startsWith('dep:')
+          ? overRaw.slice(4)
+          : overEmployeeId
+            ? employees.find((employee) => employee.id === overEmployeeId)?.departmentId
+            : undefined;
+
+      if (!targetDepartmentId || targetDepartmentId === activeDepartmentId) return;
+
+      setDepartments((prev) => {
+        const oldIndex = prev.findIndex(
+          (department) => department.id === activeDepartmentId
+        );
+        const newIndex = prev.findIndex(
+          (department) => department.id === targetDepartmentId
+        );
+
+        if (oldIndex === -1 || newIndex === -1) return prev;
+        return arrayMove(prev, oldIndex, newIndex);
+      });
+      return;
+    }
+
     if (!activeRaw.startsWith('emp:')) return;
 
     const activeEmployeeId = activeRaw.slice(4);
     const overEmployeeId = overRaw.startsWith('emp:') ? overRaw.slice(4) : null;
     const targetDepartmentId = overRaw.startsWith('dep:')
       ? overRaw.slice(4)
-      : overEmployeeId
-        ? employees.find((employee) => employee.id === overEmployeeId)?.departmentId
-        : undefined;
+      : overRaw.startsWith('dept:')
+        ? overRaw.slice(5)
+        : overEmployeeId
+          ? employees.find((employee) => employee.id === overEmployeeId)?.departmentId
+          : undefined;
 
     if (!targetDepartmentId) return;
 
@@ -730,6 +796,8 @@ function App() {
                 </div>
                 <div>
                   <TinyText>⋮⋮ — перетащить сотрудника.</TinyText>
+                  <TinyText>⋮⋮ в строке отдела — переместить весь отдел.</TinyText>
+                  <TinyText>▾ / › — свернуть или развернуть отдел.</TinyText>
                   <TinyText>💬 — открыть пожелания сотрудника.</TinyText>
                   <TinyText>Можно переносить людей между отделами.</TinyText>
                 </div>
@@ -920,6 +988,10 @@ function App() {
                   </thead>
 
                   <tbody>
+                    <SortableContext
+                      items={departments.map((department) => 'dept:' + department.id)}
+                      strategy={verticalListSortingStrategy}
+                    >
                     {departments.map((department) => {
                       const departmentEmployees = employees.filter(
                         (employee) =>
@@ -958,9 +1030,14 @@ function App() {
                               .join('\n')
                           }
                           onOpenWishes={setWishEmployeeId}
+                          collapsed={collapsedDepartments.includes(department.id)}
+                          onToggleCollapsed={() =>
+                            toggleDepartmentCollapsed(department.id)
+                          }
                         />
                       );
                     })}
+                    </SortableContext>
 
                     {employees.length > 0 && (
                       <TotalRow>
@@ -1010,7 +1087,8 @@ function App() {
           />
 
           <Legend>
-            <span>⋮⋮ Перетащить сотрудника</span>
+            <span>⋮⋮ Перетащить сотрудника или отдел</span>
+            <span>▾ / › Свернуть отдел</span>
             <span>💬 Пожелания</span>
             <span>☀️ Дневная смена</span>
             <span>🌙 Ночная смена</span>
@@ -1065,6 +1143,8 @@ interface DepartmentSectionProps {
   getWishCount: (employeeId: string) => number;
   getWishSummary: (employeeId: string) => string;
   onOpenWishes: (employeeId: string) => void;
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
 }
 
 function DepartmentSection({
@@ -1084,16 +1164,60 @@ function DepartmentSection({
   getWishCount,
   getWishSummary,
   onOpenWishes,
+  collapsed,
+  onToggleCollapsed,
 }: DepartmentSectionProps) {
-  const { setNodeRef, isOver } = useDroppable({
+  const {
+    attributes,
+    listeners,
+    setNodeRef: setSortableNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: 'dept:' + department.id,
+  });
+
+  const { setNodeRef: setDropNodeRef, isOver } = useDroppable({
     id: 'dep:' + department.id,
   });
 
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.55 : 1,
+  };
+
   return (
     <>
-      <tr ref={setNodeRef}>
-        <DepartmentRowCell colSpan={columnCount} $over={isOver}>
+      <tr ref={setSortableNodeRef} style={style}>
+        <DepartmentRowCell
+          ref={setDropNodeRef}
+          colSpan={columnCount}
+          $over={isOver}
+        >
           <DepartmentRowInner>
+            <DragHandle
+              type="button"
+              title="Перетащить весь отдел"
+              {...attributes}
+              {...listeners}
+            >
+              <GripVertical size={16} />
+            </DragHandle>
+
+            <RowIconButton
+              type="button"
+              onClick={onToggleCollapsed}
+              title={collapsed ? 'Развернуть отдел' : 'Свернуть отдел'}
+            >
+              {collapsed ? (
+                <ChevronRight size={14} />
+              ) : (
+                <ChevronDown size={14} />
+              )}
+            </RowIconButton>
+
             <strong>{department.name}</strong>
             <DepartmentBadge $kind={department.kind}>
               {departmentKindLabel(department.kind)}
@@ -1106,31 +1230,33 @@ function DepartmentSection({
         </DepartmentRowCell>
       </tr>
 
-      <SortableContext
-        items={employees.map((employee) => 'emp:' + employee.id)}
-        strategy={verticalListSortingStrategy}
-      >
-        {employees.map((employee, index) => (
-          <SortableEmployeeRow
-            key={employee.id}
-            employee={employee}
-            index={index}
-            daysInMonth={daysInMonth}
-            year={year}
-            month={month}
-            editingCell={editingCell}
-            setEditingCell={setEditingCell}
-            getEntry={getEntry}
-            updateCell={updateCell}
-            getDisplayValue={getDisplayValue}
-            totals={getEmployeeTotals(employee.id)}
-            removeEmployee={removeEmployee}
-            wishCount={getWishCount(employee.id)}
-            wishSummary={getWishSummary(employee.id)}
-            onOpenWishes={onOpenWishes}
-          />
-        ))}
-      </SortableContext>
+      {!collapsed && (
+        <SortableContext
+          items={employees.map((employee) => 'emp:' + employee.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          {employees.map((employee, index) => (
+            <SortableEmployeeRow
+              key={employee.id}
+              employee={employee}
+              index={index}
+              daysInMonth={daysInMonth}
+              year={year}
+              month={month}
+              editingCell={editingCell}
+              setEditingCell={setEditingCell}
+              getEntry={getEntry}
+              updateCell={updateCell}
+              getDisplayValue={getDisplayValue}
+              totals={getEmployeeTotals(employee.id)}
+              removeEmployee={removeEmployee}
+              wishCount={getWishCount(employee.id)}
+              wishSummary={getWishSummary(employee.id)}
+              onOpenWishes={onOpenWishes}
+            />
+          ))}
+        </SortableContext>
+      )}
     </>
   );
 }
