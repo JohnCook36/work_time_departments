@@ -1,11 +1,20 @@
 import ExcelJS from 'exceljs';
 import { Employee } from './types';
+import { validateShiftInput } from './utils';
 
 export interface ExcelImportEntry {
   employeeName: string;
   employeeId: string | null;
   day: number;
   value: string;
+}
+
+export interface ExcelImportInvalidCell {
+  employeeName: string;
+  day: number;
+  scheduleValue: string;
+  actualTimeValue: string;
+  reason: string;
 }
 
 export interface ExcelImportPreview {
@@ -15,7 +24,14 @@ export interface ExcelImportPreview {
   entries: ExcelImportEntry[];
   matchedEmployees: string[];
   unknownEmployees: string[];
+  ambiguousEmployees: string[];
+  invalidCells: ExcelImportInvalidCell[];
   warnings: string[];
+}
+
+interface NormalizedImportValue {
+  value: string | null;
+  invalidReason: string | null;
 }
 
 function normalizeName(value: string): string {
@@ -57,10 +73,7 @@ function extractDay(header: string): number | null {
   return day >= 1 && day <= 31 ? day : null;
 }
 
-function isDepartmentRow(
-  firstCell: string,
-  rowValues: string[]
-): boolean {
+function isDepartmentRow(firstCell: string, rowValues: string[]): boolean {
   if (!firstCell) return false;
 
   const nonEmpty = rowValues.filter(Boolean);
@@ -73,30 +86,62 @@ function isDepartmentRow(
 function normalizeImportedShift(
   scheduleValue: string,
   actualTimeValue: string
-): string | null {
+): NormalizedImportValue {
   const schedule = scheduleValue.trim();
   const actual = actualTimeValue.trim();
 
-  if (!schedule && !actual) return null;
-  if (/^OFF$/i.test(schedule)) return 'OFF';
-  if (schedule === '⚠') return null;
+  if (!schedule && !actual) {
+    return { value: null, invalidReason: null };
+  }
+
+  if (/^OFF$/i.test(schedule)) {
+    return { value: 'OFF', invalidReason: null };
+  }
+
+  if (schedule === '⚠') {
+    return {
+      value: null,
+      invalidReason: 'В исходной таблице ячейка уже помечена ошибкой.',
+    };
+  }
 
   const code = /^(E|IN|INN|L|N)$/i.test(schedule)
     ? schedule.toUpperCase()
     : null;
 
-  const fullTime =
-    actual.match(/^\d{1,2}:\d{2}\s*[-–—]\s*\d{1,2}:\d{2}$/)
-      ? actual
-      : schedule.match(/^\d{1,2}:\d{2}\s*[-–—]\s*\d{1,2}:\d{2}$/)
-        ? schedule
-        : null;
-
-  if (fullTime) {
-    return code ? code + ' ' + fullTime : fullTime;
+  if (code && !actual) {
+    return {
+      value: null,
+      invalidReason: 'Указан код смены, но отсутствует полное время начала и окончания.',
+    };
   }
 
-  return null;
+  const candidates: string[] = [];
+
+  if (code && actual) {
+    candidates.push(code + ' ' + actual);
+  }
+
+  if (schedule && !code) {
+    candidates.push(schedule);
+  }
+
+  if (actual) {
+    candidates.push(actual);
+  }
+
+  for (const candidate of candidates) {
+    const parsed = validateShiftInput(candidate);
+    if (parsed.type === 'shift' || parsed.type === 'off') {
+      return { value: candidate, invalidReason: null };
+    }
+  }
+
+  return {
+    value: null,
+    invalidReason:
+      'Не удалось распознать смену. Ожидается OFF или время вида 08:00-17:00 с необязательным кодом E / IN / INN / L / N.',
+  };
 }
 
 export async function parseScheduleExcel(
@@ -117,7 +162,11 @@ export async function parseScheduleExcel(
 
   let headerRowNumber = -1;
 
-  for (let rowNumber = 1; rowNumber <= Math.min(12, worksheet.rowCount); rowNumber++) {
+  for (
+    let rowNumber = 1;
+    rowNumber <= Math.min(12, worksheet.rowCount);
+    rowNumber++
+  ) {
     const first = cellText(worksheet.getRow(rowNumber).getCell(1).value);
     if (/^сотрудник$/i.test(first)) {
       headerRowNumber = rowNumber;
@@ -133,27 +182,40 @@ export async function parseScheduleExcel(
 
   const headerRow = worksheet.getRow(headerRowNumber);
   const dayColumns = new Map<number, number>();
+  const seenDays = new Set<number>();
+  const duplicateDays = new Set<number>();
 
   for (let column = 2; column <= headerRow.cellCount; column++) {
     const day = extractDay(cellText(headerRow.getCell(column).value));
-    if (day !== null) dayColumns.set(column, day);
+    if (day === null) continue;
+
+    if (seenDays.has(day)) {
+      duplicateDays.add(day);
+    }
+
+    seenDays.add(day);
+    dayColumns.set(column, day);
   }
 
   if (dayColumns.size === 0) {
     throw new Error('Не удалось определить колонки с днями месяца.');
   }
 
-  const employeeByName = new Map(
-    employees.map((employee) => [
-      normalizeName(employee.name),
-      employee,
-    ])
-  );
+  const employeesByName = new Map<string, Employee[]>();
+
+  employees.forEach((employee) => {
+    const key = normalizeName(employee.name);
+    const current = employeesByName.get(key) || [];
+    current.push(employee);
+    employeesByName.set(key, current);
+  });
 
   const matchedEmployees = new Set<string>();
   const unknownEmployees = new Set<string>();
+  const ambiguousEmployees = new Set<string>();
   const warnings: string[] = [];
   const entries: ExcelImportEntry[] = [];
+  const invalidCells: ExcelImportInvalidCell[] = [];
 
   for (
     let rowNumber = headerRowNumber + 1;
@@ -181,10 +243,15 @@ export async function parseScheduleExcel(
       cellText(nextRow.getCell(1).value)
     );
 
-    const employee = employeeByName.get(normalizeName(firstCell));
+    const employeeMatches =
+      employeesByName.get(normalizeName(firstCell)) || [];
+    const employee =
+      employeeMatches.length === 1 ? employeeMatches[0] : undefined;
 
-    if (employee) {
+    if (employeeMatches.length === 1 && employee) {
       matchedEmployees.add(employee.name);
+    } else if (employeeMatches.length > 1) {
+      ambiguousEmployees.add(firstCell);
     } else {
       unknownEmployees.add(firstCell);
     }
@@ -195,14 +262,29 @@ export async function parseScheduleExcel(
         ? cellText(nextRow.getCell(column).value)
         : '';
 
-      const value = normalizeImportedShift(scheduleValue, actualValue);
-      if (!value) continue;
+      const normalized = normalizeImportedShift(
+        scheduleValue,
+        actualValue
+      );
+
+      if (normalized.invalidReason) {
+        invalidCells.push({
+          employeeName: firstCell,
+          day,
+          scheduleValue,
+          actualTimeValue: actualValue,
+          reason: normalized.invalidReason,
+        });
+        continue;
+      }
+
+      if (!normalized.value) continue;
 
       entries.push({
         employeeName: firstCell,
         employeeId: employee?.id || null,
         day,
-        value,
+        value: normalized.value,
       });
     }
 
@@ -215,6 +297,26 @@ export async function parseScheduleExcel(
     );
   }
 
+  if (ambiguousEmployees.size > 0) {
+    warnings.push(
+      'Сотрудники с одинаковыми именами требуют ручного уточнения и будут пропущены.'
+    );
+  }
+
+  if (duplicateDays.size > 0) {
+    warnings.push(
+      'В заголовке Excel повторяются дни: ' +
+        [...duplicateDays].sort((a, b) => a - b).join(', ') +
+        '. Проверьте файл перед импортом.'
+    );
+  }
+
+  if (invalidCells.length > 0) {
+    warnings.push(
+      'Некорректные смены не будут импортированы. Исправьте их в Excel или в приложении.'
+    );
+  }
+
   if (entries.filter((entry) => entry.employeeId !== null).length === 0) {
     warnings.push(
       'Для существующих сотрудников не найдено ни одной распознаваемой смены.'
@@ -224,10 +326,12 @@ export async function parseScheduleExcel(
   return {
     fileName: file.name,
     sheetName: worksheet.name,
-    detectedDays: [...dayColumns.values()].sort((a, b) => a - b),
+    detectedDays: [...seenDays].sort((a, b) => a - b),
     entries,
     matchedEmployees: [...matchedEmployees],
     unknownEmployees: [...unknownEmployees],
+    ambiguousEmployees: [...ambiguousEmployees],
+    invalidCells,
     warnings,
   };
 }
