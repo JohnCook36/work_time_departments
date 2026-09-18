@@ -20,10 +20,13 @@ export interface Department {
   kind: DepartmentKind;
 }
 
+export type EmploymentRate = 1 | 0.75 | 0.5;
+
 export interface Employee {
   id: string;
   name: string;
   departmentId: string;
+  employmentRate?: EmploymentRate;
 }
 
 export interface EmployeeWish {

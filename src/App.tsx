@@ -41,6 +41,7 @@ import {
   Department,
   DepartmentKind,
   Employee,
+  EmploymentRate,
   EmployeeWish,
   EmployeeWishesData,
   ScheduleData,
@@ -64,6 +65,7 @@ import {
 import { exportScheduleToExcel } from './exportExcel';
 import { getMonthWeekRanges, printSchedule } from './printSchedule';
 import { ShiftEditor } from './ShiftEditor';
+import { WeeklyHoursPanel } from './WeeklyHoursPanel';
 import { getTheme, ThemeMode } from './theme';
 import {
   ActionButton,
@@ -184,8 +186,17 @@ function loadFromStorage(initialPeriodKey: string): LoadedData | null {
             'departmentId' in employee && employee.departmentId
               ? employee.departmentId
               : fallbackDepartmentId,
+          employmentRate:
+            employee.employmentRate === 0.5 ||
+            employee.employmentRate === 0.75 ||
+            employee.employmentRate === 1
+              ? employee.employmentRate
+              : 1,
         }))
-      : DEFAULT_EMPLOYEES;
+      : DEFAULT_EMPLOYEES.map((employee) => ({
+          ...employee,
+          employmentRate: employee.employmentRate || 1,
+        }));
 
     const schedules =
       data.schedules ||
@@ -416,9 +427,23 @@ function App() {
         id: generateId(),
         name,
         departmentId: newEmployeeDepartmentId,
+        employmentRate: 1,
       },
     ]);
     setNewEmployeeName('');
+  };
+
+  const changeEmployeeRate = (
+    employeeId: string,
+    employmentRate: EmploymentRate
+  ) => {
+    setEmployees((prev) =>
+      prev.map((employee) =>
+        employee.id === employeeId
+          ? { ...employee, employmentRate }
+          : employee
+      )
+    );
   };
 
   const removeEmployee = (id: string) => {
@@ -1429,6 +1454,17 @@ function App() {
               ) : null}
             </DragOverlay>
           </DndContext>
+
+          {scheduleView === 'hours' && employees.length > 0 && (
+            <WeeklyHoursPanel
+              employees={employees}
+              schedule={schedule}
+              year={year}
+              month={month}
+              weeks={printWeekRanges}
+              onRateChange={changeEmployeeRate}
+            />
+          )}
 
           <ErrorPanel
             schedule={schedule}
