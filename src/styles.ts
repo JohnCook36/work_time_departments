@@ -336,6 +336,7 @@ export const StickyHeaderCell = styled('th')({
 });
 
 export const DepartmentRowCell = styled('td')<{ $over: boolean }>(({ theme, $over }) => ({
+  position: 'relative',
   padding: '8px 12px',
   borderTop: '1px solid ' + theme.colors.border,
   borderBottom: '1px solid ' + theme.colors.border,
@@ -344,10 +345,17 @@ export const DepartmentRowCell = styled('td')<{ $over: boolean }>(({ theme, $ove
 }));
 
 export const DepartmentRowInner = styled('div')({
+  position: 'sticky',
+  left: 0,
+  zIndex: 12,
+  width: 'max-content',
+  maxWidth: 'calc(100vw - 32px)',
   display: 'flex',
   alignItems: 'center',
   gap: 8,
   minHeight: 28,
+  paddingRight: 8,
+  background: 'inherit',
 });
 
 export const DepartmentBadge = styled('span')<{ $kind: 'general' | 'fo' | 'night' }>(({ theme, $kind }) => ({
