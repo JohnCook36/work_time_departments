@@ -120,6 +120,7 @@ export function ShiftEditor({
               <TinyText style={{ marginBottom: 5 }}>Начало</TinyText>
               <TextInput
                 type="time"
+                step={900}
                 value={start}
                 onChange={(event) => setStart(event.target.value)}
                 style={{ width: '100%', minWidth: 0 }}
@@ -132,6 +133,7 @@ export function ShiftEditor({
               <TinyText style={{ marginBottom: 5 }}>Окончание</TinyText>
               <TextInput
                 type="time"
+                step={900}
                 value={end}
                 onChange={(event) => setEnd(event.target.value)}
                 style={{ width: '100%', minWidth: 0 }}
