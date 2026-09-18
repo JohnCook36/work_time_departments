@@ -1,0 +1,84 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum DepartmentKind {
+  GENERAL
+  FO
+  NIGHT
+}
+
+model Department {
+  id        String         @id @default(cuid())
+  name      String
+  kind      DepartmentKind @default(GENERAL)
+  position  Int            @default(0)
+  isActive  Boolean        @default(true)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  employees Employee[]
+}
+
+model Employee {
+  id           String         @id @default(cuid())
+  displayName  String
+  departmentId String
+  position     Int            @default(0)
+  isActive     Boolean        @default(true)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  department   Department     @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  shifts       Shift[]
+  wishes       EmployeeWish[]
+
+  @@index([departmentId])
+}
+
+model Schedule {
+  id        String   @id @default(cuid())
+  year      Int
+  month     Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  shifts    Shift[]
+
+  @@unique([year, month])
+}
+
+model Shift {
+  id         String   @id @default(cuid())
+  scheduleId String
+  employeeId String
+  date       DateTime @db.Date
+  code       String?  @db.VarChar(16)
+  startTime  String?  @db.VarChar(5)
+  endTime    String?  @db.VarChar(5)
+  isOff      Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  schedule   Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@unique([scheduleId, employeeId, date])
+  @@index([employeeId])
+  @@index([scheduleId])
+}
+
+model EmployeeWish {
+  id         String   @id @default(cuid())
+  employeeId String
+  year       Int
+  month      Int
+  day        Int?
+  text       String   @db.Text
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@index([employeeId])
+}
