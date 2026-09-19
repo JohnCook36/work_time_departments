@@ -77,10 +77,10 @@ describe('DepartmentsService', () => {
 
   it.each([RoleType.DEPUTY, RoleType.EMPLOYEE])(
     'rejects %s without management permission',
-    async (role) => {
-      await expect(
+    (role) => {
+      expect(() =>
         service.listManageable(userWith(role, 'department-a')),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+      ).toThrow(ForbiddenException);
 
       expect(prisma.department.findMany).not.toHaveBeenCalled();
     },
