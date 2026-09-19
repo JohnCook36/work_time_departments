@@ -69,7 +69,7 @@ import {
 import { exportScheduleToExcel } from './exportExcel';
 import {
   getMonthWeekRanges,
-  getPrintWeekRanges,
+  getVisibleMonthWeekRanges,
   printSchedule,
 } from './printSchedule';
 import { ShiftEditor } from './ShiftEditor';
@@ -370,12 +370,12 @@ function App() {
   );
   const daysInMonth = getDaysInMonth(year, month);
   const printWeekRanges = useMemo(
-    () => getMonthWeekRanges(year, month, daysInMonth),
+    () => getVisibleMonthWeekRanges(year, month, daysInMonth),
     [year, month, daysInMonth]
   );
   const printCalendarWeekRanges = useMemo(
-    () => getPrintWeekRanges(year, month),
-    [year, month]
+    () => getMonthWeekRanges(year, month, daysInMonth),
+    [year, month, daysInMonth]
   );
 
   const sensors = useSensors(
