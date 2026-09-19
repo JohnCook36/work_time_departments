@@ -37,12 +37,14 @@ function state(options?: {
 }
 
 async function seed(page: Page, data: ReturnType<typeof state>) {
-  await page.goto('/');
-  await page.evaluate(
-    ({ key, value }) => localStorage.setItem(key, JSON.stringify(value)),
+  await page.addInitScript(
+    ({ key, value }) => {
+      if (localStorage.getItem(key) === null) {
+        localStorage.setItem(key, JSON.stringify(value));
+      }
+    },
     { key: STORAGE_KEY, value: data },
   );
-  await page.reload();
 }
 
 function employeeRow(page: Page, name = 'E2E Сотрудник') {
@@ -118,6 +120,7 @@ test('employee drag to another department survives reload', async ({ page }) => 
       ],
     }),
   );
+  await page.goto('/');
 
   const handle = employeeRow(page).getByTitle('Перетащить сотрудника');
   const target = page
@@ -168,6 +171,7 @@ test('employee drag to another department survives reload', async ({ page }) => 
 
 test('shift editor saves the 08:00-17:00 preset into the cell', async ({ page }) => {
   await seed(page, state());
+  await page.goto('/');
 
   const row = employeeRow(page);
   await row.locator('td').nth(1).click();
@@ -189,6 +193,7 @@ test('Excel preview protects a cell and allows confirmed overwrite', async ({ pa
       },
     }),
   );
+  await page.goto('/');
 
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet('График');
@@ -234,6 +239,7 @@ test('employment rate changes the weekly norm', async ({ page }) => {
     page,
     state({ schedule: { 'employee-1': weekSchedule } }),
   );
+  await page.goto('/');
   await page.getByRole('button', { name: 'День / ночь' }).click();
 
   const normRow = page
