@@ -77,6 +77,7 @@ import { WeeklyHoursPanel } from './WeeklyHoursPanel';
 import { AdminOnboardingPanel } from './auth/AdminOnboardingPanel';
 import { MySchedulePanel } from './auth/MySchedulePanel';
 import { hasManagementAccess, useAuthUser } from './auth/AuthContext';
+import { loadPlannerServerSnapshot } from './plannerApi';
 import {
   buildEffectiveSchedule,
   buildEffectiveSchedulePeriods,
@@ -299,6 +300,9 @@ function departmentKindLabel(kind: DepartmentKind): string {
 function App() {
   const authUser = useAuthUser();
   const canManagePlanner = hasManagementAccess(authUser);
+  const serverPlannerReadEnabled =
+    canManagePlanner && import.meta.env.VITE_SERVER_PLANNER_READ === '1';
+  const canEditPlanner = canManagePlanner && !serverPlannerReadEnabled;
   const initialNow = useMemo(() => new Date(), []);
   const initialPeriodKey = getPeriodKey(
     initialNow.getFullYear(),
@@ -356,6 +360,12 @@ function App() {
   const [printRangeKey, setPrintRangeKey] = useState('month');
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [dragTargetDepartmentId, setDragTargetDepartmentId] = useState<string | null>(null);
+  const [serverPlannerStatus, setServerPlannerStatus] = useState<
+    'disabled' | 'loading' | 'ready' | 'error'
+  >(serverPlannerReadEnabled ? 'loading' : 'disabled');
+  const [serverPlannerError, setServerPlannerError] = useState<string | null>(
+    null
+  );
 
   const theme = useMemo(() => getTheme(themeMode), [themeMode]);
   const periodKey = getPeriodKey(year, month);
@@ -393,6 +403,48 @@ function App() {
       collapsedDepartments
     );
   }, [employees, departments, schedules, wishes, collapsedDepartments]);
+
+  useEffect(() => {
+    if (!serverPlannerReadEnabled) {
+      setServerPlannerStatus('disabled');
+      setServerPlannerError(null);
+      return;
+    }
+
+    let canceled = false;
+    setServerPlannerStatus('loading');
+    setServerPlannerError(null);
+    setEditingCell(null);
+    setWishEmployeeId(null);
+
+    loadPlannerServerSnapshot(year, month + 1)
+      .then((snapshot) => {
+        if (canceled) return;
+
+        setDepartments(snapshot.departments);
+        setEmployees(snapshot.employees);
+        setSchedules((prev) => ({
+          ...prev,
+          [periodKey]: snapshot.schedule,
+        }));
+        setServerPlannerStatus('ready');
+      })
+      .catch((error) => {
+        if (canceled) return;
+
+        console.error('Server planner load failed', error);
+        setServerPlannerStatus('error');
+        setServerPlannerError(
+          error instanceof Error
+            ? error.message
+            : 'Не удалось загрузить график с сервера.'
+        );
+      });
+
+    return () => {
+      canceled = true;
+    };
+  }, [serverPlannerReadEnabled, year, month, periodKey]);
 
   useEffect(() => {
     try {
@@ -1058,6 +1110,20 @@ function App() {
             </HeaderRow>
           </HeaderCard>
 
+          {serverPlannerReadEnabled && (
+            <Card style={{ marginTop: 14, padding: 16 }}>
+              <PanelTitle>Серверный режим графика</PanelTitle>
+              <Muted style={{ marginTop: 4 }}>
+                {serverPlannerStatus === 'loading'
+                  ? 'Загружаю отделы, сотрудников и сохранённые смены с backend. Редактирование временно отключено.'
+                  : serverPlannerStatus === 'error'
+                    ? 'Не удалось обновить данные с backend. Показан локальный кэш, редактирование заблокировано: ' +
+                      (serverPlannerError || 'неизвестная ошибка')
+                    : 'Данные текущего месяца загружены с backend. Это контролируемый read-only этап миграции; локальные изменения отключены.'}
+              </Muted>
+            </Card>
+          )}
+
           {canManagePlanner && showHelp && (
             <HelpCard>
               <PanelTitleRow>
@@ -1097,6 +1163,7 @@ function App() {
               <TextInput
                 type="text"
                 value={newEmployeeName}
+                disabled={!canEditPlanner}
                 onChange={(event) => setNewEmployeeName(event.target.value)}
                 onKeyDown={(event) => event.key === 'Enter' && addEmployee()}
                 placeholder="ФИО нового сотрудника..."
@@ -1104,6 +1171,7 @@ function App() {
 
               <Select
                 value={newEmployeeDepartmentId}
+                disabled={!canEditPlanner}
                 onChange={(event) =>
                   setNewEmployeeDepartmentId(event.target.value)
                 }
@@ -1117,6 +1185,7 @@ function App() {
 
               <Select
                 value={newEmployeeScheduleMode}
+                disabled={!canEditPlanner}
                 onChange={(event) =>
                   setNewEmployeeScheduleMode(
                     event.target.value as EmployeeScheduleMode
@@ -1133,6 +1202,7 @@ function App() {
                   <TextInput
                     type="time"
                     value={newEmployeeFixedStartTime}
+                    disabled={!canEditPlanner}
                     onChange={(event) =>
                       setNewEmployeeFixedStartTime(event.target.value)
                     }
@@ -1143,6 +1213,7 @@ function App() {
                   <TextInput
                     type="time"
                     value={newEmployeeFixedEndTime}
+                    disabled={!canEditPlanner}
                     onChange={(event) =>
                       setNewEmployeeFixedEndTime(event.target.value)
                     }
@@ -1153,7 +1224,12 @@ function App() {
                 </>
               )}
 
-              <ActionButton type="button" $variant="primary" onClick={addEmployee}>
+              <ActionButton
+                type="button"
+                $variant="primary"
+                onClick={addEmployee}
+                disabled={!canEditPlanner}
+              >
                 <Plus size={16} />
                 Сотрудник
               </ActionButton>
@@ -1162,6 +1238,7 @@ function App() {
                 type="button"
                 $variant="accent"
                 onClick={() => setShowDepartments((value) => !value)}
+                disabled={!canEditPlanner}
               >
                 <Layers3 size={16} />
                 Отделы
@@ -1204,7 +1281,7 @@ function App() {
               <ActionButton
                 type="button"
                 onClick={() => excelFileInputRef.current?.click()}
-                disabled={isImportingExcel}
+                disabled={!canEditPlanner || isImportingExcel}
                 title="Загрузить график из Excel с предпросмотром"
               >
                 <FileUp size={16} />
@@ -1245,11 +1322,20 @@ function App() {
                 Печать
               </ActionButton>
 
-              <ActionButton type="button" onClick={fillOffAll}>
+              <ActionButton
+                type="button"
+                onClick={fillOffAll}
+                disabled={!canEditPlanner}
+              >
                 OFF все
               </ActionButton>
 
-              <ActionButton type="button" $variant="danger" onClick={clearAll}>
+              <ActionButton
+                type="button"
+                $variant="danger"
+                onClick={clearAll}
+                disabled={!canEditPlanner}
+              >
                 <Trash2 size={15} />
                 Очистить месяц
               </ActionButton>
@@ -1257,7 +1343,7 @@ function App() {
           </ControlsCard>
           )}
 
-          {canManagePlanner && showDepartments && (
+          {canEditPlanner && showDepartments && (
             <DepartmentPanel>
               <PanelTitleRow>
                 <div>
@@ -1434,6 +1520,7 @@ function App() {
                           }
                           onOpenWishes={setWishEmployeeId}
                           scheduleView={scheduleView}
+                          editable={canEditPlanner}
                           isDragTarget={
                             dragTargetDepartmentId === department.id &&
                             activeDragId?.startsWith('emp:') === true
@@ -1574,6 +1661,7 @@ function App() {
               month={month}
               weeks={printWeekRanges}
               onRateChange={changeEmployeeRate}
+              readOnly={!canEditPlanner}
             />
           )}
 
@@ -1627,7 +1715,7 @@ function App() {
         </Container>
       </Page>
 
-      {canManagePlanner && excelImportPreview && (
+      {canEditPlanner && excelImportPreview && (
         <ExcelImportDrawer
           preview={excelImportPreview}
           conflictCount={excelImportConflictCount}
@@ -1641,7 +1729,7 @@ function App() {
         />
       )}
 
-      {canManagePlanner && selectedShiftEmployee && editingCell && (
+      {canEditPlanner && selectedShiftEmployee && editingCell && (
         <ShiftEditor
           key={selectedShiftEmployee.id + '-' + editingCell.day + '-' + periodKey}
           employee={selectedShiftEmployee}
@@ -1657,7 +1745,7 @@ function App() {
         />
       )}
 
-      {canManagePlanner && selectedWishEmployee && (
+      {canEditPlanner && selectedWishEmployee && (
         <EmployeeWishDrawer
           key={selectedWishEmployee.id + periodKey}
           employee={selectedWishEmployee}
@@ -1696,6 +1784,7 @@ interface DepartmentSectionProps {
   getWishSummary: (employeeId: string) => string;
   onOpenWishes: (employeeId: string) => void;
   scheduleView: ScheduleView;
+  editable: boolean;
   isDragTarget: boolean;
   collapsed: boolean;
   onToggleCollapsed: () => void;
@@ -1716,6 +1805,7 @@ function DepartmentSection({
   getWishSummary,
   onOpenWishes,
   scheduleView,
+  editable,
   isDragTarget,
   collapsed,
   onToggleCollapsed,
@@ -1752,9 +1842,10 @@ function DepartmentSection({
           <DepartmentRowInner>
             <DragHandle
               type="button"
-              title="Перетащить весь отдел"
-              {...attributes}
-              {...listeners}
+              title={editable ? 'Перетащить весь отдел' : 'Серверный read-only режим'}
+              disabled={!editable}
+              {...(editable ? attributes : {})}
+              {...(editable ? listeners : {})}
             >
               <GripVertical size={16} />
             </DragHandle>
@@ -1776,7 +1867,7 @@ function DepartmentSection({
               {departmentKindLabel(department.kind)}
             </DepartmentBadge>
             <TinyText>{employees.length} сотрудников</TinyText>
-            {employees.length === 0 && (
+            {employees.length === 0 && editable && (
               <TinyText>Перетащите сотрудника сюда</TinyText>
             )}
           </DepartmentRowInner>
@@ -1804,6 +1895,7 @@ function DepartmentSection({
               wishSummary={getWishSummary(employee.id)}
               onOpenWishes={onOpenWishes}
               scheduleView={scheduleView}
+              editable={editable}
             />
           ))}
         </SortableContext>
@@ -1826,6 +1918,7 @@ interface SortableEmployeeRowProps {
   wishSummary: string;
   onOpenWishes: (employeeId: string) => void;
   scheduleView: ScheduleView;
+  editable: boolean;
 }
 
 function SortableEmployeeRow({
@@ -1842,6 +1935,7 @@ function SortableEmployeeRow({
   wishSummary,
   onOpenWishes,
   scheduleView,
+  editable,
 }: SortableEmployeeRowProps) {
   const {
     attributes,
@@ -1870,9 +1964,10 @@ function SortableEmployeeRow({
         <EmployeeCellInner>
           <DragHandle
             type="button"
-            title="Перетащить сотрудника"
-            {...attributes}
-            {...listeners}
+            title={editable ? 'Перетащить сотрудника' : 'Серверный read-only режим'}
+            disabled={!editable}
+            {...(editable ? attributes : {})}
+            {...(editable ? listeners : {})}
           >
             <GripVertical size={16} />
           </DragHandle>
@@ -1901,6 +1996,7 @@ function SortableEmployeeRow({
           <RowIconButton
             type="button"
             $active={wishCount > 0}
+            disabled={!editable}
             onClick={() => onOpenWishes(employee.id)}
             title={
               wishSummary
@@ -1914,6 +2010,7 @@ function SortableEmployeeRow({
 
           <RowIconButton
             type="button"
+            disabled={!editable}
             onClick={() => removeEmployee(employee.id)}
             title="Удалить сотрудника"
           >
@@ -1955,9 +2052,9 @@ function SortableEmployeeRow({
               key={day}
               $kind={kind}
               $weekend={isWeekend}
-              $interactive={scheduleView === 'schedule'}
+              $interactive={editable && scheduleView === 'schedule'}
               onClick={
-                scheduleView === 'schedule'
+                editable && scheduleView === 'schedule'
                   ? () => setEditingCell({ empId: employee.id, day })
                   : undefined
               }
