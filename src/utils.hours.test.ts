@@ -87,4 +87,26 @@ describe('paid-hours calculation', () => {
       total: 0,
     });
   });
+  it('returns zero for an invalid entry instead of counting it', () => {
+    expect(
+      calculateShiftHours({ type: 'error', error: 'Некорректная смена' }),
+    ).toEqual({ day: 0, night: 0, total: 0 });
+  });
+
+  it('deducts the break from night hours when no daytime hours exist', () => {
+    expect(calculateShiftHours(shift('23:00', '05:00'))).toEqual({
+      day: 0,
+      night: 5,
+      total: 5,
+    });
+  });
+
+  it('preserves quarter-hour precision after the break deduction', () => {
+    expect(calculateShiftHours(shift('08:15', '17:45'))).toEqual({
+      day: 8.5,
+      night: 0,
+      total: 8.5,
+    });
+  });
+
 });

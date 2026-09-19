@@ -15,4 +15,13 @@ describe('getWeeklyNormHours', () => {
   it('prorates a partial visible week by included weekdays', () => {
     expect(getWeeklyNormHours(2026, 8, 16, 20, 1)).toBe(24);
   });
+  it('returns zero when the selected range contains only a weekend', () => {
+    expect(getWeeklyNormHours(2026, 8, 19, 20, 1)).toBe(0);
+  });
+
+  it('scales a partial week using the employee rate', () => {
+    expect(getWeeklyNormHours(2026, 8, 16, 20, 0.75)).toBe(18);
+    expect(getWeeklyNormHours(2026, 8, 16, 20, 0.5)).toBe(12);
+  });
+
 });
