@@ -43,6 +43,7 @@ import {
   DepartmentKind,
   Employee,
   EmploymentRate,
+  EmployeeScheduleMode,
   EmployeeWish,
   EmployeeWishesData,
   ScheduleData,
@@ -73,6 +74,11 @@ import { ShiftEditor } from './ShiftEditor';
 import { WeeklyHoursPanel } from './WeeklyHoursPanel';
 import { AdminOnboardingPanel } from './auth/AdminOnboardingPanel';
 import { MySchedulePanel } from './auth/MySchedulePanel';
+import { hasManagementAccess, useAuthUser } from './auth/AuthContext';
+import {
+  buildEffectiveSchedule,
+  buildEffectiveSchedulePeriods,
+} from './employeeSchedule';
 import { getTheme, ThemeMode } from './theme';
 import {
   ActionButton,
@@ -274,6 +280,8 @@ function departmentKindLabel(kind: DepartmentKind): string {
 }
 
 function App() {
+  const authUser = useAuthUser();
+  const canViewManagementTotals = hasManagementAccess(authUser);
   const initialNow = useMemo(() => new Date(), []);
   const initialPeriodKey = getPeriodKey(
     initialNow.getFullYear(),
@@ -302,6 +310,12 @@ function App() {
   );
 
   const [newEmployeeName, setNewEmployeeName] = useState('');
+  const [newEmployeeScheduleMode, setNewEmployeeScheduleMode] =
+    useState<EmployeeScheduleMode>('flexible');
+  const [newEmployeeFixedStartTime, setNewEmployeeFixedStartTime] =
+    useState('');
+  const [newEmployeeFixedEndTime, setNewEmployeeFixedEndTime] =
+    useState('');
   const [newEmployeeDepartmentId, setNewEmployeeDepartmentId] = useState(
     (stored?.departments || DEFAULT_DEPARTMENTS)[0].id
   );
@@ -328,7 +342,15 @@ function App() {
 
   const theme = useMemo(() => getTheme(themeMode), [themeMode]);
   const periodKey = getPeriodKey(year, month);
-  const schedule = schedules[periodKey] || {};
+  const rawSchedule = schedules[periodKey] || {};
+  const schedule = useMemo(
+    () => buildEffectiveSchedule(employees, rawSchedule, year, month),
+    [employees, rawSchedule, year, month]
+  );
+  const effectiveSchedulePeriods = useMemo(
+    () => buildEffectiveSchedulePeriods(employees, schedules, year, month),
+    [employees, schedules, year, month]
+  );
   const daysInMonth = getDaysInMonth(year, month);
   const printWeekRanges = useMemo(
     () => getMonthWeekRanges(year, month, daysInMonth),
@@ -436,6 +458,15 @@ function App() {
     const name = newEmployeeName.trim();
     if (!name || !newEmployeeDepartmentId) return;
 
+    if (
+      newEmployeeScheduleMode === 'fixed-weekdays' &&
+      (!/^\d{2}:\d{2}$/.test(newEmployeeFixedStartTime) ||
+        !/^\d{2}:\d{2}$/.test(newEmployeeFixedEndTime))
+    ) {
+      alert('Для фиксированного графика укажите время начала и окончания.');
+      return;
+    }
+
     setEmployees((prev) => [
       ...prev,
       {
@@ -443,9 +474,19 @@ function App() {
         name,
         departmentId: newEmployeeDepartmentId,
         employmentRate: 1,
+        scheduleMode: newEmployeeScheduleMode,
+        ...(newEmployeeScheduleMode === 'fixed-weekdays'
+          ? {
+              fixedStartTime: newEmployeeFixedStartTime,
+              fixedEndTime: newEmployeeFixedEndTime,
+            }
+          : {}),
       },
     ]);
     setNewEmployeeName('');
+    setNewEmployeeScheduleMode('flexible');
+    setNewEmployeeFixedStartTime('');
+    setNewEmployeeFixedEndTime('');
   };
 
   const changeEmployeeRate = (
@@ -819,7 +860,7 @@ function App() {
       departments,
       employees,
       schedule,
-      schedules,
+      schedules: effectiveSchedulePeriods,
       year,
       month,
       daysInMonth,
@@ -1369,7 +1410,7 @@ function App() {
                     })}
                     </SortableContext>
 
-                    {employees.length > 0 && (
+                    {canViewManagementTotals && employees.length > 0 && (
                       <TotalRow>
                         <StickyTotalCell>ИТОГО</StickyTotalCell>
 
@@ -1481,7 +1522,9 @@ function App() {
             )}
           </DndContext>
 
-          {scheduleView === 'hours' && employees.length > 0 && (
+          {canViewManagementTotals &&
+            scheduleView === 'hours' &&
+            employees.length > 0 && (
             <WeeklyHoursPanel
               employees={employees}
               schedule={schedule}
