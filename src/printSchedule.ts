@@ -165,7 +165,7 @@ function getRangeHours(
   return Math.round(total * 100) / 100;
 }
 
-export function getMonthWeekRanges(
+export function getVisibleMonthWeekRanges(
   year: number,
   month: number,
   daysInMonth: number
@@ -194,6 +194,14 @@ export function getMonthWeekRanges(
   return ranges;
 }
 
+
+export function getMonthWeekRanges(
+  year: number,
+  month: number,
+  _daysInMonth?: number
+): PrintWeekRange[] {
+  return getPrintWeekRanges(year, month);
+}
 
 export function getPrintWeekRanges(
   year: number,
@@ -474,13 +482,11 @@ export function printSchedule({
     rangeKey === 'month'
       ? getMonthWeekRanges(year, month, daysInMonth)
           .map((range) =>
-            buildWeekTable(
+            buildFullCalendarWeekTable(
               range,
               departments,
               employees,
-              schedule,
-              year,
-              month
+              schedules
             )
           )
           .join('')
