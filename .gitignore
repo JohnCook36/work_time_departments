@@ -3,6 +3,8 @@ node_modules/
 .next/
 dist/
 build/
+playwright-report/
+test-results/
 *.log
 .env
 .env.local
