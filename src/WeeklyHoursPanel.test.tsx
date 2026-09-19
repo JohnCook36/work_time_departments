@@ -21,6 +21,7 @@ function renderPanel(
   rate: 1 | 0.75 | 0.5 | undefined,
   onRateChange = vi.fn(),
   scheduleData: ScheduleData = schedule,
+  readOnly = false,
 ) {
   render(
     <ThemeProvider theme={getTheme('light')}>
@@ -38,6 +39,7 @@ function renderPanel(
         month={8}
         weeks={week}
         onRateChange={onRateChange}
+        readOnly={readOnly}
       />
     </ThemeProvider>,
   );
@@ -65,6 +67,13 @@ describe('WeeklyHoursPanel', () => {
 
     expect(onRateChange).toHaveBeenCalledWith('employee', 0.75);
   });
+  it('renders the rate without an editor in read-only mode', () => {
+    renderPanel(0.75, vi.fn(), schedule, true);
+
+    expect(screen.queryByTitle('Ставка сотрудника')).not.toBeInTheDocument();
+    expect(screen.getByText('0.75')).toBeInTheDocument();
+  });
+
   it('uses the full-time rate when employmentRate is absent', () => {
     renderPanel(undefined);
     expect(screen.getByText('8 / 40')).toBeInTheDocument();

@@ -17,6 +17,7 @@ interface WeeklyHoursPanelProps {
   month: number;
   weeks: WeekRangeLike[];
   onRateChange: (employeeId: string, rate: EmploymentRate) => void;
+  readOnly?: boolean;
 }
 
 function roundHours(value: number): number {
@@ -53,6 +54,7 @@ export function WeeklyHoursPanel({
   month,
   weeks,
   onRateChange,
+  readOnly = false,
 }: WeeklyHoursPanelProps) {
   const theme = useTheme();
 
@@ -168,26 +170,30 @@ export function WeeklyHoursPanel({
                       borderRight: '1px solid ' + theme.colors.border,
                     }}
                   >
-                    <Select
-                      value={rate}
-                      onChange={(event) =>
-                        onRateChange(
-                          employee.id,
-                          Number(event.target.value) as EmploymentRate
-                        )
-                      }
-                      title="Ставка сотрудника"
-                      style={{
-                        minWidth: 68,
-                        height: 30,
-                        padding: '0 7px',
-                        fontSize: 11,
-                      }}
-                    >
-                      <option value={1}>1.0</option>
-                      <option value={0.75}>0.75</option>
-                      <option value={0.5}>0.5</option>
-                    </Select>
+                    {readOnly ? (
+                      <strong>{rate}</strong>
+                    ) : (
+                      <Select
+                        value={rate}
+                        onChange={(event) =>
+                          onRateChange(
+                            employee.id,
+                            Number(event.target.value) as EmploymentRate
+                          )
+                        }
+                        title="Ставка сотрудника"
+                        style={{
+                          minWidth: 68,
+                          height: 30,
+                          padding: '0 7px',
+                          fontSize: 11,
+                        }}
+                      >
+                        <option value={1}>1.0</option>
+                        <option value={0.75}>0.75</option>
+                        <option value={0.5}>0.5</option>
+                      </Select>
+                    )}
                   </td>
 
                   {weeks.map((week) => {
