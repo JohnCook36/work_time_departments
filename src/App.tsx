@@ -77,7 +77,12 @@ import { WeeklyHoursPanel } from './WeeklyHoursPanel';
 import { AdminOnboardingPanel } from './auth/AdminOnboardingPanel';
 import { MySchedulePanel } from './auth/MySchedulePanel';
 import { hasManagementAccess, useAuthUser } from './auth/AuthContext';
-import { loadPlannerServerSnapshot } from './plannerApi';
+import {
+  applyDepartmentScheduleChanges,
+  buildScheduleCellChange,
+  loadPlannerServerSnapshot,
+  PlannerCellMetadataMap,
+} from './plannerApi';
 import {
   buildEffectiveSchedule,
   buildEffectiveSchedulePeriods,
@@ -300,9 +305,16 @@ function departmentKindLabel(kind: DepartmentKind): string {
 function App() {
   const authUser = useAuthUser();
   const canManagePlanner = hasManagementAccess(authUser);
+  const serverPlannerWriteEnabled =
+    canManagePlanner && import.meta.env.VITE_SERVER_PLANNER_WRITE === '1';
   const serverPlannerReadEnabled =
-    canManagePlanner && import.meta.env.VITE_SERVER_PLANNER_READ === '1';
+    canManagePlanner &&
+    (serverPlannerWriteEnabled ||
+      import.meta.env.VITE_SERVER_PLANNER_READ === '1');
   const canEditPlanner = canManagePlanner && !serverPlannerReadEnabled;
+  const canEditScheduleCells =
+    canManagePlanner &&
+    (!serverPlannerReadEnabled || serverPlannerWriteEnabled);
   const initialNow = useMemo(() => new Date(), []);
   const initialPeriodKey = getPeriodKey(
     initialNow.getFullYear(),
@@ -366,6 +378,9 @@ function App() {
   const [serverPlannerError, setServerPlannerError] = useState<string | null>(
     null
   );
+  const [serverCellMetadata, setServerCellMetadata] =
+    useState<PlannerCellMetadataMap>({});
+  const serverPlannerLoadVersion = useRef(0);
 
   const theme = useMemo(() => getTheme(themeMode), [themeMode]);
   const periodKey = getPeriodKey(year, month);
@@ -404,47 +419,53 @@ function App() {
     );
   }, [employees, departments, schedules, wishes, collapsedDepartments]);
 
+  const refreshServerPlanner = useCallback(async () => {
+    const loadVersion = ++serverPlannerLoadVersion.current;
+    setServerPlannerStatus('loading');
+    setServerPlannerError(null);
+
+    try {
+      const snapshot = await loadPlannerServerSnapshot(year, month + 1);
+      if (loadVersion !== serverPlannerLoadVersion.current) return;
+
+      setDepartments(snapshot.departments);
+      setEmployees(snapshot.employees);
+      setSchedules((prev) => ({
+        ...prev,
+        [periodKey]: snapshot.schedule,
+      }));
+      setServerCellMetadata(snapshot.cellMetadata);
+      setServerPlannerStatus('ready');
+    } catch (error) {
+      if (loadVersion !== serverPlannerLoadVersion.current) return;
+
+      console.error('Server planner load failed', error);
+      setServerPlannerStatus('error');
+      setServerPlannerError(
+        error instanceof Error
+          ? error.message
+          : 'Не удалось загрузить график с сервера.'
+      );
+    }
+  }, [year, month, periodKey]);
+
   useEffect(() => {
     if (!serverPlannerReadEnabled) {
+      serverPlannerLoadVersion.current++;
       setServerPlannerStatus('disabled');
       setServerPlannerError(null);
+      setServerCellMetadata({});
       return;
     }
 
-    let canceled = false;
-    setServerPlannerStatus('loading');
-    setServerPlannerError(null);
     setEditingCell(null);
     setWishEmployeeId(null);
-
-    loadPlannerServerSnapshot(year, month + 1)
-      .then((snapshot) => {
-        if (canceled) return;
-
-        setDepartments(snapshot.departments);
-        setEmployees(snapshot.employees);
-        setSchedules((prev) => ({
-          ...prev,
-          [periodKey]: snapshot.schedule,
-        }));
-        setServerPlannerStatus('ready');
-      })
-      .catch((error) => {
-        if (canceled) return;
-
-        console.error('Server planner load failed', error);
-        setServerPlannerStatus('error');
-        setServerPlannerError(
-          error instanceof Error
-            ? error.message
-            : 'Не удалось загрузить график с сервера.'
-        );
-      });
+    void refreshServerPlanner();
 
     return () => {
-      canceled = true;
+      serverPlannerLoadVersion.current++;
     };
-  }, [serverPlannerReadEnabled, year, month, periodKey]);
+  }, [serverPlannerReadEnabled, refreshServerPlanner]);
 
   useEffect(() => {
     try {
@@ -484,6 +505,42 @@ function App() {
   const updateCell = useCallback(
     (empId: string, day: number, value: string) => {
       const entry = validateShiftInput(value);
+
+      if (!serverPlannerWriteEnabled) {
+        updateCurrentSchedule((current) => ({
+          ...current,
+          [empId]: {
+            ...(current[empId] || {}),
+            [day]: entry,
+          },
+        }));
+        return;
+      }
+
+      if (entry.type === 'error') {
+        alert(entry.error || 'Некорректная смена.');
+        return;
+      }
+
+      if (serverPlannerStatus !== 'ready') {
+        alert('График ещё не синхронизирован с сервером.');
+        return;
+      }
+
+      const employee = employees.find((item) => item.id === empId);
+      if (!employee) {
+        alert('Сотрудник не найден в серверном графике.');
+        void refreshServerPlanner();
+        return;
+      }
+
+      const change = buildScheduleCellChange(
+        empId,
+        day,
+        entry,
+        serverCellMetadata[empId]?.[day]
+      );
+
       updateCurrentSchedule((current) => ({
         ...current,
         [empId]: {
@@ -491,8 +548,34 @@ function App() {
           [day]: entry,
         },
       }));
+
+      void applyDepartmentScheduleChanges(
+        employee.departmentId,
+        year,
+        month + 1,
+        [change]
+      )
+        .then(() => refreshServerPlanner())
+        .catch((error) => {
+          console.error('Server planner write failed', error);
+          alert(
+            error instanceof Error
+              ? 'Не удалось сохранить смену: ' + error.message
+              : 'Не удалось сохранить смену на сервере.'
+          );
+          void refreshServerPlanner();
+        });
     },
-    [updateCurrentSchedule]
+    [
+      employees,
+      month,
+      refreshServerPlanner,
+      serverCellMetadata,
+      serverPlannerStatus,
+      serverPlannerWriteEnabled,
+      updateCurrentSchedule,
+      year,
+    ]
   );
 
   const getEmployeeTotals = useCallback(
@@ -1119,7 +1202,9 @@ function App() {
                   : serverPlannerStatus === 'error'
                     ? 'Не удалось обновить данные с backend. Показан локальный кэш, редактирование заблокировано: ' +
                       (serverPlannerError || 'неизвестная ошибка')
-                    : 'Данные текущего месяца загружены с backend. Это контролируемый read-only этап миграции; локальные изменения отключены.'}
+                    : serverPlannerWriteEnabled
+                      ? 'Данные текущего месяца загружены с backend. Пилотная запись включена только для отдельных ячеек смен; структурные изменения пока заблокированы.'
+                      : 'Данные текущего месяца загружены с backend. Это контролируемый read-only этап миграции; локальные изменения отключены.'}
               </Muted>
             </Card>
           )}
@@ -1521,6 +1606,7 @@ function App() {
                           onOpenWishes={setWishEmployeeId}
                           scheduleView={scheduleView}
                           editable={canEditPlanner}
+                          scheduleEditable={canEditScheduleCells}
                           isDragTarget={
                             dragTargetDepartmentId === department.id &&
                             activeDragId?.startsWith('emp:') === true
@@ -1729,7 +1815,7 @@ function App() {
         />
       )}
 
-      {canEditPlanner && selectedShiftEmployee && editingCell && (
+      {canEditScheduleCells && selectedShiftEmployee && editingCell && (
         <ShiftEditor
           key={selectedShiftEmployee.id + '-' + editingCell.day + '-' + periodKey}
           employee={selectedShiftEmployee}
@@ -1785,6 +1871,7 @@ interface DepartmentSectionProps {
   onOpenWishes: (employeeId: string) => void;
   scheduleView: ScheduleView;
   editable: boolean;
+  scheduleEditable: boolean;
   isDragTarget: boolean;
   collapsed: boolean;
   onToggleCollapsed: () => void;
@@ -1806,6 +1893,7 @@ function DepartmentSection({
   onOpenWishes,
   scheduleView,
   editable,
+  scheduleEditable,
   isDragTarget,
   collapsed,
   onToggleCollapsed,
@@ -1896,6 +1984,7 @@ function DepartmentSection({
               onOpenWishes={onOpenWishes}
               scheduleView={scheduleView}
               editable={editable}
+              scheduleEditable={scheduleEditable}
             />
           ))}
         </SortableContext>
@@ -1919,6 +2008,7 @@ interface SortableEmployeeRowProps {
   onOpenWishes: (employeeId: string) => void;
   scheduleView: ScheduleView;
   editable: boolean;
+  scheduleEditable: boolean;
 }
 
 function SortableEmployeeRow({
@@ -1936,6 +2026,7 @@ function SortableEmployeeRow({
   onOpenWishes,
   scheduleView,
   editable,
+  scheduleEditable,
 }: SortableEmployeeRowProps) {
   const {
     attributes,
@@ -2052,9 +2143,9 @@ function SortableEmployeeRow({
               key={day}
               $kind={kind}
               $weekend={isWeekend}
-              $interactive={editable && scheduleView === 'schedule'}
+              $interactive={scheduleEditable && scheduleView === 'schedule'}
               onClick={
-                editable && scheduleView === 'schedule'
+                scheduleEditable && scheduleView === 'schedule'
                   ? () => setEditingCell({ empId: employee.id, day })
                   : undefined
               }
