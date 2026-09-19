@@ -207,3 +207,48 @@ export function rejectOnboardingRequest(requestId: string) {
     { method: 'POST' },
   );
 }
+
+
+export interface MyScheduleShift {
+  id: string;
+  employeeId: string;
+  date: string;
+  code: string | null;
+  startTime: string | null;
+  endTime: string | null;
+  isOff: boolean;
+  updatedAt: string;
+}
+
+export interface MyScheduleResponse {
+  period: {
+    year: number;
+    month: number;
+  };
+  schedule: {
+    id: string;
+    updatedAt: string;
+  } | null;
+  employee: {
+    id: string;
+    displayName: string;
+    employmentRate: number;
+    department: {
+      id: string;
+      name: string;
+      kind: string;
+    };
+  };
+  shifts: MyScheduleShift[];
+}
+
+export function getMySchedule(year: number, month: number) {
+  const params = new URLSearchParams({
+    year: String(year),
+    month: String(month),
+  });
+
+  return apiRequest<MyScheduleResponse>(
+    '/schedule-data/me?' + params.toString(),
+  );
+}
