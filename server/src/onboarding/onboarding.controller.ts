@@ -78,6 +78,11 @@ export class OnboardingController {
     return this.onboarding.cancelMyPendingRequest(user);
   }
 
+  @Get('admin/departments')
+  listAdminDepartments(@CurrentUser() admin: AuthUserContext) {
+    return this.onboarding.listAdminDepartments(admin);
+  }
+
   @Get('admin/pending')
   listPending(
     @CurrentUser() admin: AuthUserContext,

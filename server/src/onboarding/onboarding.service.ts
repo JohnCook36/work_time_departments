@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -185,6 +186,43 @@ export class OnboardingService {
     });
   }
 
+  async listAdminDepartments(admin: AuthUserContext) {
+    const isSuperAdmin = admin.memberships.some(
+      (membership) => membership.role === RoleType.SUPER_ADMIN,
+    );
+
+    const departmentIds = Array.from(
+      new Set(
+        admin.memberships
+          .filter(
+            (membership) =>
+              membership.role === RoleType.DEPARTMENT_ADMIN &&
+              membership.departmentId,
+          )
+          .map((membership) => membership.departmentId as string),
+      ),
+    );
+
+    if (!isSuperAdmin && departmentIds.length === 0) {
+      throw new ForbiddenException(
+        'You do not have permission to review onboarding requests',
+      );
+    }
+
+    return this.prisma.department.findMany({
+      where: {
+        isActive: true,
+        ...(isSuperAdmin ? {} : { id: { in: departmentIds } }),
+      },
+      select: {
+        id: true,
+        name: true,
+        kind: true,
+      },
+      orderBy: [{ position: 'asc' }, { name: 'asc' }],
+    });
+  }
+
   async listPendingForDepartment(
     admin: AuthUserContext,
     departmentId: string,
@@ -203,6 +241,12 @@ export class OnboardingService {
           select: {
             id: true,
             phoneE164: true,
+          },
+        },
+        employee: {
+          select: {
+            id: true,
+            displayName: true,
           },
         },
       },

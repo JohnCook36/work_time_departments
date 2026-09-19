@@ -38,6 +38,17 @@ export interface OnboardingRequest {
   updatedAt: string;
 }
 
+export interface AdminOnboardingRequest extends OnboardingRequest {
+  user: {
+    id: string;
+    phoneE164: string;
+  };
+  employee: {
+    id: string;
+    displayName: string;
+  } | null;
+}
+
 const API_URL = (
   import.meta.env.VITE_API_URL || 'http://localhost:3000'
 ).replace(/\/$/, '');
@@ -163,4 +174,36 @@ export function cancelOnboardingRequest() {
   return apiRequest<OnboardingRequest>('/onboarding/cancel', {
     method: 'POST',
   });
+}
+
+
+export function getAdminOnboardingDepartments() {
+  return apiRequest<OnboardingDepartment[]>('/onboarding/admin/departments');
+}
+
+export function getAdminPendingOnboardingRequests(departmentId: string) {
+  const params = new URLSearchParams({ departmentId });
+  return apiRequest<AdminOnboardingRequest[]>(
+    '/onboarding/admin/pending?' + params.toString(),
+  );
+}
+
+export function approveOnboardingRequest(requestId: string) {
+  return apiRequest<{
+    request: OnboardingRequest;
+    employee: {
+      id: string;
+      displayName: string;
+      departmentId: string;
+    };
+  }>('/onboarding/admin/' + encodeURIComponent(requestId) + '/approve', {
+    method: 'POST',
+  });
+}
+
+export function rejectOnboardingRequest(requestId: string) {
+  return apiRequest<OnboardingRequest>(
+    '/onboarding/admin/' + encodeURIComponent(requestId) + '/reject',
+    { method: 'POST' },
+  );
 }
