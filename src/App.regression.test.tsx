@@ -152,7 +152,7 @@ describe('App regression flows', () => {
 
     await user.click(await screen.findByText('08-17'));
     expect(screen.getByText('Смена сотрудника')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Сотрудник' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Отделы' })).toBeDisabled();
 
     await user.click(screen.getByRole('button', { name: 'Сохранить смену' }));
 
@@ -176,6 +176,51 @@ describe('App regression flows', () => {
         ],
       );
     });
+  });
+
+  it('creates an Employee through the backend in server write mode', async () => {
+    const user = userEvent.setup();
+    const snapshot = serverPlannerSnapshot();
+    vi.stubEnv('VITE_SERVER_PLANNER_WRITE', '1');
+    vi.spyOn(plannerApi, 'loadPlannerServerSnapshot').mockResolvedValue(snapshot);
+    const createSpy = vi
+      .spyOn(plannerApi, 'createPlannerEmployee')
+      .mockResolvedValue({
+        id: 'new-server-employee',
+        displayName: 'Новый сотрудник',
+        employmentRate: 1,
+        scheduleMode: 'FLEXIBLE',
+        fixedStartTime: null,
+        fixedEndTime: null,
+        departmentId: 'server-department',
+        position: 1,
+        isActive: true,
+        isLinked: false,
+        updatedAt: '2026-09-19T12:00:00.000Z',
+      });
+
+    renderApp();
+
+    await screen.findByText('Серверный сотрудник');
+    expect(screen.getByRole('button', { name: 'Отделы' })).toBeDisabled();
+
+    const nameInput = screen.getByPlaceholderText('ФИО нового сотрудника...');
+    expect(nameInput).toBeEnabled();
+    await user.clear(nameInput);
+    await user.type(nameInput, 'Новый сотрудник');
+    await user.click(screen.getByRole('button', { name: 'Сотрудник' }));
+
+    await waitFor(() => {
+      expect(createSpy).toHaveBeenCalledWith({
+        displayName: 'Новый сотрудник',
+        departmentId: 'server-department',
+        employmentRate: 1,
+        scheduleMode: 'FLEXIBLE',
+        fixedStartTime: null,
+        fixedEndTime: null,
+      });
+    });
+    expect(plannerApi.loadPlannerServerSnapshot).toHaveBeenCalledTimes(2);
   });
 
   it('switches from schedule values to day/night/total hours', async () => {
