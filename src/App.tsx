@@ -1903,6 +1903,25 @@ function SortableEmployeeRow({
 
           <EmployeeNameText>{employee.name}</EmployeeNameText>
 
+          {employee.scheduleMode === 'fixed-weekdays' &&
+            employee.fixedStartTime &&
+            employee.fixedEndTime && (
+              <span
+                title="Автоматический базовый график 5/2"
+                style={{
+                  flex: '0 0 auto',
+                  padding: '2px 6px',
+                  borderRadius: 999,
+                  fontSize: 9,
+                  fontWeight: 800,
+                  opacity: 0.72,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                5/2 {employee.fixedStartTime}-{employee.fixedEndTime}
+              </span>
+            )}
+
           <RowIconButton
             type="button"
             $active={wishCount > 0}
