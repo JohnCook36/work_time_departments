@@ -11,7 +11,12 @@ import {
 
 import { IconButton } from '../styles';
 import { ShiftCode, ShiftEntry } from '../types';
-import { calculateShiftHours, DAY_NAMES_SHORT, MONTH_NAMES } from '../utils';
+import {
+  calculateShiftHours,
+  DAY_NAMES_SHORT,
+  getDaysInMonth,
+  MONTH_NAMES,
+} from '../utils';
 import {
   ApiError,
   MyScheduleResponse,
@@ -61,6 +66,63 @@ function shiftTitle(shift: MyScheduleShift): string {
 
 function dayOfMonth(date: string): number {
   return Number(date.slice(8, 10));
+}
+
+function buildVisibleShifts(
+  data: MyScheduleResponse,
+): Array<MyScheduleShift & { inherited?: boolean }> {
+  if (
+    data.employee.scheduleMode !== 'FIXED_WEEKDAYS' ||
+    !data.employee.fixedStartTime ||
+    !data.employee.fixedEndTime
+  ) {
+    return data.shifts;
+  }
+
+  const explicitByDate = new Map(
+    data.shifts.map((shift) => [shift.date, shift]),
+  );
+  const days = getDaysInMonth(data.period.year, data.period.month - 1);
+  const visible: Array<MyScheduleShift & { inherited?: boolean }> = [];
+
+  for (let day = 1; day <= days; day++) {
+    const date = new Date(
+      data.period.year,
+      data.period.month - 1,
+      day,
+    );
+    const dateKey =
+      data.period.year +
+      '-' +
+      String(data.period.month).padStart(2, '0') +
+      '-' +
+      String(day).padStart(2, '0');
+    const explicit = explicitByDate.get(dateKey);
+
+    if (explicit) {
+      visible.push(explicit);
+      continue;
+    }
+
+    const dayOfWeek = date.getDay();
+    if (dayOfWeek === 0 || dayOfWeek === 6) {
+      continue;
+    }
+
+    visible.push({
+      id: 'default:' + data.employee.id + ':' + dateKey,
+      employeeId: data.employee.id,
+      date: dateKey,
+      code: null,
+      startTime: data.employee.fixedStartTime,
+      endTime: data.employee.fixedEndTime,
+      isOff: false,
+      updatedAt: '',
+      inherited: true,
+    });
+  }
+
+  return visible;
 }
 
 export function MySchedulePanel({
@@ -114,12 +176,17 @@ export function MySchedulePanel({
     setError(null);
   }, [year, monthIndex]);
 
+  const visibleShifts = useMemo(
+    () => (data ? buildVisibleShifts(data) : []),
+    [data],
+  );
+
   const totals = useMemo(() => {
     if (!data) {
       return { day: 0, night: 0, total: 0 };
     }
 
-    return data.shifts.reduce(
+    return visibleShifts.reduce(
       (acc, shift) => {
         const hours = calculateShiftHours(toShiftEntry(shift));
         return {
@@ -130,7 +197,7 @@ export function MySchedulePanel({
       },
       { day: 0, night: 0, total: 0 },
     );
-  }, [data]);
+  }, [data, visibleShifts]);
 
   if (!available && !open) {
     return null;
@@ -284,6 +351,15 @@ export function MySchedulePanel({
                         {data.employee.department.name}
                         {' • '}
                         ставка {data.employee.employmentRate}
+                        {' • '}
+                        {data.employee.scheduleMode === 'FIXED_WEEKDAYS' &&
+                        data.employee.fixedStartTime &&
+                        data.employee.fixedEndTime
+                          ? '5/2 ' +
+                            data.employee.fixedStartTime +
+                            '–' +
+                            data.employee.fixedEndTime
+                          : 'плавающий график'}
                       </div>
 
                       <div
@@ -337,7 +413,7 @@ export function MySchedulePanel({
                         gap: 8,
                       }}
                     >
-                      {data.shifts.length === 0 ? (
+                      {visibleShifts.length === 0 ? (
                         <div
                           style={{
                             padding: 22,
@@ -350,7 +426,7 @@ export function MySchedulePanel({
                           На этот месяц смен пока нет.
                         </div>
                       ) : (
-                        data.shifts.map((shift) => {
+                        visibleShifts.map((shift) => {
                           const day = dayOfMonth(shift.date);
                           const date = new Date(
                             year,
@@ -410,6 +486,18 @@ export function MySchedulePanel({
                                   }}
                                 >
                                   {shiftTitle(shift)}
+                                  {'inherited' in shift && shift.inherited && (
+                                    <span
+                                      style={{
+                                        marginLeft: 7,
+                                        color: theme.colors.textMuted,
+                                        fontSize: 10,
+                                        fontWeight: 700,
+                                      }}
+                                    >
+                                      по графику 5/2
+                                    </span>
+                                  )}
                                 </div>
                                 {!shift.isOff &&
                                   shift.startTime &&
