@@ -37,6 +37,31 @@ enum OnboardingRequestStatus {
   CANCELED
 }
 
+enum ShiftChangeRequestKind {
+  SWAP
+  COVER
+}
+
+enum ShiftChangeRequestStatus {
+  PENDING_TARGET
+  PENDING_MANAGER
+  TARGET_REJECTED
+  MANAGER_APPROVED
+  MANAGER_REJECTED
+  CANCELED
+  STALE
+}
+
+enum ShiftChangeRequestEventType {
+  CREATED
+  TARGET_ACCEPTED
+  TARGET_REJECTED
+  CANCELED
+  MANAGER_APPROVED
+  MANAGER_REJECTED
+  MARKED_STALE
+}
+
 model Department {
   id        String         @id @default(cuid())
   name      String
@@ -45,9 +70,11 @@ model Department {
   isActive  Boolean        @default(true)
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
-  employees          Employee[]
-  memberships        Membership[]
-  onboardingRequests OnboardingRequest[]
+  employees             Employee[]
+  memberships           Membership[]
+  onboardingRequests    OnboardingRequest[]
+  requestedShiftChanges ShiftChangeRequest[] @relation("ShiftChangeRequesterDepartment")
+  targetedShiftChanges  ShiftChangeRequest[] @relation("ShiftChangeTargetDepartment")
 }
 
 model User {
@@ -56,11 +83,15 @@ model User {
   isActive    Boolean      @default(true)
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
-  employee                    Employee?
-  memberships                 Membership[]
-  sessions                    AuthSession[]
-  onboardingRequests          OnboardingRequest[] @relation("OnboardingRequester")
-  reviewedOnboardingRequests  OnboardingRequest[] @relation("OnboardingReviewer")
+  employee                   Employee?
+  memberships                Membership[]
+  sessions                   AuthSession[]
+  onboardingRequests         OnboardingRequest[]       @relation("OnboardingRequester")
+  reviewedOnboardingRequests OnboardingRequest[]       @relation("OnboardingReviewer")
+  requestedShiftChanges      ShiftChangeRequest[]      @relation("ShiftChangeRequesterUser")
+  targetedShiftChanges       ShiftChangeRequest[]      @relation("ShiftChangeTargetUser")
+  managedShiftChanges        ShiftChangeRequest[]      @relation("ShiftChangeManagerUser")
+  shiftChangeEvents          ShiftChangeRequestEvent[] @relation("ShiftChangeEventActor")
 }
 
 model Employee {
@@ -78,9 +109,11 @@ model Employee {
   updatedAt      DateTime       @updatedAt
   department     Department     @relation(fields: [departmentId], references: [id], onDelete: Restrict)
   user           User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
-  shifts         Shift[]
-  wishes         EmployeeWish[]
-  linkRequests   OnboardingRequest[]
+  shifts                Shift[]
+  wishes                EmployeeWish[]
+  linkRequests          OnboardingRequest[]
+  requestedShiftChanges ShiftChangeRequest[] @relation("ShiftChangeRequesterEmployee")
+  targetedShiftChanges  ShiftChangeRequest[] @relation("ShiftChangeTargetEmployee")
 
   @@index([departmentId])
 }
@@ -123,8 +156,10 @@ model Shift {
   isOff      Boolean  @default(false)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
-  schedule   Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
-  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  schedule              Schedule             @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  employee              Employee             @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  requestedShiftChanges ShiftChangeRequest[] @relation("ShiftChangeRequesterShift")
+  targetedShiftChanges  ShiftChangeRequest[] @relation("ShiftChangeTargetShift")
 
   @@unique([scheduleId, employeeId, date])
   @@index([employeeId])
@@ -196,4 +231,58 @@ model OnboardingRequest {
   @@index([departmentId, status])
   @@index([employeeId])
   @@index([reviewedByUserId])
+}
+
+model ShiftChangeRequest {
+  id                      String                   @id @default(cuid())
+  kind                    ShiftChangeRequestKind
+  status                  ShiftChangeRequestStatus @default(PENDING_TARGET)
+  requesterUserId         String
+  requesterEmployeeId     String
+  requesterDepartmentId   String
+  targetUserId            String
+  targetEmployeeId        String
+  targetDepartmentId      String
+  requesterShiftId        String
+  targetShiftId           String?
+  requesterShiftUpdatedAt DateTime
+  targetShiftUpdatedAt    DateTime?
+  managerUserId           String?
+  resolvedAt              DateTime?
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  requesterUser           User                     @relation("ShiftChangeRequesterUser", fields: [requesterUserId], references: [id], onDelete: Restrict)
+  requesterEmployee       Employee                 @relation("ShiftChangeRequesterEmployee", fields: [requesterEmployeeId], references: [id], onDelete: Restrict)
+  requesterDepartment     Department               @relation("ShiftChangeRequesterDepartment", fields: [requesterDepartmentId], references: [id], onDelete: Restrict)
+  targetUser              User                     @relation("ShiftChangeTargetUser", fields: [targetUserId], references: [id], onDelete: Restrict)
+  targetEmployee          Employee                 @relation("ShiftChangeTargetEmployee", fields: [targetEmployeeId], references: [id], onDelete: Restrict)
+  targetDepartment        Department               @relation("ShiftChangeTargetDepartment", fields: [targetDepartmentId], references: [id], onDelete: Restrict)
+  requesterShift          Shift                    @relation("ShiftChangeRequesterShift", fields: [requesterShiftId], references: [id], onDelete: Restrict)
+  targetShift             Shift?                   @relation("ShiftChangeTargetShift", fields: [targetShiftId], references: [id], onDelete: Restrict)
+  managerUser             User?                    @relation("ShiftChangeManagerUser", fields: [managerUserId], references: [id], onDelete: Restrict)
+  events                  ShiftChangeRequestEvent[]
+
+  @@index([requesterUserId, createdAt])
+  @@index([targetUserId, createdAt])
+  @@index([status, createdAt])
+  @@index([requesterDepartmentId, status])
+  @@index([targetDepartmentId, status])
+  @@index([requesterShiftId])
+  @@index([targetShiftId])
+  @@index([managerUserId])
+}
+
+model ShiftChangeRequestEvent {
+  id          String                      @id @default(cuid())
+  requestId   String
+  eventType   ShiftChangeRequestEventType
+  actorUserId String
+  metadata    Json?
+  createdAt   DateTime                    @default(now())
+  request     ShiftChangeRequest          @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  actorUser   User                        @relation("ShiftChangeEventActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([requestId, createdAt])
+  @@index([actorUserId])
+  @@index([eventType])
 }
