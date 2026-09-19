@@ -165,6 +165,14 @@ export function validateShiftInput(input: string): ShiftEntry {
 
   const startStr = `${String(sh).padStart(2, '0')}:${String(sm).padStart(2, '0')}`;
   const endStr = `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`;
+
+  if (startStr === endStr) {
+    return {
+      type: 'error',
+      error: 'Время начала и окончания смены не может совпадать',
+    };
+  }
+
   const code = rawCode?.toUpperCase() as ShiftCode | undefined;
 
   return {

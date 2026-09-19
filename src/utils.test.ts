@@ -62,6 +62,16 @@ describe('validateShiftInput', () => {
       });
     },
   );
+
+  it.each(['08:00-08:00', 'N 20:00-20:00'])(
+    'rejects a zero-duration shift %s',
+    (input) => {
+      expect(validateShiftInput(input)).toEqual({
+        type: 'error',
+        error: 'Время начала и окончания смены не может совпадать',
+      });
+    },
+  );
 });
 
 describe('getDaysInMonth', () => {
