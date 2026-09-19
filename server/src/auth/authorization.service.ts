@@ -31,4 +31,13 @@ export class AuthorizationService {
       );
     }
   }
+
+  assertCanAdministerDepartments(
+    user: AuthUserContext,
+    departmentIds: readonly string[],
+  ): void {
+    for (const departmentId of new Set(departmentIds)) {
+      this.assertCanAdministerDepartment(user, departmentId);
+    }
+  }
 }

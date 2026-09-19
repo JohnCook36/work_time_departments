@@ -55,4 +55,35 @@ describe('AuthorizationService', () => {
       ),
     ).toBe(false);
   });
+
+  it('requires authority over every affected department', () => {
+    const user: AuthUserContext = {
+      ...userWith(RoleType.DEPARTMENT_ADMIN, 'department-a'),
+      memberships: [
+        {
+          id: 'membership-a',
+          role: RoleType.DEPARTMENT_ADMIN,
+          departmentId: 'department-a',
+        },
+        {
+          id: 'membership-b',
+          role: RoleType.DEPARTMENT_ADMIN,
+          departmentId: 'department-b',
+        },
+      ],
+    };
+
+    expect(() =>
+      service.assertCanAdministerDepartments(user, [
+        'department-a',
+        'department-b',
+      ]),
+    ).not.toThrow();
+    expect(() =>
+      service.assertCanAdministerDepartments(user, [
+        'department-a',
+        'department-c',
+      ]),
+    ).toThrow('You do not have permission to manage this department');
+  });
 });

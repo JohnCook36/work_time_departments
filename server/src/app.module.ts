@@ -9,6 +9,7 @@ import { OnboardingModule } from './onboarding/onboarding.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { SchedulesModule } from './schedules/schedules.module';
 import { ShiftsModule } from './shifts/shifts.module';
+import { ShiftChangeRequestsModule } from './shift-change-requests/shift-change-requests.module';
 import { UsersModule } from './users/users.module';
 import { WishesModule } from './wishes/wishes.module';
 
@@ -24,6 +25,7 @@ import { WishesModule } from './wishes/wishes.module';
     OnboardingModule,
     SchedulesModule,
     ShiftsModule,
+    ShiftChangeRequestsModule,
     WishesModule,
   ],
 })
