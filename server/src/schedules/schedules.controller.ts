@@ -1,7 +1,9 @@
 import {
   BadRequestException,
+  Body,
   Controller,
   Get,
+  Patch,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -9,7 +11,10 @@ import {
 import { AuthUserContext } from '../auth/auth.service';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { SessionAuthGuard } from '../auth/session-auth.guard';
-import { SchedulesService } from './schedules.service';
+import {
+  ScheduleCellChange,
+  SchedulesService,
+} from './schedules.service';
 
 function requiredString(value: string | undefined, field: string): string {
   if (!value?.trim()) {
@@ -26,6 +31,30 @@ function requiredInteger(value: string | undefined, field: string): number {
   }
 
   return Number(normalized);
+}
+
+function requiredBodyString(value: unknown, field: string): string {
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw new BadRequestException(field + ' is required');
+  }
+
+  return value.trim();
+}
+
+function requiredBodyInteger(value: unknown, field: string): number {
+  if (typeof value !== 'number' || !Number.isInteger(value)) {
+    throw new BadRequestException(field + ' must be an integer');
+  }
+
+  return value;
+}
+
+function requiredChanges(value: unknown): ScheduleCellChange[] {
+  if (!Array.isArray(value)) {
+    throw new BadRequestException('changes must be an array');
+  }
+
+  return value as ScheduleCellChange[];
 }
 
 @Controller('schedule-data')
@@ -45,6 +74,26 @@ export class SchedulesController {
       requiredString(departmentId, 'departmentId'),
       requiredInteger(year, 'year'),
       requiredInteger(month, 'month'),
+    );
+  }
+
+  @Patch('department/entries')
+  applyDepartmentScheduleChanges(
+    @CurrentUser() user: AuthUserContext,
+    @Body()
+    body: {
+      departmentId?: unknown;
+      year?: unknown;
+      month?: unknown;
+      changes?: unknown;
+    },
+  ) {
+    return this.schedules.applyDepartmentScheduleChanges(
+      user,
+      requiredBodyString(body?.departmentId, 'departmentId'),
+      requiredBodyInteger(body?.year, 'year'),
+      requiredBodyInteger(body?.month, 'month'),
+      requiredChanges(body?.changes),
     );
   }
 
