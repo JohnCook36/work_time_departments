@@ -92,7 +92,7 @@ test('department + employee + 15:00-23:00 produces D 6 / N 1 / total 7', async (
 
   const employeeName = page.getByPlaceholder('ФИО нового сотрудника...');
   await employeeName.fill('Новый E2E');
-  await employeeName.locator('xpath=..').getByRole('combobox').selectOption({
+  await page.getByRole('combobox').first().selectOption({
     label: 'E2E Отдел',
   });
   await page.getByRole('button', { name: 'Сотрудник', exact: true }).click();
@@ -123,8 +123,30 @@ test('employee drag to another department survives reload', async ({ page }) => 
   const handle = employeeRow(page).getByTitle('Перетащить сотрудника');
   const target = page
     .getByText('Второй отдел', { exact: true })
-    .locator('xpath=ancestor::tr');
-  await handle.dragTo(target);
+    .locator('xpath=ancestor::td');
+
+  const sourceBox = await handle.boundingBox();
+  const targetBox = await target.boundingBox();
+  if (!sourceBox || !targetBox) {
+    throw new Error('Drag source or target is not visible');
+  }
+
+  await page.mouse.move(
+    sourceBox.x + sourceBox.width / 2,
+    sourceBox.y + sourceBox.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    sourceBox.x + sourceBox.width / 2 + 12,
+    sourceBox.y + sourceBox.height / 2 + 12,
+    { steps: 4 },
+  );
+  await page.mouse.move(
+    targetBox.x + targetBox.width / 2,
+    targetBox.y + targetBox.height / 2,
+    { steps: 14 },
+  );
+  await page.mouse.up();
 
   await expect
     .poll(() =>
