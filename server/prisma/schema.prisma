@@ -20,6 +20,11 @@ enum RoleType {
   EMPLOYEE
 }
 
+enum EmployeeScheduleMode {
+  FLEXIBLE
+  FIXED_WEEKDAYS
+}
+
 enum OnboardingRequestType {
   LINK_EXISTING
   CREATE_EMPLOYEE
@@ -62,6 +67,9 @@ model Employee {
   id             String         @id @default(cuid())
   displayName    String
   employmentRate Float          @default(1)
+  scheduleMode   EmployeeScheduleMode @default(FLEXIBLE)
+  fixedStartTime String?         @db.VarChar(5)
+  fixedEndTime   String?         @db.VarChar(5)
   departmentId   String
   userId         String?        @unique
   position       Int            @default(0)
