@@ -64,7 +64,11 @@ import {
   parseScheduleExcel,
 } from './importExcel';
 import { exportScheduleToExcel } from './exportExcel';
-import { getMonthWeekRanges, printSchedule } from './printSchedule';
+import {
+  getMonthWeekRanges,
+  getPrintWeekRanges,
+  printSchedule,
+} from './printSchedule';
 import { ShiftEditor } from './ShiftEditor';
 import { WeeklyHoursPanel } from './WeeklyHoursPanel';
 import { AdminOnboardingPanel } from './auth/AdminOnboardingPanel';
@@ -330,6 +334,10 @@ function App() {
     () => getMonthWeekRanges(year, month, daysInMonth),
     [year, month, daysInMonth]
   );
+  const printCalendarWeekRanges = useMemo(
+    () => getPrintWeekRanges(year, month),
+    [year, month]
+  );
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -354,6 +362,10 @@ function App() {
       // ignore
     }
   }, [themeMode]);
+
+  useEffect(() => {
+    setPrintRangeKey('month');
+  }, [year, month]);
 
   useEffect(() => {
     if (!departments.some((department) => department.id === newEmployeeDepartmentId)) {
@@ -807,6 +819,7 @@ function App() {
       departments,
       employees,
       schedule,
+      schedules,
       year,
       month,
       daysInMonth,
@@ -1140,7 +1153,7 @@ function App() {
                 style={{ minWidth: 150 }}
               >
                 <option value="month">Весь месяц</option>
-                {printWeekRanges.map((range) => (
+                {printCalendarWeekRanges.map((range) => (
                   <option key={range.key} value={range.key}>
                     Неделя {range.label}
                   </option>
