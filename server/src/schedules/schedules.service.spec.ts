@@ -26,12 +26,26 @@ function user(overrides: Partial<AuthUserContext> = {}): AuthUserContext {
 }
 
 describe('SchedulesService', () => {
+  const transaction = {
+    schedule: {
+      findUnique: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+    },
+    shift: {
+      findMany: jest.fn(),
+      deleteMany: jest.fn(),
+      upsert: jest.fn(),
+    },
+  };
+
   const prisma = {
     department: {
       findFirst: jest.fn(),
     },
     employee: {
       findFirst: jest.fn(),
+      findMany: jest.fn(),
     },
     schedule: {
       findUnique: jest.fn(),
@@ -39,6 +53,10 @@ describe('SchedulesService', () => {
     shift: {
       findMany: jest.fn(),
     },
+    $transaction: jest.fn(
+      async (callback: (tx: typeof transaction) => Promise<unknown>) =>
+        callback(transaction),
+    ),
   };
 
   const authorization = {
@@ -52,6 +70,13 @@ describe('SchedulesService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    transaction.shift.findMany.mockResolvedValue([]);
+    transaction.shift.deleteMany.mockResolvedValue({ count: 0 });
+    transaction.shift.upsert.mockResolvedValue({});
+    transaction.schedule.update.mockResolvedValue({
+      id: 'schedule-1',
+      updatedAt: new Date('2026-09-01T12:00:00.000Z'),
+    });
   });
 
   it('checks department scope before returning department schedule', async () => {
@@ -75,6 +100,154 @@ describe('SchedulesService', () => {
       authorization.assertCanAdministerDepartment,
     ).toHaveBeenCalledWith(currentUser, 'department-a');
     expect(result.shifts).toEqual([]);
+  });
+
+
+  it('writes a shift only for an active employee in the administered department', async () => {
+    prisma.employee.findMany.mockResolvedValue([{ id: 'employee-1' }]);
+    transaction.schedule.findUnique.mockResolvedValue({
+      id: 'schedule-1',
+      updatedAt: new Date('2026-09-01T10:00:00.000Z'),
+    });
+
+    const currentUser = user();
+    const result = await service.applyDepartmentScheduleChanges(
+      currentUser,
+      'department-a',
+      2026,
+      9,
+      [
+        {
+          employeeId: 'employee-1',
+          day: 7,
+          type: 'shift',
+          startTime: '08:00',
+          endTime: '17:00',
+        },
+      ],
+    );
+
+    expect(
+      authorization.assertCanAdministerDepartment,
+    ).toHaveBeenCalledWith(currentUser, 'department-a');
+    expect(prisma.employee.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: { in: ['employee-1'] },
+          departmentId: 'department-a',
+          isActive: true,
+        },
+      }),
+    );
+    expect(transaction.shift.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          scheduleId: 'schedule-1',
+          employeeId: 'employee-1',
+          startTime: '08:00',
+          endTime: '17:00',
+          isOff: false,
+        }),
+      }),
+    );
+    expect(result).toEqual(
+      expect.objectContaining({
+        status: 'ok',
+        applied: 1,
+      }),
+    );
+  });
+
+  it('rejects schedule writes for an employee outside the department', async () => {
+    prisma.employee.findMany.mockResolvedValue([]);
+
+    await expect(
+      service.applyDepartmentScheduleChanges(
+        user(),
+        'department-a',
+        2026,
+        9,
+        [
+          {
+            employeeId: 'employee-other',
+            day: 7,
+            type: 'off',
+          },
+        ],
+      ),
+    ).rejects.toThrow(
+      'one or more employees do not belong to this department',
+    );
+
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('rejects stale optimistic writes', async () => {
+    prisma.employee.findMany.mockResolvedValue([{ id: 'employee-1' }]);
+    transaction.schedule.findUnique.mockResolvedValue({
+      id: 'schedule-1',
+      updatedAt: new Date('2026-09-01T10:00:00.000Z'),
+    });
+    transaction.shift.findMany.mockResolvedValue([
+      {
+        id: 'shift-1',
+        employeeId: 'employee-1',
+        date: new Date('2026-09-07T00:00:00.000Z'),
+        updatedAt: new Date('2026-09-01T11:00:00.000Z'),
+      },
+    ]);
+
+    await expect(
+      service.applyDepartmentScheduleChanges(
+        user(),
+        'department-a',
+        2026,
+        9,
+        [
+          {
+            employeeId: 'employee-1',
+            day: 7,
+            type: 'shift',
+            startTime: '15:00',
+            endTime: '23:00',
+            expectedUpdatedAt: '2026-09-01T10:30:00.000Z',
+          },
+        ],
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(transaction.shift.upsert).not.toHaveBeenCalled();
+  });
+
+  it('deletes a stored cell when change type is empty', async () => {
+    prisma.employee.findMany.mockResolvedValue([{ id: 'employee-1' }]);
+    transaction.schedule.findUnique.mockResolvedValue({
+      id: 'schedule-1',
+      updatedAt: new Date('2026-09-01T10:00:00.000Z'),
+    });
+
+    await service.applyDepartmentScheduleChanges(
+      user(),
+      'department-a',
+      2026,
+      9,
+      [
+        {
+          employeeId: 'employee-1',
+          day: 7,
+          type: 'empty',
+        },
+      ],
+    );
+
+    expect(transaction.shift.deleteMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          scheduleId: 'schedule-1',
+          employeeId: 'employee-1',
+        }),
+      }),
+    );
   });
 
   it('returns only the linked employee schedule for personal view', async () => {
