@@ -414,7 +414,8 @@ export const EmployeeRow = styled('tr')<{ $dragging: boolean; $odd: boolean }>((
 export const EmployeeCell = styled('td')(({ theme }) => ({
   position: 'sticky',
   left: 0,
-  zIndex: 12,
+  bottom: 0,
+  zIndex: 28,
   minWidth: 230,
   maxWidth: 230,
   padding: '6px 8px',
@@ -573,6 +574,15 @@ export const MetricCell = styled('td')<{ $tone: 'day' | 'night' | 'total' | 'mut
 export const TotalRow = styled('tr')(({ theme }) => ({
   background: theme.colors.department,
   fontWeight: 800,
+  '& > td': {
+    position: 'sticky',
+    bottom: 0,
+    zIndex: 20,
+    boxShadow: '0 -3px 10px rgba(15,23,42,.10)',
+  },
+  '& > td:first-of-type': {
+    zIndex: 28,
+  },
 }));
 
 export const TotalCell = styled('td')(({ theme }) => ({
@@ -580,6 +590,7 @@ export const TotalCell = styled('td')(({ theme }) => ({
   borderTop: '2px solid ' + theme.colors.border,
   textAlign: 'center',
   color: theme.colors.text,
+  background: theme.colors.department,
 }));
 
 export const StickyTotalCell = styled(TotalCell)(({ theme }) => ({
