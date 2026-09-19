@@ -1,4 +1,4 @@
-import { ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { RoleType } from '@prisma/client';
 
 import { AuthUserContext } from '../auth/auth.service';
@@ -157,6 +157,69 @@ describe('SchedulesService', () => {
       }),
     );
   });
+
+  it('rejects a zero-duration shift before accessing schedule storage', async () => {
+    await expect(
+      service.applyDepartmentScheduleChanges(
+        user(),
+        'department-a',
+        2026,
+        9,
+        [
+          {
+            employeeId: 'employee-1',
+            day: 7,
+            type: 'shift',
+            startTime: '08:00',
+            endTime: '08:00',
+          },
+        ],
+      ),
+    ).rejects.toEqual(
+      new BadRequestException(
+        'shift startTime and endTime must be different',
+      ),
+    );
+
+    expect(prisma.employee.findMany).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['20:00', '08:00'],
+    ['23:00', '05:00'],
+  ])(
+    'accepts an overnight shift from %s to %s',
+    async (startTime, endTime) => {
+      prisma.employee.findMany.mockResolvedValue([{ id: 'employee-1' }]);
+      transaction.schedule.findUnique.mockResolvedValue({
+        id: 'schedule-1',
+        updatedAt: new Date('2026-09-01T10:00:00.000Z'),
+      });
+
+      await service.applyDepartmentScheduleChanges(
+        user(),
+        'department-a',
+        2026,
+        9,
+        [
+          {
+            employeeId: 'employee-1',
+            day: 7,
+            type: 'shift',
+            startTime,
+            endTime,
+          },
+        ],
+      );
+
+      expect(transaction.shift.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({ startTime, endTime }),
+        }),
+      );
+    },
+  );
 
   it('rejects schedule writes for an employee outside the department', async () => {
     prisma.employee.findMany.mockResolvedValue([]);

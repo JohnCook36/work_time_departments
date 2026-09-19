@@ -83,6 +83,12 @@ function validateCellChange(
       throw new BadRequestException('shift time must use HH:MM format');
     }
 
+    if (change.startTime === change.endTime) {
+      throw new BadRequestException(
+        'shift startTime and endTime must be different',
+      );
+    }
+
     if (
       change.code != null &&
       (typeof change.code !== 'string' ||
