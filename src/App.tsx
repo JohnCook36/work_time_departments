@@ -62,6 +62,7 @@ import {
 import { EmployeeWishDrawer } from './WishDrawer';
 import { ExcelImportDrawer } from './ExcelImportDrawer';
 import {
+  applyExcelImportEntries,
   ExcelImportPreview,
   parseScheduleExcel,
 } from './importExcel';
@@ -922,51 +923,26 @@ function App() {
   const applyExcelImport = () => {
     if (!excelImportPreview) return;
 
-    let applied = 0;
-    let skippedProtected = 0;
-    let skippedOutsideMonth = 0;
-
-    updateCurrentSchedule((current) => {
-      const next: ScheduleData = { ...current };
-
-      excelImportPreview.entries.forEach((item) => {
-        if (!item.employeeId) return;
-
-        if (item.day < 1 || item.day > daysInMonth) {
-          skippedOutsideMonth++;
-          return;
-        }
-
-        const employeeSchedule = { ...(next[item.employeeId] || {}) };
-        const existing = employeeSchedule[item.day];
-
-        if (
-          !overwriteExcelCells &&
-          existing &&
-          existing.type !== 'empty'
-        ) {
-          skippedProtected++;
-          return;
-        }
-
-        employeeSchedule[item.day] = validateShiftInput(item.value);
-        next[item.employeeId] = employeeSchedule;
-        applied++;
-      });
-
-      return next;
+    const result = applyExcelImportEntries({
+      currentSchedule: rawSchedule,
+      protectedSchedule: schedule,
+      entries: excelImportPreview.entries,
+      daysInMonth,
+      overwriteExisting: overwriteExcelCells,
     });
+
+    updateCurrentSchedule(() => result.schedule);
 
     setExcelImportPreview(null);
     setOverwriteExcelCells(false);
 
     const details = [
-      'Импортировано смен: ' + applied,
-      skippedProtected > 0
-        ? 'Защищено заполненных ячеек: ' + skippedProtected
+      'Импортировано смен: ' + result.applied,
+      result.skippedProtected > 0
+        ? 'Защищено заполненных ячеек: ' + result.skippedProtected
         : null,
-      skippedOutsideMonth > 0
-        ? 'Пропущено дней вне текущего месяца: ' + skippedOutsideMonth
+      result.skippedOutsideMonth > 0
+        ? 'Пропущено дней вне текущего месяца: ' + result.skippedOutsideMonth
         : null,
     ].filter(Boolean);
 
