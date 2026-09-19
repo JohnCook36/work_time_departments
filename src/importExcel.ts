@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import { Employee } from './types';
+import { Employee, ScheduleData } from './types';
 import { validateShiftInput } from './utils';
 
 export interface ExcelImportEntry {
@@ -27,6 +27,63 @@ export interface ExcelImportPreview {
   ambiguousEmployees: string[];
   invalidCells: ExcelImportInvalidCell[];
   warnings: string[];
+}
+
+export interface ApplyExcelImportResult {
+  schedule: ScheduleData;
+  applied: number;
+  skippedProtected: number;
+  skippedOutsideMonth: number;
+}
+
+export interface ApplyExcelImportOptions {
+  currentSchedule: ScheduleData;
+  protectedSchedule?: ScheduleData;
+  entries: ExcelImportEntry[];
+  daysInMonth: number;
+  overwriteExisting: boolean;
+}
+
+export function applyExcelImportEntries({
+  currentSchedule,
+  protectedSchedule = currentSchedule,
+  entries,
+  daysInMonth,
+  overwriteExisting,
+}: ApplyExcelImportOptions): ApplyExcelImportResult {
+  const next: ScheduleData = { ...currentSchedule };
+  let applied = 0;
+  let skippedProtected = 0;
+  let skippedOutsideMonth = 0;
+
+  entries.forEach((item) => {
+    if (!item.employeeId) return;
+
+    if (item.day < 1 || item.day > daysInMonth) {
+      skippedOutsideMonth++;
+      return;
+    }
+
+    const employeeSchedule = { ...(next[item.employeeId] || {}) };
+    const existing =
+      employeeSchedule[item.day] ?? protectedSchedule[item.employeeId]?.[item.day];
+
+    if (!overwriteExisting && existing && existing.type !== 'empty') {
+      skippedProtected++;
+      return;
+    }
+
+    employeeSchedule[item.day] = validateShiftInput(item.value);
+    next[item.employeeId] = employeeSchedule;
+    applied++;
+  });
+
+  return {
+    schedule: next,
+    applied,
+    skippedProtected,
+    skippedOutsideMonth,
+  };
 }
 
 interface NormalizedImportValue {
