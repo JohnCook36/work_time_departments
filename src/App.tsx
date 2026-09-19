@@ -28,6 +28,7 @@ import {
   FileSpreadsheet,
   FileUp,
   GripVertical,
+  Heart,
   Info,
   Layers3,
   MessageSquare,
@@ -43,6 +44,7 @@ import {
   DepartmentKind,
   Employee,
   EmploymentRate,
+  EmployeeScheduleMode,
   EmployeeWish,
   EmployeeWishesData,
   ScheduleData,
@@ -73,6 +75,11 @@ import { ShiftEditor } from './ShiftEditor';
 import { WeeklyHoursPanel } from './WeeklyHoursPanel';
 import { AdminOnboardingPanel } from './auth/AdminOnboardingPanel';
 import { MySchedulePanel } from './auth/MySchedulePanel';
+import { hasManagementAccess, useAuthUser } from './auth/AuthContext';
+import {
+  buildEffectiveSchedule,
+  buildEffectiveSchedulePeriods,
+} from './employeeSchedule';
 import { getTheme, ThemeMode } from './theme';
 import {
   ActionButton,
@@ -199,10 +206,25 @@ function loadFromStorage(initialPeriodKey: string): LoadedData | null {
             employee.employmentRate === 1
               ? employee.employmentRate
               : 1,
+          scheduleMode:
+            employee.scheduleMode === 'fixed-weekdays'
+              ? ('fixed-weekdays' as const)
+              : ('flexible' as const),
+          fixedStartTime:
+            employee.scheduleMode === 'fixed-weekdays' &&
+            typeof employee.fixedStartTime === 'string'
+              ? employee.fixedStartTime
+              : undefined,
+          fixedEndTime:
+            employee.scheduleMode === 'fixed-weekdays' &&
+            typeof employee.fixedEndTime === 'string'
+              ? employee.fixedEndTime
+              : undefined,
         }))
       : DEFAULT_EMPLOYEES.map((employee) => ({
           ...employee,
           employmentRate: employee.employmentRate || 1,
+          scheduleMode: employee.scheduleMode || 'flexible',
         }));
 
     const schedules =
@@ -274,6 +296,8 @@ function departmentKindLabel(kind: DepartmentKind): string {
 }
 
 function App() {
+  const authUser = useAuthUser();
+  const canManagePlanner = hasManagementAccess(authUser);
   const initialNow = useMemo(() => new Date(), []);
   const initialPeriodKey = getPeriodKey(
     initialNow.getFullYear(),
@@ -302,6 +326,12 @@ function App() {
   );
 
   const [newEmployeeName, setNewEmployeeName] = useState('');
+  const [newEmployeeScheduleMode, setNewEmployeeScheduleMode] =
+    useState<EmployeeScheduleMode>('flexible');
+  const [newEmployeeFixedStartTime, setNewEmployeeFixedStartTime] =
+    useState('');
+  const [newEmployeeFixedEndTime, setNewEmployeeFixedEndTime] =
+    useState('');
   const [newEmployeeDepartmentId, setNewEmployeeDepartmentId] = useState(
     (stored?.departments || DEFAULT_DEPARTMENTS)[0].id
   );
@@ -328,7 +358,15 @@ function App() {
 
   const theme = useMemo(() => getTheme(themeMode), [themeMode]);
   const periodKey = getPeriodKey(year, month);
-  const schedule = schedules[periodKey] || {};
+  const rawSchedule = schedules[periodKey] || {};
+  const schedule = useMemo(
+    () => buildEffectiveSchedule(employees, rawSchedule, year, month),
+    [employees, rawSchedule, year, month]
+  );
+  const effectiveSchedulePeriods = useMemo(
+    () => buildEffectiveSchedulePeriods(employees, schedules, year, month),
+    [employees, schedules, year, month]
+  );
   const daysInMonth = getDaysInMonth(year, month);
   const printWeekRanges = useMemo(
     () => getMonthWeekRanges(year, month, daysInMonth),
@@ -436,6 +474,17 @@ function App() {
     const name = newEmployeeName.trim();
     if (!name || !newEmployeeDepartmentId) return;
 
+    if (newEmployeeScheduleMode === 'fixed-weekdays') {
+      const fixedEntry = validateShiftInput(
+        newEmployeeFixedStartTime + '-' + newEmployeeFixedEndTime
+      );
+
+      if (fixedEntry.type !== 'shift') {
+        alert('Для фиксированного графика укажите корректное время начала и окончания.');
+        return;
+      }
+    }
+
     setEmployees((prev) => [
       ...prev,
       {
@@ -443,9 +492,19 @@ function App() {
         name,
         departmentId: newEmployeeDepartmentId,
         employmentRate: 1,
+        scheduleMode: newEmployeeScheduleMode,
+        ...(newEmployeeScheduleMode === 'fixed-weekdays'
+          ? {
+              fixedStartTime: newEmployeeFixedStartTime,
+              fixedEndTime: newEmployeeFixedEndTime,
+            }
+          : {}),
       },
     ]);
     setNewEmployeeName('');
+    setNewEmployeeScheduleMode('flexible');
+    setNewEmployeeFixedStartTime('');
+    setNewEmployeeFixedEndTime('');
   };
 
   const changeEmployeeRate = (
@@ -819,7 +878,7 @@ function App() {
       departments,
       employees,
       schedule,
-      schedules,
+      schedules: effectiveSchedulePeriods,
       year,
       month,
       daysInMonth,
@@ -1008,20 +1067,22 @@ function App() {
                 </IconButton>
 
                 <MySchedulePanel year={year} monthIndex={month} />
-                <AdminOnboardingPanel />
+                {canManagePlanner && <AdminOnboardingPanel />}
 
-                <IconButton
-                  type="button"
-                  onClick={() => setShowHelp((value) => !value)}
-                  title="Справка"
-                >
-                  <Info size={18} />
-                </IconButton>
+                {canManagePlanner && (
+                  <IconButton
+                    type="button"
+                    onClick={() => setShowHelp((value) => !value)}
+                    title="Справка"
+                  >
+                    <Info size={18} />
+                  </IconButton>
+                )}
               </HeaderActions>
             </HeaderRow>
           </HeaderCard>
 
-          {showHelp && (
+          {canManagePlanner && showHelp && (
             <HelpCard>
               <PanelTitleRow>
                 <div>
@@ -1054,6 +1115,7 @@ function App() {
             </HelpCard>
           )}
 
+          {canManagePlanner && (
           <ControlsCard>
             <ControlsRow>
               <TextInput
@@ -1076,6 +1138,44 @@ function App() {
                   </option>
                 ))}
               </Select>
+
+              <Select
+                value={newEmployeeScheduleMode}
+                onChange={(event) =>
+                  setNewEmployeeScheduleMode(
+                    event.target.value as EmployeeScheduleMode
+                  )
+                }
+                title="Тип рабочего графика сотрудника"
+              >
+                <option value="flexible">Плавающий график</option>
+                <option value="fixed-weekdays">5/2 · фиксированные часы</option>
+              </Select>
+
+              {newEmployeeScheduleMode === 'fixed-weekdays' && (
+                <>
+                  <TextInput
+                    type="time"
+                    value={newEmployeeFixedStartTime}
+                    onChange={(event) =>
+                      setNewEmployeeFixedStartTime(event.target.value)
+                    }
+                    title="Начало рабочего дня"
+                    aria-label="Начало рабочего дня"
+                    style={{ width: 118 }}
+                  />
+                  <TextInput
+                    type="time"
+                    value={newEmployeeFixedEndTime}
+                    onChange={(event) =>
+                      setNewEmployeeFixedEndTime(event.target.value)
+                    }
+                    title="Окончание рабочего дня"
+                    aria-label="Окончание рабочего дня"
+                    style={{ width: 118 }}
+                  />
+                </>
+              )}
 
               <ActionButton type="button" $variant="primary" onClick={addEmployee}>
                 <Plus size={16} />
@@ -1179,8 +1279,9 @@ function App() {
               </ActionButton>
             </ControlsRow>
           </ControlsCard>
+          )}
 
-          {showDepartments && (
+          {canManagePlanner && showDepartments && (
             <DepartmentPanel>
               <PanelTitleRow>
                 <div>
@@ -1276,6 +1377,7 @@ function App() {
             </DepartmentPanel>
           )}
 
+          {canManagePlanner && (
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
@@ -1369,7 +1471,10 @@ function App() {
                     })}
                     </SortableContext>
 
-                    {employees.length > 0 && (
+
+                  </tbody>
+                  {canManagePlanner && employees.length > 0 && (
+                    <tfoot>
                       <TotalRow>
                         <StickyTotalCell>ИТОГО</StickyTotalCell>
 
@@ -1406,8 +1511,9 @@ function App() {
                         <MetricCell $tone="total">{grandTotals.total}</MetricCell>
                         <MetricCell $tone="muted">—</MetricCell>
                       </TotalRow>
-                    )}
-                  </tbody>
+                    </tfoot>
+                  )}
+
                 </ScheduleTable>
               </TableScroll>
 
@@ -1480,8 +1586,11 @@ function App() {
               document.body
             )}
           </DndContext>
+          )}
 
-          {scheduleView === 'hours' && employees.length > 0 && (
+          {canManagePlanner &&
+            scheduleView === 'hours' &&
+            employees.length > 0 && (
             <WeeklyHoursPanel
               employees={employees}
               schedule={schedule}
@@ -1492,13 +1601,15 @@ function App() {
             />
           )}
 
-          <ErrorPanel
-            schedule={schedule}
-            employees={employees}
-            daysInMonth={daysInMonth}
-          />
+          {canManagePlanner && (
+            <ErrorPanel
+              schedule={schedule}
+              employees={employees}
+              daysInMonth={daysInMonth}
+            />
+          )}
 
-          <Legend>
+          {canManagePlanner && <Legend>
             <span>⋮⋮ Перетащить сотрудника или отдел</span>
             <span>▾ / › Свернуть отдел</span>
             <span>💬 Пожелания</span>
@@ -1506,21 +1617,41 @@ function App() {
             <span>☀️ Дневная смена</span>
             <span>🌙 Ночная смена</span>
             <span>OFF Выходной</span>
-          </Legend>
+          </Legend>}
+
+          {!canManagePlanner && (
+            <Card style={{ marginTop: 14, padding: 22 }}>
+              <PanelTitle>Личный кабинет сотрудника</PanelTitle>
+              <Muted style={{ marginTop: 6 }}>
+                Здесь не показываются сводные часы, данные других сотрудников и
+                инструменты изменения общего графика. Выберите нужный месяц и
+                откройте «Мои смены» кнопкой с календарём в шапке.
+              </Muted>
+            </Card>
+          )}
 
           <Footer>
             <div>
               Данные сохраняются локально в браузере • Смены и пожелания раздельно
               по месяцам
             </div>
-            <div style={{ marginTop: 6, fontWeight: 700 }}>
+            <div
+              style={{
+                marginTop: 6,
+                fontWeight: 700,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+              }}
+            >
               Powered by Anastasiya P.
+              <Heart size={14} fill="currentColor" aria-hidden="true" />
             </div>
           </Footer>
         </Container>
       </Page>
 
-      {excelImportPreview && (
+      {canManagePlanner && excelImportPreview && (
         <ExcelImportDrawer
           preview={excelImportPreview}
           conflictCount={excelImportConflictCount}
@@ -1534,7 +1665,7 @@ function App() {
         />
       )}
 
-      {selectedShiftEmployee && editingCell && (
+      {canManagePlanner && selectedShiftEmployee && editingCell && (
         <ShiftEditor
           key={selectedShiftEmployee.id + '-' + editingCell.day + '-' + periodKey}
           employee={selectedShiftEmployee}
@@ -1550,7 +1681,7 @@ function App() {
         />
       )}
 
-      {selectedWishEmployee && (
+      {canManagePlanner && selectedWishEmployee && (
         <EmployeeWishDrawer
           key={selectedWishEmployee.id + periodKey}
           employee={selectedWishEmployee}
@@ -1771,6 +1902,25 @@ function SortableEmployeeRow({
           </DragHandle>
 
           <EmployeeNameText>{employee.name}</EmployeeNameText>
+
+          {employee.scheduleMode === 'fixed-weekdays' &&
+            employee.fixedStartTime &&
+            employee.fixedEndTime && (
+              <span
+                title="Автоматический базовый график 5/2"
+                style={{
+                  flex: '0 0 auto',
+                  padding: '2px 6px',
+                  borderRadius: 999,
+                  fontSize: 9,
+                  fontWeight: 800,
+                  opacity: 0.72,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                5/2 {employee.fixedStartTime}-{employee.fixedEndTime}
+              </span>
+            )}
 
           <RowIconButton
             type="button"

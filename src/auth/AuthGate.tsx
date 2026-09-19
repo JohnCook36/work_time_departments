@@ -8,6 +8,7 @@ import {
   UserPlus,
 } from 'lucide-react';
 
+import { AuthUserContext } from './AuthContext';
 import {
   ApiError,
   AuthUser,
@@ -625,5 +626,9 @@ export function AuthGate({ children }: AuthGateProps) {
     return <OnboardingCard user={user} onSessionChanged={refresh} />;
   }
 
-  return <>{children}</>;
+  return (
+    <AuthUserContext.Provider value={user}>
+      {children}
+    </AuthUserContext.Provider>
+  );
 }

@@ -21,12 +21,16 @@ export interface Department {
 }
 
 export type EmploymentRate = 1 | 0.75 | 0.5;
+export type EmployeeScheduleMode = 'flexible' | 'fixed-weekdays';
 
 export interface Employee {
   id: string;
   name: string;
   departmentId: string;
   employmentRate?: EmploymentRate;
+  scheduleMode?: EmployeeScheduleMode;
+  fixedStartTime?: string;
+  fixedEndTime?: string;
 }
 
 export interface EmployeeWish {

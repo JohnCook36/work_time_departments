@@ -32,6 +32,9 @@ export interface AuthUserContext {
     displayName: string;
     departmentId: string;
     employmentRate: number;
+    scheduleMode?: 'FLEXIBLE' | 'FIXED_WEEKDAYS';
+    fixedStartTime?: string | null;
+    fixedEndTime?: string | null;
   } | null;
   memberships: Array<{
     id: string;
@@ -232,6 +235,9 @@ export class AuthService {
             displayName: session.user.employee.displayName,
             departmentId: session.user.employee.departmentId,
             employmentRate: session.user.employee.employmentRate,
+            scheduleMode: session.user.employee.scheduleMode,
+            fixedStartTime: session.user.employee.fixedStartTime,
+            fixedEndTime: session.user.employee.fixedEndTime,
           }
         : null,
       memberships: session.user.memberships.map((membership) => ({
