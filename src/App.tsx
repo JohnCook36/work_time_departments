@@ -205,10 +205,25 @@ function loadFromStorage(initialPeriodKey: string): LoadedData | null {
             employee.employmentRate === 1
               ? employee.employmentRate
               : 1,
+          scheduleMode:
+            employee.scheduleMode === 'fixed-weekdays'
+              ? 'fixed-weekdays'
+              : 'flexible',
+          fixedStartTime:
+            employee.scheduleMode === 'fixed-weekdays' &&
+            typeof employee.fixedStartTime === 'string'
+              ? employee.fixedStartTime
+              : undefined,
+          fixedEndTime:
+            employee.scheduleMode === 'fixed-weekdays' &&
+            typeof employee.fixedEndTime === 'string'
+              ? employee.fixedEndTime
+              : undefined,
         }))
       : DEFAULT_EMPLOYEES.map((employee) => ({
           ...employee,
           employmentRate: employee.employmentRate || 1,
+          scheduleMode: employee.scheduleMode || 'flexible',
         }));
 
     const schedules =
@@ -281,7 +296,7 @@ function departmentKindLabel(kind: DepartmentKind): string {
 
 function App() {
   const authUser = useAuthUser();
-  const canViewManagementTotals = hasManagementAccess(authUser);
+  const canManagePlanner = hasManagementAccess(authUser);
   const initialNow = useMemo(() => new Date(), []);
   const initialPeriodKey = getPeriodKey(
     initialNow.getFullYear(),
@@ -458,13 +473,15 @@ function App() {
     const name = newEmployeeName.trim();
     if (!name || !newEmployeeDepartmentId) return;
 
-    if (
-      newEmployeeScheduleMode === 'fixed-weekdays' &&
-      (!/^\d{2}:\d{2}$/.test(newEmployeeFixedStartTime) ||
-        !/^\d{2}:\d{2}$/.test(newEmployeeFixedEndTime))
-    ) {
-      alert('Для фиксированного графика укажите время начала и окончания.');
-      return;
+    if (newEmployeeScheduleMode === 'fixed-weekdays') {
+      const fixedEntry = validateShiftInput(
+        newEmployeeFixedStartTime + '-' + newEmployeeFixedEndTime
+      );
+
+      if (fixedEntry.type !== 'shift') {
+        alert('Для фиксированного графика укажите корректное время начала и окончания.');
+        return;
+      }
     }
 
     setEmployees((prev) => [
@@ -1049,20 +1066,22 @@ function App() {
                 </IconButton>
 
                 <MySchedulePanel year={year} monthIndex={month} />
-                <AdminOnboardingPanel />
+                {canManagePlanner && <AdminOnboardingPanel />}
 
-                <IconButton
-                  type="button"
-                  onClick={() => setShowHelp((value) => !value)}
-                  title="Справка"
-                >
-                  <Info size={18} />
-                </IconButton>
+                {canManagePlanner && (
+                  <IconButton
+                    type="button"
+                    onClick={() => setShowHelp((value) => !value)}
+                    title="Справка"
+                  >
+                    <Info size={18} />
+                  </IconButton>
+                )}
               </HeaderActions>
             </HeaderRow>
           </HeaderCard>
 
-          {showHelp && (
+          {canManagePlanner && showHelp && (
             <HelpCard>
               <PanelTitleRow>
                 <div>
@@ -1095,6 +1114,7 @@ function App() {
             </HelpCard>
           )}
 
+          {canManagePlanner && (
           <ControlsCard>
             <ControlsRow>
               <TextInput
@@ -1258,8 +1278,9 @@ function App() {
               </ActionButton>
             </ControlsRow>
           </ControlsCard>
+          )}
 
-          {showDepartments && (
+          {canManagePlanner && showDepartments && (
             <DepartmentPanel>
               <PanelTitleRow>
                 <div>
@@ -1355,6 +1376,7 @@ function App() {
             </DepartmentPanel>
           )}
 
+          {canManagePlanner && (
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
@@ -1448,7 +1470,7 @@ function App() {
                     })}
                     </SortableContext>
 
-                    {canViewManagementTotals && employees.length > 0 && (
+                    {canManagePlanner && employees.length > 0 && (
                       <TotalRow>
                         <StickyTotalCell>ИТОГО</StickyTotalCell>
 
@@ -1559,8 +1581,9 @@ function App() {
               document.body
             )}
           </DndContext>
+          )}
 
-          {canViewManagementTotals &&
+          {canManagePlanner &&
             scheduleView === 'hours' &&
             employees.length > 0 && (
             <WeeklyHoursPanel
@@ -1573,13 +1596,15 @@ function App() {
             />
           )}
 
-          <ErrorPanel
-            schedule={schedule}
-            employees={employees}
-            daysInMonth={daysInMonth}
-          />
+          {canManagePlanner && (
+            <ErrorPanel
+              schedule={schedule}
+              employees={employees}
+              daysInMonth={daysInMonth}
+            />
+          )}
 
-          <Legend>
+          {canManagePlanner && <Legend>
             <span>⋮⋮ Перетащить сотрудника или отдел</span>
             <span>▾ / › Свернуть отдел</span>
             <span>💬 Пожелания</span>
@@ -1587,7 +1612,18 @@ function App() {
             <span>☀️ Дневная смена</span>
             <span>🌙 Ночная смена</span>
             <span>OFF Выходной</span>
-          </Legend>
+          </Legend>}
+
+          {!canManagePlanner && (
+            <Card style={{ marginTop: 14, padding: 22 }}>
+              <PanelTitle>Личный кабинет сотрудника</PanelTitle>
+              <Muted style={{ marginTop: 6 }}>
+                Здесь не показываются сводные часы, данные других сотрудников и
+                инструменты изменения общего графика. Выберите нужный месяц и
+                откройте «Мои смены» кнопкой с календарём в шапке.
+              </Muted>
+            </Card>
+          )}
 
           <Footer>
             <div>
@@ -1601,7 +1637,7 @@ function App() {
         </Container>
       </Page>
 
-      {excelImportPreview && (
+      {canManagePlanner && excelImportPreview && (
         <ExcelImportDrawer
           preview={excelImportPreview}
           conflictCount={excelImportConflictCount}
@@ -1615,7 +1651,7 @@ function App() {
         />
       )}
 
-      {selectedShiftEmployee && editingCell && (
+      {canManagePlanner && selectedShiftEmployee && editingCell && (
         <ShiftEditor
           key={selectedShiftEmployee.id + '-' + editingCell.day + '-' + periodKey}
           employee={selectedShiftEmployee}
@@ -1631,7 +1667,7 @@ function App() {
         />
       )}
 
-      {selectedWishEmployee && (
+      {canManagePlanner && selectedWishEmployee && (
         <EmployeeWishDrawer
           key={selectedWishEmployee.id + periodKey}
           employee={selectedWishEmployee}
