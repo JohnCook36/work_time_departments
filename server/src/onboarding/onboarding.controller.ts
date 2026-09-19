@@ -27,6 +27,11 @@ function requiredString(value: unknown, field: string): string {
 export class OnboardingController {
   constructor(private readonly onboarding: OnboardingService) {}
 
+  @Get('departments')
+  listDepartments(@CurrentUser() user: AuthUserContext) {
+    return this.onboarding.listDepartments(user);
+  }
+
   @Get('candidates')
   findCandidates(
     @CurrentUser() user: AuthUserContext,

@@ -21,6 +21,20 @@ export class OnboardingService {
     private readonly authorization: AuthorizationService,
   ) {}
 
+  async listDepartments(user: AuthUserContext) {
+    this.assertUserIsUnlinked(user);
+
+    return this.prisma.department.findMany({
+      where: { isActive: true },
+      select: {
+        id: true,
+        name: true,
+        kind: true,
+      },
+      orderBy: [{ position: 'asc' }, { name: 'asc' }],
+    });
+  }
+
   async findCandidates(
     user: AuthUserContext,
     departmentId: string,
