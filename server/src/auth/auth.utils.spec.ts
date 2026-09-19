@@ -4,6 +4,9 @@ import {
   normalizePhoneE164,
   safeHashEquals,
   validateOtpCode,
+  extractSessionToken,
+  serializeClearedSessionCookie,
+  serializeSessionCookie,
 } from './auth.utils';
 
 describe('auth utils', () => {
@@ -33,5 +36,29 @@ describe('auth utils', () => {
   it('hashes session tokens deterministically', () => {
     expect(hashSessionToken('token')).toBe(hashSessionToken('token'));
     expect(hashSessionToken('token')).not.toBe(hashSessionToken('other'));
+  });
+
+  it('prefers Bearer token and falls back to the session cookie', () => {
+    expect(
+      extractSessionToken({
+        authorization: 'Bearer api-token',
+        cookie: 'wtd_session=cookie-token',
+      }),
+    ).toBe('api-token');
+
+    expect(
+      extractSessionToken({ cookie: 'other=1; wtd_session=cookie-token' }),
+    ).toBe('cookie-token');
+  });
+
+  it('serializes and clears browser session cookies', () => {
+    const cookie = serializeSessionCookie('abc', 60, true);
+    expect(cookie).toContain('wtd_session=abc');
+    expect(cookie).toContain('HttpOnly');
+    expect(cookie).toContain('SameSite=Lax');
+    expect(cookie).toContain('Max-Age=60');
+    expect(cookie).toContain('Secure');
+
+    expect(serializeClearedSessionCookie(false)).toContain('Max-Age=0');
   });
 });
