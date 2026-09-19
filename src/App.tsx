@@ -28,6 +28,7 @@ import {
   FileSpreadsheet,
   FileUp,
   GripVertical,
+  Heart,
   Info,
   Layers3,
   MessageSquare,
@@ -1470,7 +1471,10 @@ function App() {
                     })}
                     </SortableContext>
 
-                    {canManagePlanner && employees.length > 0 && (
+
+                  </tbody>
+                  {canManagePlanner && employees.length > 0 && (
+                    <tfoot>
                       <TotalRow>
                         <StickyTotalCell>ИТОГО</StickyTotalCell>
 
@@ -1507,8 +1511,9 @@ function App() {
                         <MetricCell $tone="total">{grandTotals.total}</MetricCell>
                         <MetricCell $tone="muted">—</MetricCell>
                       </TotalRow>
-                    )}
-                  </tbody>
+                    </tfoot>
+                  )}
+
                 </ScheduleTable>
               </TableScroll>
 
@@ -1630,8 +1635,17 @@ function App() {
               Данные сохраняются локально в браузере • Смены и пожелания раздельно
               по месяцам
             </div>
-            <div style={{ marginTop: 6, fontWeight: 700 }}>
+            <div
+              style={{
+                marginTop: 6,
+                fontWeight: 700,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+              }}
+            >
               Powered by Anastasiya P.
+              <Heart size={14} fill="currentColor" aria-hidden="true" />
             </div>
           </Footer>
         </Container>
