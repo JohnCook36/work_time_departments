@@ -63,6 +63,17 @@ describe('validateShiftInput', () => {
     },
   );
 
+  it('normalizes a lowercase code and surrounding whitespace', () => {
+    expect(validateShiftInput('  inn 10:00 — 19:00  ')).toEqual({
+      type: 'shift',
+      shift: {
+        start: '10:00',
+        end: '19:00',
+        code: 'INN',
+      },
+    });
+  });
+
   it.each(['08:00-08:00', 'N 20:00-20:00'])(
     'rejects a zero-duration shift %s',
     (input) => {

@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { getMonthWeekRanges, getPrintWeekRanges } from './printSchedule';
+import {
+  getMonthWeekRanges,
+  getPrintWeekRanges,
+  getVisibleMonthWeekRanges,
+} from './printSchedule';
 
 describe('getPrintWeekRanges', () => {
   it('keeps the first visible week complete when it starts in the previous month', () => {
@@ -64,5 +68,37 @@ describe('getMonthWeekRanges', () => {
     expect(last.label).toBe('28 сен – 4 окт');
     expect(last.days).toHaveLength(7);
     expect(last.days[6]).toEqual({ year: 2026, month: 9, day: 4 });
+  });
+});
+
+
+describe('getVisibleMonthWeekRanges', () => {
+  it('splits the visible month into Monday-Sunday ranges', () => {
+    expect(getVisibleMonthWeekRanges(2026, 8, 30)).toEqual([
+      { key: '1', start: 1, end: 6, label: '1–6' },
+      { key: '2', start: 7, end: 13, label: '7–13' },
+      { key: '3', start: 14, end: 20, label: '14–20' },
+      { key: '4', start: 21, end: 27, label: '21–27' },
+      { key: '5', start: 28, end: 30, label: '28–30' },
+    ]);
+  });
+
+  it('keeps a Sunday-only opening range separate for month-visible calculations', () => {
+    expect(getVisibleMonthWeekRanges(2026, 10, 30)[0]).toEqual({
+      key: '1',
+      start: 1,
+      end: 1,
+      label: '1',
+    });
+  });
+
+  it('does not create visible ranges outside a short February', () => {
+    const ranges = getVisibleMonthWeekRanges(2024, 1, 29);
+    expect(ranges[ranges.length - 1]).toEqual({
+      key: '5',
+      start: 26,
+      end: 29,
+      label: '26–29',
+    });
   });
 });
