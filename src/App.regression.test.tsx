@@ -1,9 +1,10 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import App from './App';
 import * as excelImport from './importExcel';
+import * as plannerApi from './plannerApi';
 import { AuthUserContext } from './auth/AuthContext';
 import type { AuthUser } from './auth/api';
 
@@ -43,6 +44,43 @@ function currentPeriodKey(): string {
   return now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
 }
 
+function serverPlannerSnapshot(): plannerApi.PlannerServerSnapshot {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+
+  return {
+    departments: [
+      { id: 'server-department', name: 'Серверный отдел', kind: 'fo' },
+    ],
+    employees: [
+      {
+        id: 'server-employee',
+        name: 'Серверный сотрудник',
+        departmentId: 'server-department',
+        employmentRate: 1,
+        scheduleMode: 'flexible',
+      },
+    ],
+    schedule: {
+      'server-employee': {
+        1: {
+          type: 'shift',
+          shift: { start: '08:00', end: '17:00' },
+        },
+      },
+    },
+    cellMetadata: {
+      'server-employee': {
+        1: {
+          shiftId: 'server-shift',
+          updatedAt: year + '-' + month + '-01T10:00:00.000Z',
+        },
+      },
+    },
+  };
+}
+
 function seedCurrentSchedule(value = '15:00-23:00') {
   const [start, end] = value.split('-');
   localStorage.setItem(
@@ -73,6 +111,71 @@ function seedCurrentSchedule(value = '15:00-23:00') {
 describe('App regression flows', () => {
   beforeEach(() => {
     vi.spyOn(window, 'alert').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  it('loads the backend snapshot and blocks mutations in server read mode', async () => {
+    vi.stubEnv('VITE_SERVER_PLANNER_READ', '1');
+    vi.spyOn(plannerApi, 'loadPlannerServerSnapshot').mockResolvedValue(
+      serverPlannerSnapshot(),
+    );
+
+    renderApp();
+
+    expect(await screen.findByText('Серверный сотрудник')).toBeInTheDocument();
+    expect(screen.getByText(/контролируемый read-only этап/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Сотрудник' })).toBeDisabled();
+    expect(screen.getByText('08-17')).toBeInTheDocument();
+  });
+
+  it('writes one server-backed schedule cell with optimistic metadata in write pilot mode', async () => {
+    const user = userEvent.setup();
+    const snapshot = serverPlannerSnapshot();
+    vi.stubEnv('VITE_SERVER_PLANNER_WRITE', '1');
+    vi.spyOn(plannerApi, 'loadPlannerServerSnapshot').mockResolvedValue(snapshot);
+    const applySpy = vi
+      .spyOn(plannerApi, 'applyDepartmentScheduleChanges')
+      .mockResolvedValue({
+        status: 'ok',
+        applied: 1,
+        schedule: {
+          id: 'schedule-current',
+          updatedAt: '2026-09-19T12:00:00.000Z',
+        },
+      });
+
+    renderApp();
+
+    await user.click(await screen.findByText('08-17'));
+    expect(screen.getByText('Смена сотрудника')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Сотрудник' })).toBeDisabled();
+
+    await user.click(screen.getByRole('button', { name: 'Сохранить смену' }));
+
+    const now = new Date();
+    await waitFor(() => {
+      expect(applySpy).toHaveBeenCalledWith(
+        'server-department',
+        now.getFullYear(),
+        now.getMonth() + 1,
+        [
+          {
+            employeeId: 'server-employee',
+            day: 1,
+            type: 'shift',
+            startTime: '08:00',
+            endTime: '17:00',
+            code: null,
+            expectedUpdatedAt:
+              snapshot.cellMetadata['server-employee'][1].updatedAt,
+          },
+        ],
+      );
+    });
   });
 
   it('switches from schedule values to day/night/total hours', async () => {
