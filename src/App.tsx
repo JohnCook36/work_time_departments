@@ -1118,6 +1118,44 @@ function App() {
                 ))}
               </Select>
 
+              <Select
+                value={newEmployeeScheduleMode}
+                onChange={(event) =>
+                  setNewEmployeeScheduleMode(
+                    event.target.value as EmployeeScheduleMode
+                  )
+                }
+                title="Тип рабочего графика сотрудника"
+              >
+                <option value="flexible">Плавающий график</option>
+                <option value="fixed-weekdays">5/2 · фиксированные часы</option>
+              </Select>
+
+              {newEmployeeScheduleMode === 'fixed-weekdays' && (
+                <>
+                  <TextInput
+                    type="time"
+                    value={newEmployeeFixedStartTime}
+                    onChange={(event) =>
+                      setNewEmployeeFixedStartTime(event.target.value)
+                    }
+                    title="Начало рабочего дня"
+                    aria-label="Начало рабочего дня"
+                    style={{ width: 118 }}
+                  />
+                  <TextInput
+                    type="time"
+                    value={newEmployeeFixedEndTime}
+                    onChange={(event) =>
+                      setNewEmployeeFixedEndTime(event.target.value)
+                    }
+                    title="Окончание рабочего дня"
+                    aria-label="Окончание рабочего дня"
+                    style={{ width: 118 }}
+                  />
+                </>
+              )}
+
               <ActionButton type="button" $variant="primary" onClick={addEmployee}>
                 <Plus size={16} />
                 Сотрудник
