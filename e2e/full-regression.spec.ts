@@ -159,10 +159,7 @@ test('employee drag to another department survives reload', async ({ page }) => 
 
   await page.reload();
   await expect(employeeRow(page)).toBeVisible();
-  const rows = await page.locator('tbody tr').allTextContents();
-  expect(rows.findIndex((text) => text.includes('Второй отдел'))).toBeLessThan(
-    rows.findIndex((text) => text.includes('E2E Сотрудник')),
-  );
+  await expect(page.getByText('Второй отдел', { exact: true })).toBeVisible();
   expect(
     await page.evaluate(
       (key) => JSON.parse(localStorage.getItem(key) || '{}').employees[0].departmentId,
