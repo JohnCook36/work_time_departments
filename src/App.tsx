@@ -208,8 +208,8 @@ function loadFromStorage(initialPeriodKey: string): LoadedData | null {
               : 1,
           scheduleMode:
             employee.scheduleMode === 'fixed-weekdays'
-              ? 'fixed-weekdays'
-              : 'flexible',
+              ? ('fixed-weekdays' as const)
+              : ('flexible' as const),
           fixedStartTime:
             employee.scheduleMode === 'fixed-weekdays' &&
             typeof employee.fixedStartTime === 'string'
