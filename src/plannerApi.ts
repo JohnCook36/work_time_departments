@@ -5,6 +5,7 @@ import type {
   EmploymentRate,
   ScheduleData,
   ShiftCode,
+  ShiftEntry,
 } from './types';
 import { apiRequest } from './auth/api';
 
@@ -30,15 +31,7 @@ export interface DepartmentScheduleResponse {
     name: string;
     kind: 'GENERAL' | 'FO' | 'NIGHT';
   };
-  employees: Array<{
-    id: string;
-    displayName: string;
-    employmentRate: number;
-    scheduleMode: 'FLEXIBLE' | 'FIXED_WEEKDAYS';
-    fixedStartTime: string | null;
-    fixedEndTime: string | null;
-    position: number;
-  }>;
+  employees: EmployeeResponse[];
   shifts: Array<{
     id: string;
     employeeId: string;
@@ -51,10 +44,64 @@ export interface DepartmentScheduleResponse {
   }>;
 }
 
+export interface EmployeeResponse {
+  id: string;
+  displayName: string;
+  employmentRate: number;
+  scheduleMode: 'FLEXIBLE' | 'FIXED_WEEKDAYS';
+  fixedStartTime: string | null;
+  fixedEndTime: string | null;
+  departmentId?: string;
+  position: number;
+  isActive?: boolean;
+  isLinked?: boolean;
+  updatedAt?: string;
+}
+
+export interface PlannerCellMetadata {
+  shiftId: string;
+  updatedAt: string;
+}
+
+export interface PlannerCellMetadataMap {
+  [employeeId: string]: {
+    [day: number]: PlannerCellMetadata;
+  };
+}
+
 export interface PlannerServerSnapshot {
   departments: Department[];
   employees: Employee[];
   schedule: ScheduleData;
+  cellMetadata: PlannerCellMetadataMap;
+}
+
+export interface ScheduleCellChange {
+  employeeId: string;
+  day: number;
+  type: 'empty' | 'off' | 'shift';
+  startTime?: string;
+  endTime?: string;
+  code?: string | null;
+  expectedUpdatedAt: string | null;
+}
+
+export interface ApplyScheduleChangesResponse {
+  status: 'ok';
+  applied: number;
+  schedule: {
+    id: string;
+    updatedAt: string;
+  } | null;
+}
+
+export interface EmployeeMutationInput {
+  displayName?: string;
+  departmentId?: string;
+  employmentRate?: EmploymentRate;
+  scheduleMode?: 'FLEXIBLE' | 'FIXED_WEEKDAYS';
+  fixedStartTime?: string | null;
+  fixedEndTime?: string | null;
 }
 
 const SHIFT_CODES = new Set<ShiftCode>(['E', 'IN', 'INN', 'L', 'N']);
@@ -72,9 +119,9 @@ function mapEmploymentRate(value: number): EmploymentRate {
   return 1;
 }
 
-function mapEmployee(
+export function mapEmployeeResponse(
   departmentId: string,
-  employee: DepartmentScheduleResponse['employees'][number],
+  employee: EmployeeResponse,
 ): Employee {
   return {
     id: employee.id,
@@ -100,6 +147,7 @@ export function mapDepartmentScheduleResponses(
   const departments: Department[] = [];
   const employees: Employee[] = [];
   const schedule: ScheduleData = {};
+  const cellMetadata: PlannerCellMetadataMap = {};
 
   responses.forEach((response) => {
     departments.push({
@@ -109,7 +157,7 @@ export function mapDepartmentScheduleResponses(
     });
 
     response.employees.forEach((employee) => {
-      employees.push(mapEmployee(response.department.id, employee));
+      employees.push(mapEmployeeResponse(response.department.id, employee));
     });
 
     response.shifts.forEach((shift) => {
@@ -117,6 +165,7 @@ export function mapDepartmentScheduleResponses(
       if (!Number.isInteger(day) || day < 1 || day > 31) return;
 
       const employeeSchedule = schedule[shift.employeeId] || {};
+      const employeeMetadata = cellMetadata[shift.employeeId] || {};
 
       if (shift.isOff) {
         employeeSchedule[day] = { type: 'off' };
@@ -139,11 +188,49 @@ export function mapDepartmentScheduleResponses(
         };
       }
 
+      employeeMetadata[day] = {
+        shiftId: shift.id,
+        updatedAt: shift.updatedAt,
+      };
       schedule[shift.employeeId] = employeeSchedule;
+      cellMetadata[shift.employeeId] = employeeMetadata;
     });
   });
 
-  return { departments, employees, schedule };
+  return { departments, employees, schedule, cellMetadata };
+}
+
+export function buildScheduleCellChange(
+  employeeId: string,
+  day: number,
+  entry: ShiftEntry,
+  metadata?: PlannerCellMetadata,
+): ScheduleCellChange {
+  const base = {
+    employeeId,
+    day,
+    expectedUpdatedAt: metadata?.updatedAt ?? null,
+  };
+
+  if (entry.type === 'empty') {
+    return { ...base, type: 'empty' };
+  }
+
+  if (entry.type === 'off') {
+    return { ...base, type: 'off' };
+  }
+
+  if (entry.type !== 'shift' || !entry.shift) {
+    throw new Error('Cannot persist an invalid schedule entry');
+  }
+
+  return {
+    ...base,
+    type: 'shift',
+    startTime: entry.shift.start,
+    endTime: entry.shift.end,
+    code: entry.shift.code ?? null,
+  };
 }
 
 export function getManageableDepartments() {
@@ -164,4 +251,55 @@ export function getDepartmentPlannerSchedule(
   return apiRequest<DepartmentScheduleResponse>(
     '/schedule-data/department?' + params.toString(),
   );
+}
+
+export async function loadPlannerServerSnapshot(
+  year: number,
+  month: number,
+): Promise<PlannerServerSnapshot> {
+  const departments = await getManageableDepartments();
+  const responses = await Promise.all(
+    departments.map((department) =>
+      getDepartmentPlannerSchedule(department.id, year, month),
+    ),
+  );
+
+  return mapDepartmentScheduleResponses(responses);
+}
+
+export function applyDepartmentScheduleChanges(
+  departmentId: string,
+  year: number,
+  month: number,
+  changes: ScheduleCellChange[],
+) {
+  return apiRequest<ApplyScheduleChangesResponse>(
+    '/schedule-data/department/entries',
+    {
+      method: 'PATCH',
+      body: JSON.stringify({
+        departmentId,
+        year,
+        month,
+        changes,
+      }),
+    },
+  );
+}
+
+export function createPlannerEmployee(input: EmployeeMutationInput) {
+  return apiRequest<EmployeeResponse>('/employees', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function updatePlannerEmployee(
+  employeeId: string,
+  input: EmployeeMutationInput,
+) {
+  return apiRequest<EmployeeResponse>('/employees/' + encodeURIComponent(employeeId), {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  });
 }
