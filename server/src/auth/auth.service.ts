@@ -32,9 +32,9 @@ export interface AuthUserContext {
     displayName: string;
     departmentId: string;
     employmentRate: number;
-    scheduleMode: 'FLEXIBLE' | 'FIXED_WEEKDAYS';
-    fixedStartTime: string | null;
-    fixedEndTime: string | null;
+    scheduleMode?: 'FLEXIBLE' | 'FIXED_WEEKDAYS';
+    fixedStartTime?: string | null;
+    fixedEndTime?: string | null;
   } | null;
   memberships: Array<{
     id: string;
