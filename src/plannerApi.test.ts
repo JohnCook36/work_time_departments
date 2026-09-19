@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  buildScheduleCellChange,
   DepartmentScheduleResponse,
   mapDepartmentScheduleResponses,
 } from './plannerApi';
@@ -149,5 +150,85 @@ describe('mapDepartmentScheduleResponses', () => {
       employmentRate: 1,
       scheduleMode: 'flexible',
     });
+  });
+});
+
+
+describe('planner write contract', () => {
+  it('preserves persisted Shift metadata for optimistic locking', () => {
+    const snapshot = mapDepartmentScheduleResponses([response()]);
+
+    expect(snapshot.cellMetadata['employee-1'][18]).toEqual({
+      shiftId: 'shift-1',
+      updatedAt: '2026-09-19T12:00:00.000Z',
+    });
+    expect(snapshot.cellMetadata['employee-1'][19]).toEqual({
+      shiftId: 'shift-2',
+      updatedAt: '2026-09-19T12:00:00.000Z',
+    });
+  });
+
+  it('builds a shift change with the loaded updatedAt value', () => {
+    expect(
+      buildScheduleCellChange(
+        'employee-1',
+        18,
+        {
+          type: 'shift',
+          shift: { start: '20:00', end: '08:00', code: 'N' },
+        },
+        {
+          shiftId: 'shift-1',
+          updatedAt: '2026-09-19T12:00:00.000Z',
+        },
+      ),
+    ).toEqual({
+      employeeId: 'employee-1',
+      day: 18,
+      type: 'shift',
+      startTime: '20:00',
+      endTime: '08:00',
+      code: 'N',
+      expectedUpdatedAt: '2026-09-19T12:00:00.000Z',
+    });
+  });
+
+  it('uses expectedUpdatedAt=null when creating a previously empty server cell', () => {
+    expect(
+      buildScheduleCellChange('employee-1', 20, { type: 'off' }),
+    ).toEqual({
+      employeeId: 'employee-1',
+      day: 20,
+      type: 'off',
+      expectedUpdatedAt: null,
+    });
+  });
+
+  it('keeps optimistic metadata when clearing a persisted cell', () => {
+    expect(
+      buildScheduleCellChange(
+        'employee-1',
+        19,
+        { type: 'empty' },
+        {
+          shiftId: 'shift-2',
+          updatedAt: '2026-09-19T12:00:00.000Z',
+        },
+      ),
+    ).toEqual({
+      employeeId: 'employee-1',
+      day: 19,
+      type: 'empty',
+      expectedUpdatedAt: '2026-09-19T12:00:00.000Z',
+    });
+  });
+
+  it('refuses to persist an invalid planner entry', () => {
+    expect(() =>
+      buildScheduleCellChange('employee-1', 21, {
+        type: 'error',
+        error: 'invalid',
+      }),
+    ).toThrow('Cannot persist an invalid schedule entry');
   });
 });
