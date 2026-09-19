@@ -277,13 +277,26 @@ export class EmployeesService {
         requestedEnd === undefined ? existing.fixedEndTime : requestedEnd,
     });
 
+    let targetPosition: number | undefined;
+    if (requestedDepartmentId !== existing.departmentId) {
+      const lastEmployee = await this.prisma.employee.findFirst({
+        where: { departmentId: requestedDepartmentId },
+        orderBy: { position: 'desc' },
+        select: { position: true },
+      });
+      targetPosition = (lastEmployee?.position ?? -1) + 1;
+    }
+
     const employee = await this.prisma.employee.update({
       where: { id: existing.id },
       data: {
         ...(displayName !== undefined ? { displayName } : {}),
         ...(employmentRate !== undefined ? { employmentRate } : {}),
         ...(requestedDepartmentId !== existing.departmentId
-          ? { departmentId: requestedDepartmentId }
+          ? {
+              departmentId: requestedDepartmentId,
+              position: targetPosition,
+            }
           : {}),
         ...workPattern,
       },
