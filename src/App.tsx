@@ -67,6 +67,7 @@ import { exportScheduleToExcel } from './exportExcel';
 import { getMonthWeekRanges, printSchedule } from './printSchedule';
 import { ShiftEditor } from './ShiftEditor';
 import { WeeklyHoursPanel } from './WeeklyHoursPanel';
+import { AdminOnboardingPanel } from './auth/AdminOnboardingPanel';
 import { getTheme, ThemeMode } from './theme';
 import {
   ActionButton,
@@ -991,6 +992,8 @@ function App() {
                 >
                   <ChevronRight size={19} />
                 </IconButton>
+
+                <AdminOnboardingPanel />
 
                 <IconButton
                   type="button"
