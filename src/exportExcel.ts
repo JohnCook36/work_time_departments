@@ -33,14 +33,6 @@ function getScheduleCellValue(entry: ShiftEntry): string {
   if (entry.type === 'error') return '⚠';
   if (entry.type !== 'shift' || !entry.shift) return '';
 
-  return (
-    entry.shift.code ||
-    entry.shift.start.slice(0, 2) + '-' + entry.shift.end.slice(0, 2)
-  );
-}
-
-function getActualTimeValue(entry: ShiftEntry): string {
-  if (entry.type !== 'shift' || !entry.shift) return '';
   return entry.shift.start + '-' + entry.shift.end;
 }
 
@@ -275,29 +267,6 @@ function addDepartmentRows(
       employeeRow.height = mode === 'hours' ? 42 : 24;
       styleDataRow(employeeRow, year, month, daysInMonth);
 
-      if (mode === 'schedule') {
-        const actualValues = Array.from(
-          { length: daysInMonth },
-          (_, index) =>
-            getActualTimeValue(
-              getEntry(schedule, employee.id, index + 1)
-            )
-        );
-
-        const actualRow = sheet.addRow(['Факт', ...actualValues, '', '', '', '']);
-        actualRow.height = 20;
-        actualRow.font = {
-          italic: true,
-          size: 9,
-          color: { argb: 'FF64748B' },
-        };
-        styleDataRow(actualRow, year, month, daysInMonth);
-        actualRow.getCell(1).font = {
-          italic: true,
-          size: 9,
-          color: { argb: 'FF64748B' },
-        };
-      }
     });
   });
 }
