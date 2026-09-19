@@ -80,6 +80,7 @@ import { hasManagementAccess, useAuthUser } from './auth/AuthContext';
 import {
   applyDepartmentScheduleChanges,
   buildScheduleCellChange,
+  createPlannerEmployee,
   loadPlannerServerSnapshot,
   PlannerCellMetadataMap,
 } from './plannerApi';
@@ -365,6 +366,7 @@ function App() {
   const [scheduleView, setScheduleView] = useState<ScheduleView>('schedule');
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [isImportingExcel, setIsImportingExcel] = useState(false);
+  const [isCreatingEmployee, setIsCreatingEmployee] = useState(false);
   const [excelImportPreview, setExcelImportPreview] =
     useState<ExcelImportPreview | null>(null);
   const [overwriteExcelCells, setOverwriteExcelCells] = useState(false);
@@ -382,6 +384,10 @@ function App() {
     useState<PlannerCellMetadataMap>({});
   const serverPlannerLoadVersion = useRef(0);
 
+  const canCreateEmployee =
+    canManagePlanner &&
+    (!serverPlannerReadEnabled ||
+      (serverPlannerWriteEnabled && serverPlannerStatus === 'ready'));
   const theme = useMemo(() => getTheme(themeMode), [themeMode]);
   const periodKey = getPeriodKey(year, month);
   const rawSchedule = schedules[periodKey] || {};
@@ -606,9 +612,16 @@ function App() {
     [daysInMonth, getEntry]
   );
 
-  const addEmployee = () => {
+  const resetNewEmployeeForm = () => {
+    setNewEmployeeName('');
+    setNewEmployeeScheduleMode('flexible');
+    setNewEmployeeFixedStartTime('');
+    setNewEmployeeFixedEndTime('');
+  };
+
+  const addEmployee = async () => {
     const name = newEmployeeName.trim();
-    if (!name || !newEmployeeDepartmentId) return;
+    if (!name || !newEmployeeDepartmentId || isCreatingEmployee) return;
 
     if (newEmployeeScheduleMode === 'fixed-weekdays') {
       const fixedEntry = validateShiftInput(
@@ -621,26 +634,65 @@ function App() {
       }
     }
 
-    setEmployees((prev) => [
-      ...prev,
-      {
-        id: generateId(),
-        name,
+    if (!serverPlannerWriteEnabled) {
+      setEmployees((prev) => [
+        ...prev,
+        {
+          id: generateId(),
+          name,
+          departmentId: newEmployeeDepartmentId,
+          employmentRate: 1,
+          scheduleMode: newEmployeeScheduleMode,
+          ...(newEmployeeScheduleMode === 'fixed-weekdays'
+            ? {
+                fixedStartTime: newEmployeeFixedStartTime,
+                fixedEndTime: newEmployeeFixedEndTime,
+              }
+            : {}),
+        },
+      ]);
+      resetNewEmployeeForm();
+      return;
+    }
+
+    if (serverPlannerStatus !== 'ready') {
+      alert('График ещё не синхронизирован с сервером.');
+      return;
+    }
+
+    try {
+      setIsCreatingEmployee(true);
+      await createPlannerEmployee({
+        displayName: name,
         departmentId: newEmployeeDepartmentId,
         employmentRate: 1,
-        scheduleMode: newEmployeeScheduleMode,
+        scheduleMode:
+          newEmployeeScheduleMode === 'fixed-weekdays'
+            ? 'FIXED_WEEKDAYS'
+            : 'FLEXIBLE',
         ...(newEmployeeScheduleMode === 'fixed-weekdays'
           ? {
               fixedStartTime: newEmployeeFixedStartTime,
               fixedEndTime: newEmployeeFixedEndTime,
             }
-          : {}),
-      },
-    ]);
-    setNewEmployeeName('');
-    setNewEmployeeScheduleMode('flexible');
-    setNewEmployeeFixedStartTime('');
-    setNewEmployeeFixedEndTime('');
+          : {
+              fixedStartTime: null,
+              fixedEndTime: null,
+            }),
+      });
+      resetNewEmployeeForm();
+      await refreshServerPlanner();
+    } catch (error) {
+      console.error('Server employee create failed', error);
+      alert(
+        error instanceof Error
+          ? 'Не удалось добавить сотрудника: ' + error.message
+          : 'Не удалось добавить сотрудника на сервере.'
+      );
+      await refreshServerPlanner();
+    } finally {
+      setIsCreatingEmployee(false);
+    }
   };
 
   const changeEmployeeRate = (
@@ -1248,7 +1300,7 @@ function App() {
               <TextInput
                 type="text"
                 value={newEmployeeName}
-                disabled={!canEditPlanner}
+                disabled={!canCreateEmployee || isCreatingEmployee}
                 onChange={(event) => setNewEmployeeName(event.target.value)}
                 onKeyDown={(event) => event.key === 'Enter' && addEmployee()}
                 placeholder="ФИО нового сотрудника..."
@@ -1256,7 +1308,7 @@ function App() {
 
               <Select
                 value={newEmployeeDepartmentId}
-                disabled={!canEditPlanner}
+                disabled={!canCreateEmployee || isCreatingEmployee}
                 onChange={(event) =>
                   setNewEmployeeDepartmentId(event.target.value)
                 }
@@ -1270,7 +1322,7 @@ function App() {
 
               <Select
                 value={newEmployeeScheduleMode}
-                disabled={!canEditPlanner}
+                disabled={!canCreateEmployee || isCreatingEmployee}
                 onChange={(event) =>
                   setNewEmployeeScheduleMode(
                     event.target.value as EmployeeScheduleMode
@@ -1287,7 +1339,7 @@ function App() {
                   <TextInput
                     type="time"
                     value={newEmployeeFixedStartTime}
-                    disabled={!canEditPlanner}
+                    disabled={!canCreateEmployee || isCreatingEmployee}
                     onChange={(event) =>
                       setNewEmployeeFixedStartTime(event.target.value)
                     }
@@ -1298,7 +1350,7 @@ function App() {
                   <TextInput
                     type="time"
                     value={newEmployeeFixedEndTime}
-                    disabled={!canEditPlanner}
+                    disabled={!canCreateEmployee || isCreatingEmployee}
                     onChange={(event) =>
                       setNewEmployeeFixedEndTime(event.target.value)
                     }
@@ -1312,11 +1364,11 @@ function App() {
               <ActionButton
                 type="button"
                 $variant="primary"
-                onClick={addEmployee}
-                disabled={!canEditPlanner}
+                onClick={() => void addEmployee()}
+                disabled={!canCreateEmployee || isCreatingEmployee}
               >
                 <Plus size={16} />
-                Сотрудник
+                {isCreatingEmployee ? 'Добавляю…' : 'Сотрудник'}
               </ActionButton>
 
               <ActionButton
