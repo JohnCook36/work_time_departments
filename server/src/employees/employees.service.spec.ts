@@ -31,6 +31,7 @@ describe('EmployeesService', () => {
       create: jest.fn(),
       updateMany: jest.fn(),
     },
+    $transaction: jest.fn(),
   };
 
   const authorization = {
@@ -46,6 +47,14 @@ describe('EmployeesService', () => {
     jest.clearAllMocks();
     prisma.department.findFirst.mockResolvedValue({ id: 'department-a' });
     prisma.employee.updateMany.mockResolvedValue({ count: 1 });
+    prisma.$transaction.mockImplementation(async (callback) =>
+      callback({
+        employee: {
+          findMany: prisma.employee.findMany,
+          updateMany: prisma.employee.updateMany,
+        },
+      }),
+    );
   });
 
   it('creates a flexible employee with cleared fixed hours', async () => {
@@ -342,6 +351,118 @@ describe('EmployeesService', () => {
         departmentId: 'department-a',
       }),
     ).resolves.toMatchObject({ id: 'employee-1' });
+  });
+
+  it('atomically reorders every active employee in a department', async () => {
+    const employeeAUpdatedAt = new Date('2026-09-19T09:00:00.000Z');
+    const employeeBUpdatedAt = new Date('2026-09-19T09:05:00.000Z');
+    prisma.employee.findMany.mockResolvedValue([
+      { id: 'employee-a', updatedAt: employeeAUpdatedAt },
+      { id: 'employee-b', updatedAt: employeeBUpdatedAt },
+    ]);
+    prisma.employee.updateMany.mockResolvedValue({ count: 1 });
+
+    const result = await service.reorderEmployees(admin(), {
+      departmentId: 'department-a',
+      orderedEmployeeIds: ['employee-b', 'employee-a'],
+      expectedUpdatedAtByEmployeeId: {
+        'employee-a': employeeAUpdatedAt.toISOString(),
+        'employee-b': employeeBUpdatedAt.toISOString(),
+      },
+    });
+
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(prisma.employee.updateMany).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        where: {
+          id: 'employee-b',
+          departmentId: 'department-a',
+          isActive: true,
+          updatedAt: employeeBUpdatedAt,
+        },
+        data: { position: 0 },
+      }),
+    );
+    expect(prisma.employee.updateMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: {
+          id: 'employee-a',
+          departmentId: 'department-a',
+          isActive: true,
+          updatedAt: employeeAUpdatedAt,
+        },
+        data: { position: 1 },
+      }),
+    );
+    expect(result).toEqual({ status: 'ok', reordered: 2 });
+  });
+
+  it('rejects reorder when the active Employee set changed', async () => {
+    prisma.employee.findMany.mockResolvedValue([
+      {
+        id: 'employee-a',
+        updatedAt: new Date('2026-09-19T09:00:00.000Z'),
+      },
+    ]);
+
+    await expect(
+      service.reorderEmployees(admin(), {
+        departmentId: 'department-a',
+        orderedEmployeeIds: ['employee-a', 'employee-b'],
+        expectedUpdatedAtByEmployeeId: {
+          'employee-a': '2026-09-19T09:00:00.000Z',
+          'employee-b': '2026-09-19T09:05:00.000Z',
+        },
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(prisma.employee.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects reorder with stale Employee optimistic metadata', async () => {
+    prisma.employee.findMany.mockResolvedValue([
+      {
+        id: 'employee-a',
+        updatedAt: new Date('2026-09-19T10:00:00.000Z'),
+      },
+    ]);
+
+    await expect(
+      service.reorderEmployees(admin(), {
+        departmentId: 'department-a',
+        orderedEmployeeIds: ['employee-a'],
+        expectedUpdatedAtByEmployeeId: {
+          'employee-a': '2026-09-19T09:00:00.000Z',
+        },
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(prisma.employee.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('rolls back reorder when a conditional position update loses a race', async () => {
+    const employeeAUpdatedAt = new Date('2026-09-19T09:00:00.000Z');
+    const employeeBUpdatedAt = new Date('2026-09-19T09:05:00.000Z');
+    prisma.employee.findMany.mockResolvedValue([
+      { id: 'employee-a', updatedAt: employeeAUpdatedAt },
+      { id: 'employee-b', updatedAt: employeeBUpdatedAt },
+    ]);
+    prisma.employee.updateMany
+      .mockResolvedValueOnce({ count: 1 })
+      .mockResolvedValueOnce({ count: 0 });
+
+    await expect(
+      service.reorderEmployees(admin(), {
+        departmentId: 'department-a',
+        orderedEmployeeIds: ['employee-b', 'employee-a'],
+        expectedUpdatedAtByEmployeeId: {
+          'employee-a': employeeAUpdatedAt.toISOString(),
+          'employee-b': employeeBUpdatedAt.toISOString(),
+        },
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 
   it('lists only active employees in the requested department', async () => {
