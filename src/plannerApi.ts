@@ -253,6 +253,16 @@ export function buildScheduleCellChange(
   };
 }
 
+export function buildEmployeeMoveInput(
+  departmentId: string,
+  metadata: PlannerEmployeeMetadata,
+): EmployeeMutationInput {
+  return {
+    departmentId,
+    expectedUpdatedAt: metadata.updatedAt,
+  };
+}
+
 export function getManageableDepartments() {
   return apiRequest<ManageableDepartmentResponse[]>('/departments/manageable');
 }
