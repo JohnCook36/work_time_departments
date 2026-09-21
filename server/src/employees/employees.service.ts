@@ -23,6 +23,12 @@ export interface EmployeeMutationInput {
   expectedUpdatedAt?: unknown;
 }
 
+export interface EmployeeReorderInput {
+  departmentId?: unknown;
+  orderedEmployeeIds?: unknown;
+  expectedUpdatedAtByEmployeeId?: unknown;
+}
+
 function requireString(value: unknown, field: string): string {
   if (typeof value !== 'string' || value.trim() === '') {
     throw new BadRequestException(field + ' is required');
@@ -89,6 +95,39 @@ function requireExpectedUpdatedAt(value: unknown): Date {
   }
 
   return parsed;
+}
+
+function requireEmployeeOrder(value: unknown): string[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new BadRequestException('orderedEmployeeIds must be a non-empty array');
+  }
+
+  const ids = value.map((item) => requireString(item, 'orderedEmployeeIds'));
+  if (new Set(ids).size !== ids.length) {
+    throw new BadRequestException('orderedEmployeeIds must not contain duplicates');
+  }
+
+  return ids;
+}
+
+function requireExpectedUpdatedAtMap(
+  value: unknown,
+  employeeIds: string[],
+): Record<string, Date> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new BadRequestException(
+      'expectedUpdatedAtByEmployeeId must be an object',
+    );
+  }
+
+  const raw = value as Record<string, unknown>;
+  const expected: Record<string, Date> = {};
+
+  employeeIds.forEach((employeeId) => {
+    expected[employeeId] = requireExpectedUpdatedAt(raw[employeeId]);
+  });
+
+  return expected;
 }
 
 function normalizeWorkPattern(input: {
@@ -237,6 +276,81 @@ export class EmployeesService {
     });
 
     return serializeEmployee(employee);
+  }
+
+  async reorderEmployees(
+    admin: AuthUserContext,
+    input: EmployeeReorderInput,
+  ) {
+    const departmentId = requireString(input.departmentId, 'departmentId');
+    const orderedEmployeeIds = requireEmployeeOrder(input.orderedEmployeeIds);
+    const expectedUpdatedAtByEmployeeId = requireExpectedUpdatedAtMap(
+      input.expectedUpdatedAtByEmployeeId,
+      orderedEmployeeIds,
+    );
+
+    this.authorization.assertCanAdministerDepartment(admin, departmentId);
+    await this.assertActiveDepartment(departmentId);
+
+    return this.prisma.$transaction(async (tx) => {
+      const currentEmployees = await tx.employee.findMany({
+        where: {
+          departmentId,
+          isActive: true,
+        },
+        orderBy: [{ position: 'asc' }, { displayName: 'asc' }],
+        select: {
+          id: true,
+          updatedAt: true,
+        },
+      });
+
+      const currentIds = currentEmployees.map((employee) => employee.id);
+      const currentSet = new Set(currentIds);
+      const requestedSet = new Set(orderedEmployeeIds);
+
+      if (
+        currentIds.length !== orderedEmployeeIds.length ||
+        currentIds.some((employeeId) => !requestedSet.has(employeeId)) ||
+        orderedEmployeeIds.some((employeeId) => !currentSet.has(employeeId))
+      ) {
+        throw new ConflictException(
+          'Employee list changed after it was loaded',
+        );
+      }
+
+      for (const employee of currentEmployees) {
+        const expectedUpdatedAt = expectedUpdatedAtByEmployeeId[employee.id];
+        if (
+          employee.updatedAt.getTime() !== expectedUpdatedAt.getTime()
+        ) {
+          throw new ConflictException(
+            'Employee changed after it was loaded',
+          );
+        }
+      }
+
+      for (let position = 0; position < orderedEmployeeIds.length; position++) {
+        const employeeId = orderedEmployeeIds[position];
+        const updateResult = await tx.employee.updateMany({
+          where: {
+            id: employeeId,
+            departmentId,
+            isActive: true,
+            updatedAt: expectedUpdatedAtByEmployeeId[employeeId],
+          },
+          data: { position },
+        });
+
+        if (updateResult.count !== 1) {
+          throw new ConflictException(
+            'Employee changed during reorder',
+          );
+        }
+      }
+
+      return { status: 'ok' as const, reordered: orderedEmployeeIds.length };
+    });
   }
 
   async updateEmployee(
