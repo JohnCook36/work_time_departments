@@ -263,6 +263,34 @@ export function buildEmployeeMoveInput(
   };
 }
 
+export interface EmployeeReorderInput {
+  departmentId: string;
+  orderedEmployeeIds: string[];
+  expectedUpdatedAtByEmployeeId: Record<string, string>;
+}
+
+export function buildEmployeeReorderInput(
+  departmentId: string,
+  orderedEmployeeIds: string[],
+  metadata: PlannerEmployeeMetadataMap,
+): EmployeeReorderInput {
+  const expectedUpdatedAtByEmployeeId: Record<string, string> = {};
+
+  orderedEmployeeIds.forEach((employeeId) => {
+    const employeeMetadata = metadata[employeeId];
+    if (!employeeMetadata) {
+      throw new Error('Missing Employee optimistic metadata for reorder');
+    }
+    expectedUpdatedAtByEmployeeId[employeeId] = employeeMetadata.updatedAt;
+  });
+
+  return {
+    departmentId,
+    orderedEmployeeIds,
+    expectedUpdatedAtByEmployeeId,
+  };
+}
+
 export function getManageableDepartments() {
   return apiRequest<ManageableDepartmentResponse[]>('/departments/manageable');
 }
@@ -329,6 +357,13 @@ export function updatePlannerEmployee(
   input: EmployeeMutationInput,
 ) {
   return apiRequest<EmployeeResponse>('/employees/' + encodeURIComponent(employeeId), {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  });
+}
+
+export function reorderPlannerEmployees(input: EmployeeReorderInput) {
+  return apiRequest<{ status: 'ok'; reordered: number }>('/employees/reorder', {
     method: 'PATCH',
     body: JSON.stringify(input),
   });
