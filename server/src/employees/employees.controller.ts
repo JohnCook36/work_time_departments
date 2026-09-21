@@ -15,6 +15,7 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import { SessionAuthGuard } from '../auth/session-auth.guard';
 import {
   EmployeeMutationInput,
+  EmployeeReorderInput,
   EmployeesService,
 } from './employees.service';
 
@@ -47,6 +48,14 @@ export class EmployeesController {
     @Body() body: EmployeeMutationInput,
   ) {
     return this.employees.createEmployee(user, body ?? {});
+  }
+
+  @Patch('reorder')
+  reorderEmployees(
+    @CurrentUser() user: AuthUserContext,
+    @Body() body: EmployeeReorderInput,
+  ) {
+    return this.employees.reorderEmployees(user, body ?? {});
   }
 
   @Patch(':employeeId')
