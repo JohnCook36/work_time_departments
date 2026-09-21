@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -19,6 +20,7 @@ export interface EmployeeMutationInput {
   scheduleMode?: unknown;
   fixedStartTime?: unknown;
   fixedEndTime?: unknown;
+  expectedUpdatedAt?: unknown;
 }
 
 function requireString(value: unknown, field: string): string {
@@ -70,6 +72,23 @@ function optionalTime(value: unknown, field: string): string | null | undefined 
     throw new BadRequestException(field + ' must use HH:MM format');
   }
   return value;
+}
+
+function requireExpectedUpdatedAt(value: unknown): Date {
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw new BadRequestException('expectedUpdatedAt is required');
+  }
+
+  const normalized = value.trim();
+  const isoDateTimePattern =
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/;
+  const parsed = new Date(normalized);
+
+  if (!isoDateTimePattern.test(normalized) || Number.isNaN(parsed.getTime())) {
+    throw new BadRequestException('expectedUpdatedAt must be an ISO date-time');
+  }
+
+  return parsed;
 }
 
 function normalizeWorkPattern(input: {
@@ -225,6 +244,8 @@ export class EmployeesService {
     employeeId: string,
     input: EmployeeMutationInput,
   ) {
+    const expectedUpdatedAt = requireExpectedUpdatedAt(input.expectedUpdatedAt);
+
     const existing = await this.prisma.employee.findUnique({
       where: { id: employeeId },
       select: {
@@ -236,6 +257,7 @@ export class EmployeesService {
         fixedEndTime: true,
         departmentId: true,
         isActive: true,
+        updatedAt: true,
       },
     });
 
@@ -247,6 +269,10 @@ export class EmployeesService {
       admin,
       existing.departmentId,
     );
+
+    if (existing.updatedAt.getTime() !== expectedUpdatedAt.getTime()) {
+      throw new ConflictException('Employee changed after it was loaded');
+    }
 
     const requestedDepartmentId =
       input.departmentId === undefined
@@ -287,8 +313,12 @@ export class EmployeesService {
       targetPosition = (lastEmployee?.position ?? -1) + 1;
     }
 
-    const employee = await this.prisma.employee.update({
-      where: { id: existing.id },
+    const updateResult = await this.prisma.employee.updateMany({
+      where: {
+        id: existing.id,
+        isActive: true,
+        updatedAt: expectedUpdatedAt,
+      },
       data: {
         ...(displayName !== undefined ? { displayName } : {}),
         ...(employmentRate !== undefined ? { employmentRate } : {}),
@@ -300,6 +330,14 @@ export class EmployeesService {
           : {}),
         ...workPattern,
       },
+    });
+
+    if (updateResult.count !== 1) {
+      throw new ConflictException('Employee changed after it was loaded');
+    }
+
+    const employee = await this.prisma.employee.findUnique({
+      where: { id: existing.id },
       select: {
         id: true,
         displayName: true,
@@ -314,6 +352,10 @@ export class EmployeesService {
         updatedAt: true,
       },
     });
+
+    if (!employee || !employee.isActive) {
+      throw new ConflictException('Employee changed after it was loaded');
+    }
 
     return serializeEmployee(employee);
   }
