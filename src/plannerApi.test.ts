@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  buildDepartmentReorderInput,
   buildEmployeeMoveInput,
   buildEmployeeReorderInput,
   buildScheduleCellChange,
@@ -165,6 +166,56 @@ describe('mapDepartmentScheduleResponses', () => {
   });
 });
 
+
+describe('department reorder contract', () => {
+  it('preserves Department updatedAt metadata from manageable departments', () => {
+    const snapshot = mapDepartmentScheduleResponses(
+      [response()],
+      [
+        {
+          id: 'department-1',
+          name: 'Тестовый отдел',
+          kind: 'FO',
+          position: 0,
+          updatedAt: '2026-09-19T10:00:00.000Z',
+        },
+      ],
+    );
+
+    expect(snapshot.departmentMetadata['department-1']).toEqual({
+      updatedAt: '2026-09-19T10:00:00.000Z',
+    });
+  });
+
+  it('builds a full Department reorder with optimistic metadata', () => {
+    expect(
+      buildDepartmentReorderInput(
+        ['department-b', 'department-a'],
+        {
+          'department-a': { updatedAt: '2026-09-19T09:00:00.000Z' },
+          'department-b': { updatedAt: '2026-09-19T09:05:00.000Z' },
+        },
+      ),
+    ).toEqual({
+      orderedDepartmentIds: ['department-b', 'department-a'],
+      expectedUpdatedAtByDepartmentId: {
+        'department-a': '2026-09-19T09:00:00.000Z',
+        'department-b': '2026-09-19T09:05:00.000Z',
+      },
+    });
+  });
+
+  it('refuses Department reorder when optimistic metadata is incomplete', () => {
+    expect(() =>
+      buildDepartmentReorderInput(
+        ['department-a', 'department-b'],
+        {
+          'department-a': { updatedAt: '2026-09-19T09:00:00.000Z' },
+        },
+      ),
+    ).toThrow('Missing Department optimistic metadata for reorder');
+  });
+});
 
 describe('employee reorder contract', () => {
   it('builds a full department reorder with optimistic metadata', () => {
