@@ -83,6 +83,8 @@ import {
   createPlannerEmployee,
   loadPlannerServerSnapshot,
   PlannerCellMetadataMap,
+  PlannerEmployeeMetadataMap,
+  updatePlannerEmployee,
 } from './plannerApi';
 import {
   buildEffectiveSchedule,
@@ -382,9 +384,17 @@ function App() {
   );
   const [serverCellMetadata, setServerCellMetadata] =
     useState<PlannerCellMetadataMap>({});
+  const [serverEmployeeMetadata, setServerEmployeeMetadata] =
+    useState<PlannerEmployeeMetadataMap>({});
+  const [updatingEmployeeRateId, setUpdatingEmployeeRateId] =
+    useState<string | null>(null);
   const serverPlannerLoadVersion = useRef(0);
 
   const canCreateEmployee =
+    canManagePlanner &&
+    (!serverPlannerReadEnabled ||
+      (serverPlannerWriteEnabled && serverPlannerStatus === 'ready'));
+  const canEditEmployeeRate =
     canManagePlanner &&
     (!serverPlannerReadEnabled ||
       (serverPlannerWriteEnabled && serverPlannerStatus === 'ready'));
@@ -441,6 +451,7 @@ function App() {
         [periodKey]: snapshot.schedule,
       }));
       setServerCellMetadata(snapshot.cellMetadata);
+      setServerEmployeeMetadata(snapshot.employeeMetadata);
       setServerPlannerStatus('ready');
     } catch (error) {
       if (loadVersion !== serverPlannerLoadVersion.current) return;
@@ -461,6 +472,8 @@ function App() {
       setServerPlannerStatus('disabled');
       setServerPlannerError(null);
       setServerCellMetadata({});
+      setServerEmployeeMetadata({});
+      setUpdatingEmployeeRateId(null);
       return;
     }
 
@@ -699,13 +712,47 @@ function App() {
     employeeId: string,
     employmentRate: EmploymentRate
   ) => {
-    setEmployees((prev) =>
-      prev.map((employee) =>
-        employee.id === employeeId
-          ? { ...employee, employmentRate }
-          : employee
-      )
-    );
+    if (!serverPlannerWriteEnabled) {
+      setEmployees((prev) =>
+        prev.map((employee) =>
+          employee.id === employeeId
+            ? { ...employee, employmentRate }
+            : employee
+        )
+      );
+      return;
+    }
+
+    if (serverPlannerStatus !== 'ready' || updatingEmployeeRateId !== null) {
+      alert('График ещё не готов к изменению ставки.');
+      return;
+    }
+
+    const metadata = serverEmployeeMetadata[employeeId];
+    if (!metadata) {
+      alert('Не удалось определить версию сотрудника. Обновляю данные.');
+      void refreshServerPlanner();
+      return;
+    }
+
+    setUpdatingEmployeeRateId(employeeId);
+    void updatePlannerEmployee(employeeId, {
+      employmentRate,
+      expectedUpdatedAt: metadata.updatedAt,
+    })
+      .then(() => refreshServerPlanner())
+      .catch((error) => {
+        console.error('Server employee rate update failed', error);
+        alert(
+          error instanceof Error
+            ? 'Не удалось изменить ставку: ' + error.message
+            : 'Не удалось изменить ставку сотрудника на сервере.'
+        );
+        void refreshServerPlanner();
+      })
+      .finally(() => {
+        setUpdatingEmployeeRateId(null);
+      });
   };
 
   const removeEmployee = (id: string) => {
@@ -1255,7 +1302,7 @@ function App() {
                     ? 'Не удалось обновить данные с backend. Показан локальный кэш, редактирование заблокировано: ' +
                       (serverPlannerError || 'неизвестная ошибка')
                     : serverPlannerWriteEnabled
-                      ? 'Данные текущего месяца загружены с backend. Пилотная запись включена только для отдельных ячеек смен; структурные изменения пока заблокированы.'
+                      ? 'Данные текущего месяца загружены с backend. Пилотная запись включена для отдельных ячеек смен и ставки Employee; остальные структурные изменения пока заблокированы.'
                       : 'Данные текущего месяца загружены с backend. Это контролируемый read-only этап миграции; локальные изменения отключены.'}
               </Muted>
             </Card>
@@ -1799,7 +1846,9 @@ function App() {
               month={month}
               weeks={printWeekRanges}
               onRateChange={changeEmployeeRate}
-              readOnly={!canEditPlanner}
+              readOnly={
+                !canEditEmployeeRate || updatingEmployeeRateId !== null
+              }
             />
           )}
 
