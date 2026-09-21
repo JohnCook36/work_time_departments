@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildEmployeeMoveInput,
+  buildEmployeeReorderInput,
   buildScheduleCellChange,
   DepartmentScheduleResponse,
   mapDepartmentScheduleResponses,
@@ -164,6 +165,40 @@ describe('mapDepartmentScheduleResponses', () => {
   });
 });
 
+
+describe('employee reorder contract', () => {
+  it('builds a full department reorder with optimistic metadata', () => {
+    expect(
+      buildEmployeeReorderInput(
+        'department-a',
+        ['employee-b', 'employee-a'],
+        {
+          'employee-a': { updatedAt: '2026-09-19T09:00:00.000Z' },
+          'employee-b': { updatedAt: '2026-09-19T09:05:00.000Z' },
+        },
+      ),
+    ).toEqual({
+      departmentId: 'department-a',
+      orderedEmployeeIds: ['employee-b', 'employee-a'],
+      expectedUpdatedAtByEmployeeId: {
+        'employee-a': '2026-09-19T09:00:00.000Z',
+        'employee-b': '2026-09-19T09:05:00.000Z',
+      },
+    });
+  });
+
+  it('refuses reorder when Employee optimistic metadata is incomplete', () => {
+    expect(() =>
+      buildEmployeeReorderInput(
+        'department-a',
+        ['employee-a', 'employee-b'],
+        {
+          'employee-a': { updatedAt: '2026-09-19T09:00:00.000Z' },
+        },
+      ),
+    ).toThrow('Missing Employee optimistic metadata for reorder');
+  });
+});
 
 describe('employee move contract', () => {
   it('builds a cross-department move with Employee optimistic metadata', () => {

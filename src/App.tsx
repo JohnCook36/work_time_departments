@@ -80,11 +80,13 @@ import { hasManagementAccess, useAuthUser } from './auth/AuthContext';
 import {
   applyDepartmentScheduleChanges,
   buildEmployeeMoveInput,
+  buildEmployeeReorderInput,
   buildScheduleCellChange,
   createPlannerEmployee,
   loadPlannerServerSnapshot,
   PlannerCellMetadataMap,
   PlannerEmployeeMetadataMap,
+  reorderPlannerEmployees,
   updatePlannerEmployee,
 } from './plannerApi';
 import {
@@ -946,22 +948,80 @@ function App() {
     if (!activeEmployee) return;
 
     if (serverPlannerWriteEnabled) {
-      if (
-        activeEmployee.departmentId === targetDepartmentId ||
-        serverPlannerStatus !== 'ready' ||
-        movingEmployeeId !== null
-      ) {
+      if (serverPlannerStatus !== 'ready' || movingEmployeeId !== null) {
+        return;
+      }
+
+      setMovingEmployeeId(activeEmployeeId);
+
+      if (activeEmployee.departmentId === targetDepartmentId) {
+        if (!overEmployeeId || overEmployeeId === activeEmployeeId) {
+          setMovingEmployeeId(null);
+          return;
+        }
+
+        const departmentEmployeeIds = employees
+          .filter(
+            (employee) => employee.departmentId === targetDepartmentId
+          )
+          .map((employee) => employee.id);
+        const oldIndex = departmentEmployeeIds.indexOf(activeEmployeeId);
+        const newIndex = departmentEmployeeIds.indexOf(overEmployeeId);
+
+        if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) {
+          setMovingEmployeeId(null);
+          return;
+        }
+
+        const orderedEmployeeIds = arrayMove(
+          departmentEmployeeIds,
+          oldIndex,
+          newIndex
+        );
+
+        let reorderInput;
+        try {
+          reorderInput = buildEmployeeReorderInput(
+            targetDepartmentId,
+            orderedEmployeeIds,
+            serverEmployeeMetadata
+          );
+        } catch (error) {
+          setMovingEmployeeId(null);
+          alert(
+            error instanceof Error
+              ? error.message
+              : 'Не удалось подготовить новый порядок сотрудников.'
+          );
+          void refreshServerPlanner();
+          return;
+        }
+
+        void reorderPlannerEmployees(reorderInput)
+          .then(() => refreshServerPlanner())
+          .catch((error) => {
+            console.error('Server employee reorder failed', error);
+            alert(
+              error instanceof Error
+                ? 'Не удалось изменить порядок сотрудников: ' + error.message
+                : 'Не удалось изменить порядок сотрудников на сервере.'
+            );
+            void refreshServerPlanner();
+          })
+          .finally(() => {
+            setMovingEmployeeId(null);
+          });
         return;
       }
 
       const metadata = serverEmployeeMetadata[activeEmployeeId];
       if (!metadata) {
+        setMovingEmployeeId(null);
         alert('Не удалось определить версию сотрудника. Обновляю данные.');
         void refreshServerPlanner();
         return;
       }
 
-      setMovingEmployeeId(activeEmployeeId);
       void updatePlannerEmployee(
         activeEmployeeId,
         buildEmployeeMoveInput(targetDepartmentId, metadata)
@@ -1354,7 +1414,7 @@ function App() {
                     ? 'Не удалось обновить данные с backend. Показан локальный кэш, редактирование заблокировано: ' +
                       (serverPlannerError || 'неизвестная ошибка')
                     : serverPlannerWriteEnabled
-                      ? 'Данные текущего месяца загружены с backend. Запись включена для ячеек смен, ставки Employee и переноса Employee между отделами; остальные структурные изменения пока заблокированы.'
+                      ? 'Данные текущего месяца загружены с backend. Запись включена для ячеек смен, ставки Employee, переноса и порядка Employee; Department mutations пока заблокированы.'
                       : 'Данные текущего месяца загружены с backend. Это контролируемый read-only этап миграции; локальные изменения отключены.'}
               </Muted>
             </Card>
