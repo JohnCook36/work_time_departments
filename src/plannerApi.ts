@@ -55,7 +55,7 @@ export interface EmployeeResponse {
   position: number;
   isActive?: boolean;
   isLinked?: boolean;
-  updatedAt?: string;
+  updatedAt: string;
 }
 
 export interface PlannerCellMetadata {
@@ -69,11 +69,20 @@ export interface PlannerCellMetadataMap {
   };
 }
 
+export interface PlannerEmployeeMetadata {
+  updatedAt: string;
+}
+
+export interface PlannerEmployeeMetadataMap {
+  [employeeId: string]: PlannerEmployeeMetadata;
+}
+
 export interface PlannerServerSnapshot {
   departments: Department[];
   employees: Employee[];
   schedule: ScheduleData;
   cellMetadata: PlannerCellMetadataMap;
+  employeeMetadata: PlannerEmployeeMetadataMap;
 }
 
 export interface ScheduleCellChange {
@@ -102,6 +111,7 @@ export interface EmployeeMutationInput {
   scheduleMode?: 'FLEXIBLE' | 'FIXED_WEEKDAYS';
   fixedStartTime?: string | null;
   fixedEndTime?: string | null;
+  expectedUpdatedAt?: string;
 }
 
 const SHIFT_CODES = new Set<ShiftCode>(['E', 'IN', 'INN', 'L', 'N']);
@@ -148,6 +158,7 @@ export function mapDepartmentScheduleResponses(
   const employees: Employee[] = [];
   const schedule: ScheduleData = {};
   const cellMetadata: PlannerCellMetadataMap = {};
+  const employeeMetadata: PlannerEmployeeMetadataMap = {};
 
   responses.forEach((response) => {
     departments.push({
@@ -158,6 +169,9 @@ export function mapDepartmentScheduleResponses(
 
     response.employees.forEach((employee) => {
       employees.push(mapEmployeeResponse(response.department.id, employee));
+      employeeMetadata[employee.id] = {
+        updatedAt: employee.updatedAt,
+      };
     });
 
     response.shifts.forEach((shift) => {
@@ -197,7 +211,13 @@ export function mapDepartmentScheduleResponses(
     });
   });
 
-  return { departments, employees, schedule, cellMetadata };
+  return {
+    departments,
+    employees,
+    schedule,
+    cellMetadata,
+    employeeMetadata,
+  };
 }
 
 export function buildScheduleCellChange(
