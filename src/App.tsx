@@ -79,13 +79,16 @@ import { MySchedulePanel } from './auth/MySchedulePanel';
 import { hasManagementAccess, useAuthUser } from './auth/AuthContext';
 import {
   applyDepartmentScheduleChanges,
+  buildDepartmentReorderInput,
   buildEmployeeMoveInput,
   buildEmployeeReorderInput,
   buildScheduleCellChange,
   createPlannerEmployee,
   loadPlannerServerSnapshot,
   PlannerCellMetadataMap,
+  PlannerDepartmentMetadataMap,
   PlannerEmployeeMetadataMap,
+  reorderPlannerDepartments,
   reorderPlannerEmployees,
   updatePlannerEmployee,
 } from './plannerApi';
@@ -321,6 +324,9 @@ function App() {
   const canEditScheduleCells =
     canManagePlanner &&
     (!serverPlannerReadEnabled || serverPlannerWriteEnabled);
+  const isSuperAdmin = authUser.memberships.some(
+    (membership) => membership.role === 'SUPER_ADMIN'
+  );
   const initialNow = useMemo(() => new Date(), []);
   const initialPeriodKey = getPeriodKey(
     initialNow.getFullYear(),
@@ -389,9 +395,13 @@ function App() {
     useState<PlannerCellMetadataMap>({});
   const [serverEmployeeMetadata, setServerEmployeeMetadata] =
     useState<PlannerEmployeeMetadataMap>({});
+  const [serverDepartmentMetadata, setServerDepartmentMetadata] =
+    useState<PlannerDepartmentMetadataMap>({});
   const [updatingEmployeeRateId, setUpdatingEmployeeRateId] =
     useState<string | null>(null);
   const [movingEmployeeId, setMovingEmployeeId] =
+    useState<string | null>(null);
+  const [movingDepartmentId, setMovingDepartmentId] =
     useState<string | null>(null);
   const serverPlannerLoadVersion = useRef(0);
 
@@ -409,6 +419,13 @@ function App() {
       (serverPlannerWriteEnabled &&
         serverPlannerStatus === 'ready' &&
         movingEmployeeId === null));
+  const canMoveDepartments =
+    canManagePlanner &&
+    (!serverPlannerReadEnabled ||
+      (serverPlannerWriteEnabled &&
+        isSuperAdmin &&
+        serverPlannerStatus === 'ready' &&
+        movingDepartmentId === null));
   const theme = useMemo(() => getTheme(themeMode), [themeMode]);
   const periodKey = getPeriodKey(year, month);
   const rawSchedule = schedules[periodKey] || {};
@@ -463,6 +480,7 @@ function App() {
       }));
       setServerCellMetadata(snapshot.cellMetadata);
       setServerEmployeeMetadata(snapshot.employeeMetadata);
+      setServerDepartmentMetadata(snapshot.departmentMetadata);
       setServerPlannerStatus('ready');
     } catch (error) {
       if (loadVersion !== serverPlannerLoadVersion.current) return;
@@ -484,8 +502,10 @@ function App() {
       setServerPlannerError(null);
       setServerCellMetadata({});
       setServerEmployeeMetadata({});
+      setServerDepartmentMetadata({});
       setUpdatingEmployeeRateId(null);
       setMovingEmployeeId(null);
+      setMovingDepartmentId(null);
       return;
     }
 
@@ -914,17 +934,65 @@ function App() {
 
       if (!targetDepartmentId || targetDepartmentId === activeDepartmentId) return;
 
-      setDepartments((prev) => {
-        const oldIndex = prev.findIndex(
-          (department) => department.id === activeDepartmentId
-        );
-        const newIndex = prev.findIndex(
-          (department) => department.id === targetDepartmentId
+      const oldIndex = departments.findIndex(
+        (department) => department.id === activeDepartmentId
+      );
+      const newIndex = departments.findIndex(
+        (department) => department.id === targetDepartmentId
+      );
+
+      if (oldIndex === -1 || newIndex === -1) return;
+
+      if (serverPlannerWriteEnabled) {
+        if (
+          !isSuperAdmin ||
+          serverPlannerStatus !== 'ready' ||
+          movingDepartmentId !== null
+        ) {
+          return;
+        }
+
+        const orderedDepartmentIds = arrayMove(
+          departments.map((department) => department.id),
+          oldIndex,
+          newIndex
         );
 
-        if (oldIndex === -1 || newIndex === -1) return prev;
-        return arrayMove(prev, oldIndex, newIndex);
-      });
+        let reorderInput;
+        try {
+          reorderInput = buildDepartmentReorderInput(
+            orderedDepartmentIds,
+            serverDepartmentMetadata
+          );
+        } catch (error) {
+          alert(
+            error instanceof Error
+              ? error.message
+              : 'Не удалось подготовить новый порядок отделов.'
+          );
+          void refreshServerPlanner();
+          return;
+        }
+
+        setMovingDepartmentId(activeDepartmentId);
+        void reorderPlannerDepartments(reorderInput)
+          .then(() => refreshServerPlanner())
+          .catch((error) => {
+            console.error('Server department reorder failed', error);
+            alert(
+              error instanceof Error
+                ? 'Не удалось изменить порядок отделов: ' + error.message
+                : 'Не удалось изменить порядок отделов на сервере.'
+            );
+            void refreshServerPlanner();
+          })
+          .finally(() => {
+            setMovingDepartmentId(null);
+          });
+        return;
+      }
+
+      setDepartments((prev) => arrayMove(prev, oldIndex, newIndex));
       return;
     }
 
@@ -1414,7 +1482,7 @@ function App() {
                     ? 'Не удалось обновить данные с backend. Показан локальный кэш, редактирование заблокировано: ' +
                       (serverPlannerError || 'неизвестная ошибка')
                     : serverPlannerWriteEnabled
-                      ? 'Данные текущего месяца загружены с backend. Запись включена для ячеек смен, ставки Employee, переноса и порядка Employee; Department mutations пока заблокированы.'
+                      ? 'Данные текущего месяца загружены с backend. Запись включена для смен и Employee; SUPER_ADMIN также может менять порядок отделов. Создание/редактирование/удаление Department пока заблокировано.'
                       : 'Данные текущего месяца загружены с backend. Это контролируемый read-only этап миграции; локальные изменения отключены.'}
               </Muted>
             </Card>
@@ -1819,6 +1887,7 @@ function App() {
                           editable={canEditPlanner}
                           scheduleEditable={canEditScheduleCells}
                           employeeDraggable={canMoveEmployees}
+                          departmentDraggable={canMoveDepartments}
                           isDragTarget={
                             dragTargetDepartmentId === department.id &&
                             activeDragId?.startsWith('emp:') === true
@@ -2087,6 +2156,7 @@ interface DepartmentSectionProps {
   editable: boolean;
   scheduleEditable: boolean;
   employeeDraggable: boolean;
+  departmentDraggable: boolean;
   isDragTarget: boolean;
   collapsed: boolean;
   onToggleCollapsed: () => void;
@@ -2110,6 +2180,7 @@ function DepartmentSection({
   editable,
   scheduleEditable,
   employeeDraggable,
+  departmentDraggable,
   isDragTarget,
   collapsed,
   onToggleCollapsed,
@@ -2146,10 +2217,14 @@ function DepartmentSection({
           <DepartmentRowInner>
             <DragHandle
               type="button"
-              title={editable ? 'Перетащить весь отдел' : 'Серверный read-only режим'}
-              disabled={!editable}
-              {...(editable ? attributes : {})}
-              {...(editable ? listeners : {})}
+              title={
+                departmentDraggable
+                  ? 'Перетащить весь отдел'
+                  : 'Изменение порядка отделов сейчас недоступно'
+              }
+              disabled={!departmentDraggable}
+              {...(departmentDraggable ? attributes : {})}
+              {...(departmentDraggable ? listeners : {})}
             >
               <GripVertical size={16} />
             </DragHandle>
