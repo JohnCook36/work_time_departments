@@ -78,6 +78,11 @@ function serverPlannerSnapshot(): plannerApi.PlannerServerSnapshot {
         },
       },
     },
+    employeeMetadata: {
+      'server-employee': {
+        updatedAt: year + '-' + month + '-01T09:00:00.000Z',
+      },
+    },
   };
 }
 
@@ -218,6 +223,46 @@ describe('App regression flows', () => {
         scheduleMode: 'FLEXIBLE',
         fixedStartTime: null,
         fixedEndTime: null,
+      });
+    });
+    expect(plannerApi.loadPlannerServerSnapshot).toHaveBeenCalledTimes(2);
+  });
+
+  it('updates Employee rate through the backend with optimistic metadata', async () => {
+    const user = userEvent.setup();
+    const snapshot = serverPlannerSnapshot();
+    vi.stubEnv('VITE_SERVER_PLANNER_WRITE', '1');
+    vi.spyOn(plannerApi, 'loadPlannerServerSnapshot').mockResolvedValue(snapshot);
+    const updateSpy = vi
+      .spyOn(plannerApi, 'updatePlannerEmployee')
+      .mockResolvedValue({
+        id: 'server-employee',
+        displayName: 'Серверный сотрудник',
+        employmentRate: 0.75,
+        scheduleMode: 'FLEXIBLE',
+        fixedStartTime: null,
+        fixedEndTime: null,
+        departmentId: 'server-department',
+        position: 0,
+        isActive: true,
+        isLinked: false,
+        updatedAt: '2026-09-19T12:00:00.000Z',
+      });
+
+    renderApp();
+
+    await screen.findByText('Серверный сотрудник');
+    await user.click(screen.getByRole('button', { name: 'День / ночь' }));
+
+    const rateSelect = screen.getByTitle('Ставка сотрудника');
+    expect(rateSelect).toBeEnabled();
+    await user.selectOptions(rateSelect, '0.75');
+
+    await waitFor(() => {
+      expect(updateSpy).toHaveBeenCalledWith('server-employee', {
+        employmentRate: 0.75,
+        expectedUpdatedAt:
+          snapshot.employeeMetadata['server-employee'].updatedAt,
       });
     });
     expect(plannerApi.loadPlannerServerSnapshot).toHaveBeenCalledTimes(2);

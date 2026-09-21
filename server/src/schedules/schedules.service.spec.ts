@@ -103,6 +103,41 @@ describe('SchedulesService', () => {
   });
 
 
+  it('serializes Employee updatedAt in planner reads', async () => {
+    prisma.department.findFirst.mockResolvedValue({
+      id: 'department-a',
+      name: 'Department A',
+      kind: 'GENERAL',
+      employees: [
+        {
+          id: 'employee-1',
+          displayName: 'Employee',
+          employmentRate: 1,
+          scheduleMode: 'FLEXIBLE',
+          fixedStartTime: null,
+          fixedEndTime: null,
+          position: 0,
+          updatedAt: new Date('2026-09-19T09:00:00.000Z'),
+        },
+      ],
+    });
+    prisma.schedule.findUnique.mockResolvedValue(null);
+
+    const result = await service.getDepartmentSchedule(
+      user(),
+      'department-a',
+      2026,
+      9,
+    );
+
+    expect(result.employees).toEqual([
+      expect.objectContaining({
+        id: 'employee-1',
+        updatedAt: '2026-09-19T09:00:00.000Z',
+      }),
+    ]);
+  });
+
   it('writes a shift only for an active employee in the administered department', async () => {
     prisma.employee.findMany.mockResolvedValue([{ id: 'employee-1' }]);
     transaction.schedule.findUnique.mockResolvedValue({

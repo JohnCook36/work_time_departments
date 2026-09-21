@@ -130,6 +130,28 @@ function serializeShift(shift: {
   };
 }
 
+function serializePlannerEmployee(employee: {
+  id: string;
+  displayName: string;
+  employmentRate: number;
+  scheduleMode: string;
+  fixedStartTime: string | null;
+  fixedEndTime: string | null;
+  position: number;
+  updatedAt: Date;
+}) {
+  return {
+    id: employee.id,
+    displayName: employee.displayName,
+    employmentRate: employee.employmentRate,
+    scheduleMode: employee.scheduleMode,
+    fixedStartTime: employee.fixedStartTime,
+    fixedEndTime: employee.fixedEndTime,
+    position: employee.position,
+    updatedAt: employee.updatedAt.toISOString(),
+  };
+}
+
 @Injectable()
 export class SchedulesService {
   constructor(
@@ -166,6 +188,7 @@ export class SchedulesService {
             fixedStartTime: true,
             fixedEndTime: true,
             position: true,
+            updatedAt: true,
           },
         },
       },
@@ -224,7 +247,7 @@ export class SchedulesService {
         name: department.name,
         kind: department.kind,
       },
-      employees: department.employees,
+      employees: department.employees.map(serializePlannerEmployee),
       shifts: shifts.map(serializeShift),
     };
   }

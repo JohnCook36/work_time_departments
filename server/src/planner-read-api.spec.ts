@@ -113,6 +113,7 @@ describe('Planner management read API', () => {
         fixedStartTime: '08:00',
         fixedEndTime: '17:00',
         position: 1,
+        updatedAt: new Date('2026-09-01T08:00:00.000Z'),
       },
       {
         id: 'employee-flex',
@@ -122,6 +123,7 @@ describe('Planner management read API', () => {
         fixedStartTime: null,
         fixedEndTime: null,
         position: 2,
+        updatedAt: new Date('2026-09-01T08:30:00.000Z'),
       },
     ],
     'department-b': [
@@ -133,6 +135,7 @@ describe('Planner management read API', () => {
         fixedStartTime: null,
         fixedEndTime: null,
         position: 1,
+        updatedAt: new Date('2026-09-01T09:00:00.000Z'),
       },
     ],
     'department-c': [],

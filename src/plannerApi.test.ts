@@ -29,6 +29,7 @@ function response(
         fixedStartTime: '08:00',
         fixedEndTime: '17:00',
         position: 0,
+        updatedAt: '2026-09-19T11:00:00.000Z',
       },
     ],
     shifts: [
@@ -75,6 +76,14 @@ describe('mapDepartmentScheduleResponses', () => {
         fixedEndTime: '17:00',
       },
     ]);
+  });
+
+  it('preserves Employee updatedAt metadata for optimistic updates', () => {
+    const snapshot = mapDepartmentScheduleResponses([response()]);
+
+    expect(snapshot.employeeMetadata['employee-1']).toEqual({
+      updatedAt: '2026-09-19T11:00:00.000Z',
+    });
   });
 
   it('maps persisted Shift rows into raw planner cells', () => {
@@ -141,6 +150,7 @@ describe('mapDepartmentScheduleResponses', () => {
             fixedStartTime: null,
             fixedEndTime: null,
             position: 0,
+            updatedAt: '2026-09-19T11:00:00.000Z',
           },
         ],
       }),
