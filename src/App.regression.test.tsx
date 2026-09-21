@@ -83,6 +83,11 @@ function serverPlannerSnapshot(): plannerApi.PlannerServerSnapshot {
         updatedAt: year + '-' + month + '-01T09:00:00.000Z',
       },
     },
+    departmentMetadata: {
+      'server-department': {
+        updatedAt: year + '-' + month + '-01T08:00:00.000Z',
+      },
+    },
   };
 }
 
@@ -135,6 +140,51 @@ describe('App regression flows', () => {
     expect(screen.getByText(/контролируемый read-only этап/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Сотрудник' })).toBeDisabled();
     expect(screen.getByText('08-17')).toBeInTheDocument();
+  });
+
+  it('enables server-backed Department reorder only for Super Admin', async () => {
+    vi.stubEnv('VITE_SERVER_PLANNER_WRITE', '1');
+    vi.spyOn(plannerApi, 'loadPlannerServerSnapshot').mockResolvedValue(
+      serverPlannerSnapshot(),
+    );
+
+    renderApp();
+
+    await screen.findByText('Серверный сотрудник');
+    expect(
+      screen.getByRole('button', { name: 'Перетащить весь отдел' }),
+    ).toBeEnabled();
+  });
+
+  it('keeps server-backed Department reorder disabled for Department Admin', async () => {
+    vi.stubEnv('VITE_SERVER_PLANNER_WRITE', '1');
+    vi.spyOn(plannerApi, 'loadPlannerServerSnapshot').mockResolvedValue(
+      serverPlannerSnapshot(),
+    );
+
+    const departmentAdmin: AuthUser = {
+      ...managementUser,
+      memberships: [
+        {
+          id: 'department-admin-membership',
+          role: 'DEPARTMENT_ADMIN',
+          departmentId: 'server-department',
+        },
+      ],
+    };
+
+    render(
+      <AuthUserContext.Provider value={departmentAdmin}>
+        <App />
+      </AuthUserContext.Provider>,
+    );
+
+    await screen.findByText('Серверный сотрудник');
+    expect(
+      screen.getByRole('button', {
+        name: 'Изменение порядка отделов сейчас недоступно',
+      }),
+    ).toBeDisabled();
   });
 
   it('writes one server-backed schedule cell with optimistic metadata in write pilot mode', async () => {
