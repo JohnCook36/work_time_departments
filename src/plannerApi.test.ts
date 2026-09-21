@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  buildEmployeeMoveInput,
   buildScheduleCellChange,
   DepartmentScheduleResponse,
   mapDepartmentScheduleResponses,
@@ -163,6 +164,19 @@ describe('mapDepartmentScheduleResponses', () => {
   });
 });
 
+
+describe('employee move contract', () => {
+  it('builds a cross-department move with Employee optimistic metadata', () => {
+    expect(
+      buildEmployeeMoveInput('department-b', {
+        updatedAt: '2026-09-19T11:00:00.000Z',
+      }),
+    ).toEqual({
+      departmentId: 'department-b',
+      expectedUpdatedAt: '2026-09-19T11:00:00.000Z',
+    });
+  });
+});
 
 describe('planner write contract', () => {
   it('preserves persisted Shift metadata for optimistic locking', () => {
