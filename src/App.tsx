@@ -79,6 +79,7 @@ import { MySchedulePanel } from './auth/MySchedulePanel';
 import { hasManagementAccess, useAuthUser } from './auth/AuthContext';
 import {
   applyDepartmentScheduleChanges,
+  buildEmployeeMoveInput,
   buildScheduleCellChange,
   createPlannerEmployee,
   loadPlannerServerSnapshot,
@@ -388,6 +389,8 @@ function App() {
     useState<PlannerEmployeeMetadataMap>({});
   const [updatingEmployeeRateId, setUpdatingEmployeeRateId] =
     useState<string | null>(null);
+  const [movingEmployeeId, setMovingEmployeeId] =
+    useState<string | null>(null);
   const serverPlannerLoadVersion = useRef(0);
 
   const canCreateEmployee =
@@ -398,6 +401,12 @@ function App() {
     canManagePlanner &&
     (!serverPlannerReadEnabled ||
       (serverPlannerWriteEnabled && serverPlannerStatus === 'ready'));
+  const canMoveEmployees =
+    canManagePlanner &&
+    (!serverPlannerReadEnabled ||
+      (serverPlannerWriteEnabled &&
+        serverPlannerStatus === 'ready' &&
+        movingEmployeeId === null));
   const theme = useMemo(() => getTheme(themeMode), [themeMode]);
   const periodKey = getPeriodKey(year, month);
   const rawSchedule = schedules[periodKey] || {};
@@ -474,6 +483,7 @@ function App() {
       setServerCellMetadata({});
       setServerEmployeeMetadata({});
       setUpdatingEmployeeRateId(null);
+      setMovingEmployeeId(null);
       return;
     }
 
@@ -930,6 +940,48 @@ function App() {
 
     if (!targetDepartmentId) return;
 
+    const activeEmployee = employees.find(
+      (employee) => employee.id === activeEmployeeId
+    );
+    if (!activeEmployee) return;
+
+    if (serverPlannerWriteEnabled) {
+      if (
+        activeEmployee.departmentId === targetDepartmentId ||
+        serverPlannerStatus !== 'ready' ||
+        movingEmployeeId !== null
+      ) {
+        return;
+      }
+
+      const metadata = serverEmployeeMetadata[activeEmployeeId];
+      if (!metadata) {
+        alert('Не удалось определить версию сотрудника. Обновляю данные.');
+        void refreshServerPlanner();
+        return;
+      }
+
+      setMovingEmployeeId(activeEmployeeId);
+      void updatePlannerEmployee(
+        activeEmployeeId,
+        buildEmployeeMoveInput(targetDepartmentId, metadata)
+      )
+        .then(() => refreshServerPlanner())
+        .catch((error) => {
+          console.error('Server employee move failed', error);
+          alert(
+            error instanceof Error
+              ? 'Не удалось переместить сотрудника: ' + error.message
+              : 'Не удалось переместить сотрудника на сервере.'
+          );
+          void refreshServerPlanner();
+        })
+        .finally(() => {
+          setMovingEmployeeId(null);
+        });
+      return;
+    }
+
     setEmployees((prev) => {
       const sourceIndex = prev.findIndex(
         (employee) => employee.id === activeEmployeeId
@@ -1302,7 +1354,7 @@ function App() {
                     ? 'Не удалось обновить данные с backend. Показан локальный кэш, редактирование заблокировано: ' +
                       (serverPlannerError || 'неизвестная ошибка')
                     : serverPlannerWriteEnabled
-                      ? 'Данные текущего месяца загружены с backend. Пилотная запись включена для отдельных ячеек смен и ставки Employee; остальные структурные изменения пока заблокированы.'
+                      ? 'Данные текущего месяца загружены с backend. Запись включена для ячеек смен, ставки Employee и переноса Employee между отделами; остальные структурные изменения пока заблокированы.'
                       : 'Данные текущего месяца загружены с backend. Это контролируемый read-only этап миграции; локальные изменения отключены.'}
               </Muted>
             </Card>
@@ -1706,6 +1758,7 @@ function App() {
                           scheduleView={scheduleView}
                           editable={canEditPlanner}
                           scheduleEditable={canEditScheduleCells}
+                          employeeDraggable={canMoveEmployees}
                           isDragTarget={
                             dragTargetDepartmentId === department.id &&
                             activeDragId?.startsWith('emp:') === true
@@ -1973,6 +2026,7 @@ interface DepartmentSectionProps {
   scheduleView: ScheduleView;
   editable: boolean;
   scheduleEditable: boolean;
+  employeeDraggable: boolean;
   isDragTarget: boolean;
   collapsed: boolean;
   onToggleCollapsed: () => void;
@@ -1995,6 +2049,7 @@ function DepartmentSection({
   scheduleView,
   editable,
   scheduleEditable,
+  employeeDraggable,
   isDragTarget,
   collapsed,
   onToggleCollapsed,
@@ -2056,7 +2111,7 @@ function DepartmentSection({
               {departmentKindLabel(department.kind)}
             </DepartmentBadge>
             <TinyText>{employees.length} сотрудников</TinyText>
-            {employees.length === 0 && editable && (
+            {employees.length === 0 && employeeDraggable && (
               <TinyText>Перетащите сотрудника сюда</TinyText>
             )}
           </DepartmentRowInner>
@@ -2086,6 +2141,7 @@ function DepartmentSection({
               scheduleView={scheduleView}
               editable={editable}
               scheduleEditable={scheduleEditable}
+              draggable={employeeDraggable}
             />
           ))}
         </SortableContext>
@@ -2110,6 +2166,7 @@ interface SortableEmployeeRowProps {
   scheduleView: ScheduleView;
   editable: boolean;
   scheduleEditable: boolean;
+  draggable: boolean;
 }
 
 function SortableEmployeeRow({
@@ -2128,6 +2185,7 @@ function SortableEmployeeRow({
   scheduleView,
   editable,
   scheduleEditable,
+  draggable,
 }: SortableEmployeeRowProps) {
   const {
     attributes,
@@ -2156,10 +2214,14 @@ function SortableEmployeeRow({
         <EmployeeCellInner>
           <DragHandle
             type="button"
-            title={editable ? 'Перетащить сотрудника' : 'Серверный read-only режим'}
-            disabled={!editable}
-            {...(editable ? attributes : {})}
-            {...(editable ? listeners : {})}
+            title={
+              draggable
+                ? 'Перетащить сотрудника'
+                : 'Перемещение сотрудника сейчас недоступно'
+            }
+            disabled={!draggable}
+            {...(draggable ? attributes : {})}
+            {...(draggable ? listeners : {})}
           >
             <GripVertical size={16} />
           </DragHandle>
