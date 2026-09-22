@@ -2,11 +2,13 @@ import React from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import PlannerScreen from '../../../src/screens/planner/PlannerScreen';
+import { MyScheduleScreen } from '../../../src/screens/my-schedule/MyScheduleScreen';
 import { useAuthUser } from '../../../src/auth/AuthContext';
 import * as api from '../../../src/api/auth';
 import { RoutedApplication } from '../../../src/router/RoutedApplication';
 
 vi.mock('../../../src/screens/planner/PlannerScreen', () => ({ default: vi.fn() }));
+vi.mock('../../../src/screens/my-schedule/MyScheduleScreen', () => ({ MyScheduleScreen: vi.fn() }));
 
 const user: api.AuthUser = {
   id: 'example-user', phoneE164: '+12025550100',
@@ -15,6 +17,13 @@ const user: api.AuthUser = {
     employmentRate: 1, scheduleMode: 'FLEXIBLE', fixedStartTime: null, fixedEndTime: null,
   },
   memberships: [{ id: 'example-membership', role: 'EMPLOYEE', departmentId: 'example-department' }],
+};
+
+const managerUser: api.AuthUser = {
+  ...user,
+  memberships: [
+    { id: 'manager-membership', role: 'DEPARTMENT_ADMIN', departmentId: 'example-department' },
+  ],
 };
 
 function ExistingApplication() {
@@ -30,24 +39,46 @@ function open(path: string) {
 describe('Routing foundation with real session provider and ErrorBoundary', () => {
   beforeEach(() => {
     vi.mocked(PlannerScreen).mockImplementation(ExistingApplication);
+    vi.mocked(MyScheduleScreen).mockImplementation(() => <div>Personal schedule</div>);
     vi.spyOn(api, 'getMe').mockResolvedValue(user);
     vi.spyOn(api, 'getOnboardingDepartments').mockResolvedValue([]);
     vi.spyOn(api, 'getOnboardingStatus').mockResolvedValue(null);
   });
   afterEach(() => { window.history.replaceState(null, '', '/'); });
 
-  it('redirects / to /planner using replace and renders the existing application', async () => {
+  it('redirects linked EMPLOYEE from / to /my-schedule using replace', async () => {
     const replace = vi.spyOn(window.history, 'replaceState');
     open('/');
-    expect(await screen.findByText('Existing application: example-user')).toBeInTheDocument();
-    await waitFor(() => expect(window.location.pathname).toBe('/planner'));
-    expect(replace).toHaveBeenCalledWith(expect.anything(), '', '/planner');
+    expect(await screen.findByText('Personal schedule')).toBeInTheDocument();
+    await waitFor(() => expect(window.location.pathname).toBe('/my-schedule'));
+    expect(replace).toHaveBeenCalledWith(expect.anything(), '', '/my-schedule');
   });
 
-  it('opens /planner through the existing session context without changing its URL', async () => {
+  it('redirects management user from / to /planner', async () => {
+    vi.mocked(api.getMe).mockResolvedValue(managerUser);
+    open('/');
+    expect(await screen.findByText('Personal schedule')).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/my-schedule');
+  });
+
+  it('redirects linked EMPLOYEE away from /planner to /my-schedule', async () => {
     open('/planner');
-    expect(await screen.findByText('Existing application: example-user')).toBeInTheDocument();
-    expect(window.location.pathname).toBe('/planner');
+    expect(await screen.findByText('Personal schedule')).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/my-schedule');
+    expect(screen.queryByText('Existing application: example-user')).not.toBeInTheDocument();
+  });
+
+  it('allows management user to open /planner', async () => {
+    vi.mocked(api.getMe).mockResolvedValue(managerUser);
+    open('/planner');
+    expect(await screen.findByText('Personal schedule')).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/my-schedule');
+  });
+
+  it('opens /my-schedule for any linked employee', async () => {
+    open('/my-schedule');
+    expect(await screen.findByText('Personal schedule')).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/my-schedule');
   });
 
   it('shows 404 for an unknown route and links back to the application', async () => {
@@ -59,7 +90,7 @@ describe('Routing foundation with real session provider and ErrorBoundary', () =
     expect(window.location.pathname).toBe('/planner');
   });
 
-  it.each(['/planner', '/login', '/onboarding', '/unknown'])('routes guests to login from %s', async path => {
+  it.each(['/planner', '/my-schedule', '/login', '/onboarding', '/unknown'])('routes guests to login from %s', async path => {
     vi.mocked(api.getMe).mockRejectedValue(new api.ApiError('Unauthorized', 401));
     open(path);
     expect(await screen.findByRole('heading', { name: 'Вход для сотрудников' })).toBeInTheDocument();
@@ -67,7 +98,7 @@ describe('Routing foundation with real session provider and ErrorBoundary', () =
     expect(window.location.pathname).toBe('/login');
   });
 
-  it.each(['/planner', '/onboarding', '/login'])('routes unlinked accounts to onboarding from %s', async path => {
+  it.each(['/planner', '/my-schedule', '/onboarding', '/login'])('routes unlinked accounts to onboarding from %s', async path => {
     vi.mocked(api.getMe).mockResolvedValue({ ...user, employee: null });
     open(path);
     expect(await screen.findByText('Нет профиля в графике?')).toBeInTheDocument();
@@ -75,10 +106,10 @@ describe('Routing foundation with real session provider and ErrorBoundary', () =
     expect(screen.queryByText('Existing application: example-user')).not.toBeInTheDocument();
   });
 
-  it.each(['/login', '/onboarding'])('redirects linked EMPLOYEE from %s to planner', async path => {
+  it.each(['/login', '/onboarding'])('redirects linked EMPLOYEE from %s to personal schedule', async path => {
     open(path);
-    expect(await screen.findByText('Existing application: example-user')).toBeInTheDocument();
-    expect(window.location.pathname).toBe('/planner');
+    expect(await screen.findByText('Personal schedule')).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/my-schedule');
   });
 
   it.each([true, false])('refreshes canonical session after OTP login (linked=%s)', async linked => {
@@ -93,8 +124,8 @@ describe('Routing foundation with real session provider and ErrorBoundary', () =
     fireEvent.click(screen.getByRole('button', { name: 'Получить код' }));
     fireEvent.change(await screen.findByLabelText('Код подтверждения'), { target: { value: '123456' } });
     fireEvent.click(screen.getByRole('button', { name: 'Войти' }));
-    expect(await screen.findByText(linked ? 'Existing application: example-user' : 'Нет профиля в графике?')).toBeInTheDocument();
-    expect(window.location.pathname).toBe(linked ? '/planner' : '/onboarding');
+    expect(await screen.findByText(linked ? 'Personal schedule' : 'Нет профиля в графике?')).toBeInTheDocument();
+    expect(window.location.pathname).toBe(linked ? '/my-schedule' : '/onboarding');
     expect(api.requestOtp).toHaveBeenCalledWith(user.phoneE164);
     expect(api.verifyOtp).toHaveBeenCalledWith(user.phoneE164, '123456');
     expect(api.getMe).toHaveBeenCalledTimes(2);
@@ -159,7 +190,7 @@ describe('Routing foundation with real session provider and ErrorBoundary', () =
     expect(screen.queryByText('Existing application: example-user')).not.toBeInTheDocument();
     expect(window.location.pathname).toBe('/planner');
     fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
-    expect(await screen.findByText('Existing application: example-user')).toBeInTheDocument();
+    expect(await screen.findByText('Personal schedule')).toBeInTheDocument();
   });
 
   it('catches a routed application render crash with the root boundary', async () => {
@@ -169,6 +200,7 @@ describe('Routing foundation with real session provider and ErrorBoundary', () =
     };
     vi.spyOn(console, 'error').mockImplementation(() => {});
     vi.mocked(PlannerScreen).mockImplementation(() => { throw error; });
+    vi.mocked(api.getMe).mockResolvedValue(managerUser);
     window.addEventListener('error', suppressExpectedError);
     try {
       open('/planner');
