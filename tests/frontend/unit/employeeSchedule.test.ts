@@ -46,6 +46,18 @@ describe('getEmployeeDefaultEntry', () => {
       getEmployeeDefaultEntry(fixedEmployee, 2026, 8, 6),
     ).toEqual({ type: 'off' });
   });
+
+  it('uses OFF on official non-working holidays for fixed 5/2 schedule', () => {
+    expect(
+      getEmployeeDefaultEntry(fixedEmployee, 2026, 0, 9),
+    ).toEqual({ type: 'off' });
+    expect(
+      getEmployeeDefaultEntry(fixedEmployee, 2026, 1, 23),
+    ).toEqual({ type: 'off' });
+    expect(
+      getEmployeeDefaultEntry(fixedEmployee, 2026, 2, 9),
+    ).toEqual({ type: 'off' });
+  });
 });
 
 describe('buildEffectiveSchedule', () => {
@@ -77,6 +89,29 @@ describe('buildEffectiveSchedule', () => {
         end: '17:00',
       },
     });
+  });
+
+  it('keeps an explicit shift override on a production-calendar day off', () => {
+    const raw: ScheduleData = {
+      'employee-fixed': {
+        9: {
+          type: 'shift',
+          shift: {
+            start: '08:00',
+            end: '17:00',
+          },
+        },
+      },
+    };
+
+    const result = buildEffectiveSchedule(
+      [fixedEmployee],
+      raw,
+      2026,
+      0,
+    );
+
+    expect(result['employee-fixed'][9]).toEqual(raw['employee-fixed'][9]);
   });
 
   it('keeps explicit OFF as an exception on a weekday', () => {
