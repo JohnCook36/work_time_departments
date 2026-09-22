@@ -43,7 +43,6 @@ import {
   HourLine,
   HoursShiftDisplay,
   HourTotal,
-  ShiftCodeLine,
   ShiftTimeLine,
   SortableDepartmentRow,
   SortableEmployeeTableRow,
@@ -416,8 +415,7 @@ function SortableEmployeeRow({
                     entry.type === 'error'
                       ? entry.error
                       : entry.type === 'shift' && entry.shift
-                        ? (entry.shift.code ? entry.shift.code + ' ' : '') +
-                          entry.shift.start + '-' + entry.shift.end
+                        ? entry.shift.start + '–' + entry.shift.end
                         : ''
                   }
                 >
@@ -426,18 +424,9 @@ function SortableEmployeeRow({
                   ) : entry.type === 'off' ? (
                     'OFF'
                   ) : entry.type === 'shift' && entry.shift ? (
-                    entry.shift.code ? (
-                      <>
-                        <ShiftCodeLine>{entry.shift.code}</ShiftCodeLine>
-                        <ShiftTimeLine>
-                          {entry.shift.start.slice(0, 5)}–{entry.shift.end.slice(0, 5)}
-                        </ShiftTimeLine>
-                      </>
-                    ) : (
-                      entry.shift.start.slice(0, 2) +
-                      '-' +
-                      entry.shift.end.slice(0, 2)
-                    )
+                    <ShiftTimeLine>
+                      {entry.shift.start.slice(0, 5)}–{entry.shift.end.slice(0, 5)}
+                    </ShiftTimeLine>
                   ) : (
                     '⚠'
                   )}
