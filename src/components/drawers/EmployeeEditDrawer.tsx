@@ -186,7 +186,6 @@ export function EmployeeEditDrawer({
               setScheduleMode(event.target.value as EmployeeScheduleMode)
             }
             disabled={busy}
-            style={{ width: '100%' }}
           >
             <option value="flexible">Гибкий</option>
             <option value="fixed-weekdays">Фиксированный 5/2</option>
