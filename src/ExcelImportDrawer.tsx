@@ -1,5 +1,6 @@
 import { AlertTriangle, CheckCircle2, FileSpreadsheet, X } from 'lucide-react';
 import { ExcelImportPreview } from './importExcel';
+import { statusPalette } from './theme/palette';
 import {
   ActionButton,
   Drawer,
@@ -60,7 +61,7 @@ export function ExcelImportDrawer({
             style={{
               padding: 12,
               borderRadius: 12,
-              border: '1px solid rgba(148,163,184,.28)',
+              border: '1px solid ' + statusPalette.neutralBorder,
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -104,8 +105,8 @@ export function ExcelImportDrawer({
               style={{
                 padding: 12,
                 borderRadius: 12,
-                border: '1px solid rgba(245,158,11,.35)',
-                background: 'rgba(245,158,11,.08)',
+                border: '1px solid ' + statusPalette.warningBorder,
+                background: statusPalette.warningBackground,
               }}
             >
               <div
@@ -138,7 +139,7 @@ export function ExcelImportDrawer({
                     style={{
                       padding: '4px 7px',
                       borderRadius: 8,
-                      background: 'rgba(148,163,184,.14)',
+                      background: statusPalette.neutralSoft,
                       fontSize: 11,
                     }}
                   >
@@ -154,8 +155,8 @@ export function ExcelImportDrawer({
               style={{
                 padding: 12,
                 borderRadius: 12,
-                border: '1px solid rgba(245,158,11,.35)',
-                background: 'rgba(245,158,11,.08)',
+                border: '1px solid ' + statusPalette.warningBorder,
+                background: statusPalette.warningBackground,
               }}
             >
               <div
@@ -189,7 +190,7 @@ export function ExcelImportDrawer({
                     style={{
                       padding: '4px 7px',
                       borderRadius: 8,
-                      background: 'rgba(148,163,184,.14)',
+                      background: statusPalette.neutralSoft,
                       fontSize: 11,
                     }}
                   >
@@ -205,8 +206,8 @@ export function ExcelImportDrawer({
               style={{
                 padding: 12,
                 borderRadius: 12,
-                border: '1px solid rgba(220,38,38,.32)',
-                background: 'rgba(220,38,38,.06)',
+                border: '1px solid ' + statusPalette.dangerBorder,
+                background: statusPalette.dangerBackground,
               }}
             >
               <div
@@ -240,7 +241,7 @@ export function ExcelImportDrawer({
                     style={{
                       padding: '7px 8px',
                       borderRadius: 8,
-                      background: 'rgba(148,163,184,.10)',
+                      background: statusPalette.subtleBackground,
                       fontSize: 11,
                     }}
                   >
@@ -261,7 +262,7 @@ export function ExcelImportDrawer({
               style={{
                 padding: 10,
                 borderRadius: 10,
-                border: '1px solid rgba(245,158,11,.28)',
+                border: '1px solid ' + statusPalette.warningBorder,
                 fontSize: 12,
               }}
             >
@@ -276,7 +277,7 @@ export function ExcelImportDrawer({
               gap: 10,
               padding: 12,
               borderRadius: 12,
-              border: '1px solid rgba(148,163,184,.28)',
+              border: '1px solid ' + statusPalette.neutralBorder,
               cursor: 'pointer',
             }}
           >
@@ -300,8 +301,8 @@ export function ExcelImportDrawer({
             style={{
               padding: 12,
               borderRadius: 12,
-              border: '1px solid rgba(34,197,94,.28)',
-              background: 'rgba(34,197,94,.06)',
+              border: '1px solid ' + statusPalette.successBorder,
+              background: statusPalette.successBackground,
               display: 'flex',
               gap: 8,
             }}

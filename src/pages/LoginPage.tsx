@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { CheckCircle2, LogIn } from 'lucide-react';
 import { requestOtp, verifyOtp } from '../auth/api';
 import { useAuthSession } from '../auth/AuthSessionProvider';
+import { authPalette } from '../theme/palette';
 import { pageStyle, cardStyle, inputStyle, buttonStyle, secondaryButtonStyle, ErrorText } from '../auth/authPageUi';
 
 export function LoginPage() {
@@ -51,13 +52,13 @@ export function LoginPage() {
   return (
     <div style={pageStyle}>
       <div style={cardStyle}>
-        <div style={{ fontSize: 13, color: '#93c5fd', fontWeight: 800 }}>
+        <div style={{ fontSize: 13, color: authPalette.buttonBackground, fontWeight: 800 }}>
           Work time departments
         </div>
         <h1 style={{ margin: '8px 0 6px', fontSize: 26 }}>
           Вход для сотрудников
         </h1>
-        <p style={{ margin: '0 0 20px', color: '#94a3b8', lineHeight: 1.5 }}>
+        <p style={{ margin: '0 0 20px', color: authPalette.textMuted, lineHeight: 1.5 }}>
           Введите номер телефона в международном формате. После подтверждения
           система проверит, связан ли аккаунт с профилем сотрудника.
         </p>

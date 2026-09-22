@@ -1,5 +1,7 @@
 import React, { Component, type ReactNode } from 'react';
 
+import { fallbackPalette } from './theme/palette';
+
 // Catches descendant React render/lifecycle errors only. Event handlers,
 // async callbacks, Promise rejections and API/network errors need their own handling.
 export class ErrorBoundary extends Component<
@@ -24,8 +26,8 @@ export class ErrorBoundary extends Component<
           display: 'grid',
           placeItems: 'center',
           padding: 24,
-          background: '#f8fafc',
-          color: '#0f172a',
+          background: fallbackPalette.background,
+          color: fallbackPalette.text,
           fontFamily: 'system-ui, sans-serif',
           textAlign: 'center',
         }}
@@ -40,10 +42,10 @@ export class ErrorBoundary extends Component<
             onClick={() => window.location.reload()}
             style={{
               padding: '12px 20px',
-              border: '1px solid #1d4ed8',
+              border: '1px solid ' + fallbackPalette.action,
               borderRadius: 8,
-              background: '#1d4ed8',
-              color: '#ffffff',
+              background: fallbackPalette.action,
+              color: fallbackPalette.actionText,
               font: 'inherit',
               cursor: 'pointer',
             }}

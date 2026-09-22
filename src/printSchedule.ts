@@ -6,6 +6,7 @@ import {
   ShiftEntry,
 } from './types';
 import { calculateShiftHours, DAY_NAMES_SHORT, getDayOfWeek, MONTH_NAMES } from './utils';
+import { printPalette } from './theme/palette';
 
 export interface WeekRange {
   key: string;
@@ -574,8 +575,8 @@ export function printSchedule({
   body {
     margin: 0;
     font-family: Arial, sans-serif;
-    color: #111827;
-    background: #fff;
+    color: ${printPalette.text};
+    background: ${printPalette.onDark};
   }
 
   .week {
@@ -603,15 +604,15 @@ export function printSchedule({
 
   th,
   td {
-    border: 1px solid #9ca3af;
+    border: 1px solid ${printPalette.muted};
     padding: 2.5mm 1.5mm;
     text-align: center;
     vertical-align: middle;
   }
 
   thead th {
-    background: #1f2937;
-    color: #fff;
+    background: ${printPalette.header};
+    color: ${printPalette.onDark};
     font-weight: 700;
   }
 
@@ -652,19 +653,19 @@ export function printSchedule({
   }
 
   .weekend {
-    background: #7f1d1d;
+    background: ${printPalette.danger};
   }
 
   .weekend-cell {
-    background: #fff7ed;
+    background: ${printPalette.weekend};
   }
 
   .department-row td {
     padding: 2.5mm;
-    background: #e2e8f0;
+    background: ${printPalette.border};
     text-align: left;
     font-weight: 800;
-    border-top: 2px solid #64748b;
+    border-top: 2px solid ${printPalette.secondary};
   }
 
   .shift-main {
@@ -675,16 +676,16 @@ export function printSchedule({
   .shift-time {
     margin-top: 1mm;
     font-size: 8px;
-    color: #64748b;
+    color: ${printPalette.secondary};
   }
 
   .off {
-    color: #64748b;
+    color: ${printPalette.secondary};
     font-weight: 700;
   }
 
   .error {
-    color: #b91c1c;
+    color: ${printPalette.dangerStrong};
     font-weight: 800;
   }
 
