@@ -15,6 +15,7 @@ interface ExcelImportDrawerProps {
   preview: ExcelImportPreview;
   conflictCount: number;
   overwriteExisting: boolean;
+  busy?: boolean;
   onOverwriteChange: (value: boolean) => void;
   onApply: () => void;
   onClose: () => void;
@@ -24,6 +25,7 @@ export function ExcelImportDrawer({
   preview,
   conflictCount,
   overwriteExisting,
+  busy = false,
   onOverwriteChange,
   onApply,
   onClose,
@@ -281,6 +283,7 @@ export function ExcelImportDrawer({
             <input
               type="checkbox"
               checked={overwriteExisting}
+              disabled={busy}
               onChange={(event) => onOverwriteChange(event.target.checked)}
               style={{ marginTop: 2 }}
             />
@@ -314,7 +317,7 @@ export function ExcelImportDrawer({
           type="button"
           $variant="primary"
           onClick={onApply}
-          disabled={matchedEntries === 0}
+          disabled={busy || matchedEntries === 0}
           style={{ width: '100%', marginTop: 18 }}
         >
           Применить импорт
