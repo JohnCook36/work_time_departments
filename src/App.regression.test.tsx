@@ -351,6 +351,167 @@ describe('App regression flows', () => {
     });
   });
 
+  it('fills only empty raw server cells with OFF through one management batch', async () => {
+    const user = userEvent.setup();
+    const snapshot = serverPlannerSnapshot();
+    const now = new Date();
+    const daysInCurrentMonth = new Date(
+      now.getFullYear(),
+      now.getMonth() + 1,
+      0,
+    ).getDate();
+
+    vi.stubEnv('VITE_SERVER_PLANNER_WRITE', '1');
+    vi.spyOn(plannerApi, 'loadPlannerServerSnapshot').mockResolvedValue(snapshot);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const bulkSpy = vi
+      .spyOn(plannerApi, 'applyManageableScheduleChanges')
+      .mockResolvedValue({
+        status: 'ok',
+        applied: daysInCurrentMonth - 1,
+        schedule: {
+          id: 'schedule-current',
+          updatedAt: '2026-09-22T11:00:00.000Z',
+        },
+      });
+
+    renderApp();
+
+    await screen.findByText('Серверный сотрудник');
+    await user.click(screen.getByRole('button', { name: 'OFF все' }));
+
+    await waitFor(() => expect(bulkSpy).toHaveBeenCalledTimes(1));
+    const [yearArg, monthArg, changes] = bulkSpy.mock.calls[0];
+    expect(yearArg).toBe(now.getFullYear());
+    expect(monthArg).toBe(now.getMonth() + 1);
+    expect(changes).toHaveLength(daysInCurrentMonth - 1);
+    expect(changes).not.toContainEqual(
+      expect.objectContaining({ employeeId: 'server-employee', day: 1 }),
+    );
+    expect(changes).toEqual(
+      expect.arrayContaining([
+        {
+          employeeId: 'server-employee',
+          day: 2,
+          type: 'off',
+          expectedUpdatedAt: null,
+        },
+      ]),
+    );
+  });
+
+  it('clears persisted raw server cells with optimistic metadata', async () => {
+    const user = userEvent.setup();
+    const snapshot = serverPlannerSnapshot();
+    const now = new Date();
+
+    vi.stubEnv('VITE_SERVER_PLANNER_WRITE', '1');
+    vi.spyOn(plannerApi, 'loadPlannerServerSnapshot').mockResolvedValue(snapshot);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const bulkSpy = vi
+      .spyOn(plannerApi, 'applyManageableScheduleChanges')
+      .mockResolvedValue({
+        status: 'ok',
+        applied: 1,
+        schedule: {
+          id: 'schedule-current',
+          updatedAt: '2026-09-22T11:00:00.000Z',
+        },
+      });
+
+    renderApp();
+
+    await screen.findByText('Серверный сотрудник');
+    await user.click(
+      screen.getByRole('button', { name: 'Очистить месяц' }),
+    );
+
+    await waitFor(() => {
+      expect(bulkSpy).toHaveBeenCalledWith(
+        now.getFullYear(),
+        now.getMonth() + 1,
+        [
+          {
+            employeeId: 'server-employee',
+            day: 1,
+            type: 'empty',
+            expectedUpdatedAt:
+              snapshot.cellMetadata['server-employee'][1].updatedAt,
+          },
+        ],
+      );
+    });
+  });
+
+  it('applies Excel preview through the server batch contract', async () => {
+    const user = userEvent.setup();
+    const snapshot = serverPlannerSnapshot();
+    const now = new Date();
+    const preview: excelImport.ExcelImportPreview = {
+      fileName: 'import.xlsx',
+      sheetName: 'График',
+      detectedDays: [2],
+      entries: [
+        {
+          employeeName: 'Серверный сотрудник',
+          employeeId: 'server-employee',
+          day: 2,
+          value: '15:00-23:00',
+        },
+      ],
+      matchedEmployees: ['Серверный сотрудник'],
+      unknownEmployees: [],
+      ambiguousEmployees: [],
+      invalidCells: [],
+      warnings: [],
+    };
+
+    vi.stubEnv('VITE_SERVER_PLANNER_WRITE', '1');
+    vi.spyOn(plannerApi, 'loadPlannerServerSnapshot').mockResolvedValue(snapshot);
+    vi.spyOn(excelImport, 'parseScheduleExcel').mockResolvedValue(preview);
+    const bulkSpy = vi
+      .spyOn(plannerApi, 'applyManageableScheduleChanges')
+      .mockResolvedValue({
+        status: 'ok',
+        applied: 1,
+        schedule: {
+          id: 'schedule-current',
+          updatedAt: '2026-09-22T11:00:00.000Z',
+        },
+      });
+
+    const { container } = renderApp();
+    await screen.findByText('Серверный сотрудник');
+
+    const fileInput =
+      container.querySelector<HTMLInputElement>('input[type="file"]')!;
+    fireEvent.change(fileInput, {
+      target: { files: [new File(['content'], 'import.xlsx')] },
+    });
+    expect(await screen.findByText('Предпросмотр импорта')).toBeInTheDocument();
+    await user.click(
+      screen.getByRole('button', { name: 'Применить импорт' }),
+    );
+
+    await waitFor(() => {
+      expect(bulkSpy).toHaveBeenCalledWith(
+        now.getFullYear(),
+        now.getMonth() + 1,
+        [
+          {
+            employeeId: 'server-employee',
+            day: 2,
+            type: 'shift',
+            startTime: '15:00',
+            endTime: '23:00',
+            code: null,
+            expectedUpdatedAt: null,
+          },
+        ],
+      );
+    });
+  });
+
   it('creates an Employee through the backend in server write mode', async () => {
     const user = userEvent.setup();
     const snapshot = serverPlannerSnapshot();
