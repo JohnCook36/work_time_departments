@@ -4,7 +4,10 @@ import {
   Employee,
   EmployeeScheduleMode,
 } from '../../domain/models';
-import { PlannerControlsToolbar } from './PlannerControlsToolbar';
+import {
+  EmployeeCreateFormValues,
+  PlannerControlsToolbar,
+} from './PlannerControlsToolbar';
 import { PlannerDepartmentPanel } from './PlannerDepartmentPanel';
 import { ScheduleView } from './PlannerScheduleTable';
 
@@ -14,21 +17,11 @@ interface PrintRange {
 }
 
 interface PlannerManagementScreenProps {
-  newEmployeeName: string;
-  onNewEmployeeNameChange: (value: string) => void;
-  newEmployeeDepartmentId: string;
-  onNewEmployeeDepartmentChange: (value: string) => void;
-  newEmployeeScheduleMode: EmployeeScheduleMode;
-  onNewEmployeeScheduleModeChange: (value: EmployeeScheduleMode) => void;
-  newEmployeeFixedStartTime: string;
-  onNewEmployeeFixedStartTimeChange: (value: string) => void;
-  newEmployeeFixedEndTime: string;
-  onNewEmployeeFixedEndTimeChange: (value: string) => void;
   departments: Department[];
   employees: Employee[];
   canCreateEmployee: boolean;
   isCreatingEmployee: boolean;
-  onAddEmployee: () => void;
+  onAddEmployee: (values: EmployeeCreateFormValues) => Promise<boolean>;
   canManageDepartments: boolean;
   showDepartments: boolean;
   onToggleDepartments: () => void;
@@ -64,16 +57,6 @@ interface PlannerManagementScreenProps {
 }
 
 export function PlannerManagementScreen({
-  newEmployeeName,
-  onNewEmployeeNameChange,
-  newEmployeeDepartmentId,
-  onNewEmployeeDepartmentChange,
-  newEmployeeScheduleMode,
-  onNewEmployeeScheduleModeChange,
-  newEmployeeFixedStartTime,
-  onNewEmployeeFixedStartTimeChange,
-  newEmployeeFixedEndTime,
-  onNewEmployeeFixedEndTimeChange,
   departments,
   employees,
   canCreateEmployee,
@@ -112,16 +95,6 @@ export function PlannerManagementScreen({
   return (
     <>
       <PlannerControlsToolbar
-        newEmployeeName={newEmployeeName}
-        onNewEmployeeNameChange={onNewEmployeeNameChange}
-        newEmployeeDepartmentId={newEmployeeDepartmentId}
-        onNewEmployeeDepartmentChange={onNewEmployeeDepartmentChange}
-        newEmployeeScheduleMode={newEmployeeScheduleMode}
-        onNewEmployeeScheduleModeChange={onNewEmployeeScheduleModeChange}
-        newEmployeeFixedStartTime={newEmployeeFixedStartTime}
-        onNewEmployeeFixedStartTimeChange={onNewEmployeeFixedStartTimeChange}
-        newEmployeeFixedEndTime={newEmployeeFixedEndTime}
-        onNewEmployeeFixedEndTimeChange={onNewEmployeeFixedEndTimeChange}
         departments={departments}
         canCreateEmployee={canCreateEmployee}
         isCreatingEmployee={isCreatingEmployee}
