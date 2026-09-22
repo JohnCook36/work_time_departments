@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Global, ThemeProvider } from '@emotion/react';
 import {
   CalendarDays,
   ChevronLeft,
@@ -26,10 +25,9 @@ import {
   toShiftEntry,
 } from '../../domain/schedule/personalSchedule';
 import { calculateShiftHours } from '../../domain/schedule/shiftHours';
-import { useThemeMode } from '../../hooks/useThemeMode';
 import { Container, IconButton, Page } from '../../theme/styles';
-import { getTheme } from '../../theme/theme';
 import { DAY_NAMES_SHORT, MONTH_NAMES } from '../../utils/calendar';
+import { useAppTheme } from '../../theme/AppThemeProvider';
 import {
   EmployeeMeta,
   EmployeeName,
@@ -86,8 +84,7 @@ export function MyScheduleScreen() {
   const [data, setData] = useState<MyScheduleResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [themeMode, setThemeMode] = useThemeMode();
-  const theme = useMemo(() => getTheme(themeMode), [themeMode]);
+  const { themeMode, toggleTheme } = useAppTheme();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -149,24 +146,7 @@ export function MyScheduleScreen() {
   };
 
   return (
-    <ThemeProvider theme={theme}>
-      <Global
-        styles={(activeTheme) => ({
-          '*': { boxSizing: 'border-box' },
-          html: { colorScheme: activeTheme.mode },
-          body: {
-            margin: 0,
-            minWidth: 320,
-            fontFamily:
-              'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-            background: activeTheme.colors.background,
-            color: activeTheme.colors.text,
-          },
-          button: { fontFamily: 'inherit' },
-        })}
-      />
-
-      <Page>
+    <Page>
         <Container>
           <SchedulePageHeader>
             <SchedulePageHeading>
@@ -179,11 +159,7 @@ export function MyScheduleScreen() {
             <ScheduleHeaderActions>
               <ThemeToggleButton
                 type="button"
-                onClick={() =>
-                  setThemeMode((value) =>
-                    value === 'light' ? 'dark' : 'light',
-                  )
-                }
+                onClick={toggleTheme}
                 title={
                   themeMode === 'light'
                     ? 'Включить тёмную тему'
@@ -319,8 +295,7 @@ export function MyScheduleScreen() {
             ) : null}
           </ScheduleCard>
         </Container>
-      </Page>
-    </ThemeProvider>
+    </Page>
   );
 }
 
