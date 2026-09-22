@@ -84,6 +84,20 @@ describe('Routing foundation with real session provider and ErrorBoundary', () =
     expect(window.location.pathname).toBe('/my-schedule');
   });
 
+  it('opens /profile for a linked employee', async () => {
+    open('/profile');
+    expect(await screen.findByRole('heading', { name: 'Профиль' })).toBeInTheDocument();
+    expect(screen.getByText('Example')).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/profile');
+  });
+
+  it('opens /tasks without inventing task data', async () => {
+    open('/tasks');
+    expect(await screen.findByRole('heading', { name: 'Задачи' })).toBeInTheDocument();
+    expect(screen.getByText(/Backend-модель задач/)).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/tasks');
+  });
+
   it('shows 404 for an unknown route and links back to the application', async () => {
     open('/unknown');
     expect(await screen.findByRole('heading', { name: '404 — Страница не найдена' })).toBeInTheDocument();
@@ -93,7 +107,7 @@ describe('Routing foundation with real session provider and ErrorBoundary', () =
     expect(window.location.pathname).toBe('/my-schedule');
   });
 
-  it.each(['/planner', '/my-schedule', '/login', '/onboarding', '/unknown'])('routes guests to login from %s', async path => {
+  it.each(['/planner', '/my-schedule', '/tasks', '/profile', '/login', '/onboarding', '/unknown'])('routes guests to login from %s', async path => {
     vi.mocked(api.getMe).mockRejectedValue(new api.ApiError('Unauthorized', 401));
     open(path);
     expect(await screen.findByRole('heading', { name: 'Вход для сотрудников' })).toBeInTheDocument();
@@ -101,7 +115,7 @@ describe('Routing foundation with real session provider and ErrorBoundary', () =
     expect(window.location.pathname).toBe('/login');
   });
 
-  it.each(['/planner', '/my-schedule', '/onboarding', '/login'])('routes unlinked accounts to onboarding from %s', async path => {
+  it.each(['/planner', '/my-schedule', '/tasks', '/profile', '/onboarding', '/login'])('routes unlinked accounts to onboarding from %s', async path => {
     vi.mocked(api.getMe).mockResolvedValue({ ...user, employee: null });
     open(path);
     expect(await screen.findByText('Нет профиля в графике?')).toBeInTheDocument();
