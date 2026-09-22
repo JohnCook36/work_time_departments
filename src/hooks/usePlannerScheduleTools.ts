@@ -1,0 +1,362 @@
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
+
+import {
+  applyExcelImportEntries,
+  ExcelImportPreview,
+  parseScheduleExcel,
+  resolveApplicableExcelImportEntries,
+} from '../importExcel';
+import { exportScheduleToExcel } from '../exportExcel';
+import {
+  getRequiredPrintPeriods,
+  printSchedule,
+} from '../printSchedule';
+import {
+  applyPlannerScheduleChanges,
+  buildScheduleCellChange,
+  loadPlannerServerSnapshot,
+  PlannerCellMetadataMap,
+} from '../plannerApi';
+import { buildEffectiveSchedulePeriods } from '../employeeSchedule';
+import {
+  Department,
+  Employee,
+  ScheduleData,
+  SchedulePeriodsData,
+} from '../types';
+import { validateShiftInput } from '../utils';
+
+interface UsePlannerScheduleToolsOptions {
+  departments: Department[];
+  employees: Employee[];
+  schedule: ScheduleData;
+  schedules: SchedulePeriodsData;
+  rawSchedule: ScheduleData;
+  year: number;
+  month: number;
+  daysInMonth: number;
+  periodKey: string;
+  serverPlannerReadEnabled: boolean;
+  serverPlannerWriteEnabled: boolean;
+  serverCellMetadata: PlannerCellMetadataMap;
+  updateCurrentSchedule: (
+    updater: (current: ScheduleData) => ScheduleData
+  ) => void;
+  refreshServerPlanner: () => Promise<void>;
+}
+
+export function usePlannerScheduleTools({
+  departments,
+  employees,
+  schedule,
+  schedules,
+  rawSchedule,
+  year,
+  month,
+  daysInMonth,
+  periodKey,
+  serverPlannerReadEnabled,
+  serverPlannerWriteEnabled,
+  serverCellMetadata,
+  updateCurrentSchedule,
+  refreshServerPlanner,
+}: UsePlannerScheduleToolsOptions) {
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const [isImportingExcel, setIsImportingExcel] = useState(false);
+  const [isApplyingExcelImport, setIsApplyingExcelImport] = useState(false);
+  const [excelImportPreview, setExcelImportPreview] =
+    useState<ExcelImportPreview | null>(null);
+  const [overwriteExcelCells, setOverwriteExcelCells] = useState(false);
+  const [printRangeKey, setPrintRangeKey] = useState('month');
+  const [isPreparingPrint, setIsPreparingPrint] = useState(false);
+
+  useEffect(() => {
+    setPrintRangeKey('month');
+  }, [year, month]);
+
+  const handleExportExcel = useCallback(async () => {
+    if (isExportingExcel) return;
+
+    try {
+      setIsExportingExcel(true);
+      await exportScheduleToExcel({
+        departments,
+        employees,
+        schedule,
+        year,
+        month,
+        daysInMonth,
+      });
+    } catch (error) {
+      console.error('Excel export failed', error);
+      alert('Не удалось сформировать Excel-файл.');
+    } finally {
+      setIsExportingExcel(false);
+    }
+  }, [
+    daysInMonth,
+    departments,
+    employees,
+    isExportingExcel,
+    month,
+    schedule,
+    year,
+  ]);
+
+  const handlePrintSchedule = useCallback(async () => {
+    if (isPreparingPrint) return;
+
+    let printPeriods = buildEffectiveSchedulePeriods(
+      employees,
+      schedules,
+      year,
+      month
+    );
+
+    if (serverPlannerReadEnabled) {
+      try {
+        setIsPreparingPrint(true);
+
+        const requiredPeriods = getRequiredPrintPeriods(
+          year,
+          month,
+          printRangeKey
+        );
+        const adjacentPeriods = requiredPeriods.filter(
+          (period) => period.year !== year || period.month !== month
+        );
+
+        const adjacentSnapshots = await Promise.all(
+          adjacentPeriods.map(async (period) => ({
+            period,
+            snapshot: await loadPlannerServerSnapshot(
+              period.year,
+              period.month + 1
+            ),
+          }))
+        );
+
+        const serverSchedules = {
+          ...schedules,
+          [periodKey]: rawSchedule,
+        };
+
+        adjacentSnapshots.forEach(({ period, snapshot }) => {
+          const key =
+            period.year +
+            '-' +
+            String(period.month + 1).padStart(2, '0');
+          serverSchedules[key] = snapshot.schedule;
+        });
+
+        printPeriods = buildEffectiveSchedulePeriods(
+          employees,
+          serverSchedules,
+          year,
+          month
+        );
+      } catch (error) {
+        console.error('Server print period preload failed', error);
+        alert(
+          'Не удалось загрузить соседние месяцы для печати. Попробуйте ещё раз.'
+        );
+        return;
+      } finally {
+        setIsPreparingPrint(false);
+      }
+    }
+
+    printSchedule({
+      departments,
+      employees,
+      schedule,
+      schedules: printPeriods,
+      year,
+      month,
+      daysInMonth,
+      rangeKey: printRangeKey,
+    });
+  }, [
+    daysInMonth,
+    departments,
+    employees,
+    isPreparingPrint,
+    month,
+    periodKey,
+    printRangeKey,
+    rawSchedule,
+    schedule,
+    schedules,
+    serverPlannerReadEnabled,
+    year,
+  ]);
+
+  const handleExcelFile = useCallback(
+    async (file: File | null) => {
+      if (!file || isImportingExcel) return;
+
+      try {
+        setIsImportingExcel(true);
+        const preview = await parseScheduleExcel(file, employees);
+        setOverwriteExcelCells(false);
+        setExcelImportPreview(preview);
+      } catch (error) {
+        console.error('Excel import failed', error);
+        alert(
+          error instanceof Error
+            ? error.message
+            : 'Не удалось прочитать Excel-файл.'
+        );
+      } finally {
+        setIsImportingExcel(false);
+      }
+    },
+    [employees, isImportingExcel]
+  );
+
+  const excelImportConflictCount = useMemo(() => {
+    if (!excelImportPreview) return 0;
+
+    return excelImportPreview.entries.reduce((count, item) => {
+      if (!item.employeeId || item.day > daysInMonth) return count;
+      const existing = schedule[item.employeeId]?.[item.day];
+      return existing && existing.type !== 'empty' ? count + 1 : count;
+    }, 0);
+  }, [daysInMonth, excelImportPreview, schedule]);
+
+  const applyExcelImport = useCallback(async () => {
+    if (!excelImportPreview || isApplyingExcelImport) return;
+
+    const options = {
+      currentSchedule: rawSchedule,
+      protectedSchedule: schedule,
+      entries: excelImportPreview.entries,
+      daysInMonth,
+      overwriteExisting: overwriteExcelCells,
+    };
+
+    const result = applyExcelImportEntries(options);
+
+    const details = [
+      'Импортировано смен: ' + result.applied,
+      result.skippedProtected > 0
+        ? 'Защищено заполненных ячеек: ' + result.skippedProtected
+        : null,
+      result.skippedOutsideMonth > 0
+        ? 'Пропущено дней вне текущего месяца: ' + result.skippedOutsideMonth
+        : null,
+    ].filter(Boolean);
+
+    if (!serverPlannerWriteEnabled) {
+      updateCurrentSchedule(() => result.schedule);
+      setExcelImportPreview(null);
+      setOverwriteExcelCells(false);
+      alert(details.join('\n'));
+      return;
+    }
+
+    const resolved = resolveApplicableExcelImportEntries(options);
+
+    if (resolved.entries.length === 0) {
+      setExcelImportPreview(null);
+      setOverwriteExcelCells(false);
+      alert(details.join('\n'));
+      return;
+    }
+
+    let changes: ReturnType<typeof buildScheduleCellChange>[];
+    try {
+      changes = resolved.entries.map((item) => {
+        if (!item.employeeId) {
+          throw new Error('Excel import contains an unresolved Employee');
+        }
+
+        const entry = validateShiftInput(item.value);
+        if (entry.type !== 'shift' && entry.type !== 'off') {
+          throw new Error(
+            'Excel import contains a schedule value that cannot be persisted'
+          );
+        }
+
+        return buildScheduleCellChange(
+          item.employeeId,
+          item.day,
+          entry,
+          serverCellMetadata[item.employeeId]?.[item.day]
+        );
+      });
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? 'Не удалось подготовить импорт: ' + error.message
+          : 'Не удалось подготовить импорт для сервера.'
+      );
+      await refreshServerPlanner();
+      return;
+    }
+
+    try {
+      setIsApplyingExcelImport(true);
+      await applyPlannerScheduleChanges(
+        year,
+        month + 1,
+        changes
+      );
+      setExcelImportPreview(null);
+      setOverwriteExcelCells(false);
+      await refreshServerPlanner();
+      alert(details.join('\n'));
+    } catch (error) {
+      console.error('Server Excel import failed', error);
+      alert(
+        error instanceof Error
+          ? 'Не удалось применить импорт: ' + error.message
+          : 'Не удалось применить импорт на сервере.'
+      );
+      await refreshServerPlanner();
+    } finally {
+      setIsApplyingExcelImport(false);
+    }
+  }, [
+    daysInMonth,
+    excelImportPreview,
+    isApplyingExcelImport,
+    month,
+    overwriteExcelCells,
+    rawSchedule,
+    refreshServerPlanner,
+    schedule,
+    serverCellMetadata,
+    serverPlannerWriteEnabled,
+    updateCurrentSchedule,
+    year,
+  ]);
+
+  const closeExcelImport = useCallback(() => {
+    setExcelImportPreview(null);
+    setOverwriteExcelCells(false);
+  }, []);
+
+  return {
+    isExportingExcel,
+    isImportingExcel,
+    isApplyingExcelImport,
+    excelImportPreview,
+    overwriteExcelCells,
+    setOverwriteExcelCells,
+    printRangeKey,
+    setPrintRangeKey,
+    isPreparingPrint,
+    handleExportExcel,
+    handlePrintSchedule,
+    handleExcelFile,
+    excelImportConflictCount,
+    applyExcelImport,
+    closeExcelImport,
+  };
+}
