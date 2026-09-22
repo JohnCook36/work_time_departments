@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 
 import { AuthUserContext } from '../auth/auth.service';
 import { AuthorizationService } from '../auth/authorization.service';
@@ -262,47 +263,37 @@ export class SchedulesService {
   ) {
     assertPeriod(year, month);
     this.authorization.assertCanAdministerDepartment(admin, departmentId);
+    const employeeIds = this.validateScheduleChanges(year, month, changes);
 
-    if (!Array.isArray(changes) || changes.length === 0) {
-      throw new BadRequestException('changes must contain at least one item');
-    }
+    return this.prisma.$transaction(
+      async (tx) => {
+        const employees = await tx.employee.findMany({
+          where: {
+            id: { in: employeeIds },
+            departmentId,
+            isActive: true,
+          },
+          select: { id: true },
+        });
 
-    if (changes.length > 5000) {
-      throw new BadRequestException('too many schedule changes in one request');
-    }
+        if (employees.length !== employeeIds.length) {
+          throw new BadRequestException(
+            'one or more employees do not belong to this department',
+          );
+        }
 
-    const seen = new Set<string>();
-    for (const change of changes) {
-      validateCellChange(change, year, month);
-      const key = changeKey(change.employeeId, change.day);
-      if (seen.has(key)) {
-        throw new BadRequestException(
-          'duplicate schedule change for the same employee and day',
+        return this.persistScheduleChanges(
+          tx,
+          year,
+          month,
+          changes,
+          employeeIds,
         );
-      }
-      seen.add(key);
-    }
-
-    const employeeIds = Array.from(
-      new Set(changes.map((change) => change.employeeId)),
-    );
-
-    const employees = await this.prisma.employee.findMany({
-      where: {
-        id: { in: employeeIds },
-        departmentId,
-        isActive: true,
       },
-      select: { id: true },
-    });
-
-    if (employees.length !== employeeIds.length) {
-      throw new BadRequestException(
-        'one or more employees do not belong to this department',
-      );
-    }
-
-    return this.persistScheduleChanges(year, month, changes, employeeIds);
+      {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      },
+    );
   }
 
   async applyManageableScheduleChanges(
@@ -312,7 +303,54 @@ export class SchedulesService {
     changes: ScheduleCellChange[],
   ) {
     assertPeriod(year, month);
+    const employeeIds = this.validateScheduleChanges(year, month, changes);
 
+    return this.prisma.$transaction(
+      async (tx) => {
+        const employees = await tx.employee.findMany({
+          where: {
+            id: { in: employeeIds },
+            isActive: true,
+            department: {
+              isActive: true,
+            },
+          },
+          select: {
+            id: true,
+            departmentId: true,
+          },
+        });
+
+        if (employees.length !== employeeIds.length) {
+          throw new BadRequestException(
+            'one or more employees are unavailable',
+          );
+        }
+
+        this.authorization.assertCanAdministerDepartments(
+          admin,
+          employees.map((employee) => employee.departmentId),
+        );
+
+        return this.persistScheduleChanges(
+          tx,
+          year,
+          month,
+          changes,
+          employeeIds,
+        );
+      },
+      {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      },
+    );
+  }
+
+  private validateScheduleChanges(
+    year: number,
+    month: number,
+    changes: ScheduleCellChange[],
+  ): string[] {
     if (!Array.isArray(changes) || changes.length === 0) {
       throw new BadRequestException('changes must contain at least one item');
     }
@@ -333,190 +371,162 @@ export class SchedulesService {
       seen.add(key);
     }
 
-    const employeeIds = Array.from(
+    return Array.from(
       new Set(changes.map((change) => change.employeeId)),
     );
-
-    const employees = await this.prisma.employee.findMany({
-      where: {
-        id: { in: employeeIds },
-        isActive: true,
-        department: {
-          isActive: true,
-        },
-      },
-      select: {
-        id: true,
-        departmentId: true,
-      },
-    });
-
-    if (employees.length !== employeeIds.length) {
-      throw new BadRequestException(
-        'one or more employees are unavailable',
-      );
-    }
-
-    this.authorization.assertCanAdministerDepartments(
-      admin,
-      employees.map((employee) => employee.departmentId),
-    );
-
-    return this.persistScheduleChanges(year, month, changes, employeeIds);
   }
 
-  private persistScheduleChanges(
+  private async persistScheduleChanges(
+    tx: Prisma.TransactionClient,
     year: number,
     month: number,
     changes: ScheduleCellChange[],
     employeeIds: string[],
   ) {
-    return this.prisma.$transaction(async (tx) => {
-      let schedule = await tx.schedule.findUnique({
-        where: {
-          year_month: { year, month },
-        },
-        select: {
-          id: true,
-          updatedAt: true,
-        },
-      });
+    let schedule = await tx.schedule.findUnique({
+      where: {
+        year_month: { year, month },
+      },
+      select: {
+        id: true,
+        updatedAt: true,
+      },
+    });
 
-      const hasStoredValues = changes.some(
-        (change) => change.type !== 'empty',
-      );
+    const hasStoredValues = changes.some(
+      (change) => change.type !== 'empty',
+    );
 
-      if (!schedule && !hasStoredValues) {
-        return {
-          status: 'ok' as const,
-          applied: changes.length,
-          schedule: null,
-        };
-      }
-
-      if (!schedule) {
-        schedule = await tx.schedule.create({
-          data: { year, month },
-          select: {
-            id: true,
-            updatedAt: true,
-          },
-        });
-      }
-
-      const existing = await tx.shift.findMany({
-        where: {
-          scheduleId: schedule.id,
-          employeeId: { in: employeeIds },
-          date: {
-            in: changes.map((change) =>
-              shiftDate(year, month, change.day),
-            ),
-          },
-        },
-        select: {
-          id: true,
-          employeeId: true,
-          date: true,
-          updatedAt: true,
-        },
-      });
-
-      const existingByKey = new Map(
-        existing.map((shift) => [
-          changeKey(shift.employeeId, shift.date.getUTCDate()),
-          shift,
-        ]),
-      );
-
-      for (const change of changes) {
-        const key = changeKey(change.employeeId, change.day);
-        const current = existingByKey.get(key);
-
-        if (
-          Object.prototype.hasOwnProperty.call(change, 'expectedUpdatedAt')
-        ) {
-          if (change.expectedUpdatedAt === null && current) {
-            throw new ConflictException(
-              'Schedule cell changed since it was loaded',
-            );
-          }
-
-          if (
-            typeof change.expectedUpdatedAt === 'string' &&
-            (!current ||
-              current.updatedAt.toISOString() !== change.expectedUpdatedAt)
-          ) {
-            throw new ConflictException(
-              'Schedule cell changed since it was loaded',
-            );
-          }
-        }
-
-        const date = shiftDate(year, month, change.day);
-
-        if (change.type === 'empty') {
-          await tx.shift.deleteMany({
-            where: {
-              scheduleId: schedule.id,
-              employeeId: change.employeeId,
-              date,
-            },
-          });
-          continue;
-        }
-
-        const data =
-          change.type === 'off'
-            ? {
-                code: null,
-                startTime: null,
-                endTime: null,
-                isOff: true,
-              }
-            : {
-                code: change.code ? change.code.toUpperCase() : null,
-                startTime: change.startTime!,
-                endTime: change.endTime!,
-                isOff: false,
-              };
-
-        await tx.shift.upsert({
-          where: {
-            scheduleId_employeeId_date: {
-              scheduleId: schedule.id,
-              employeeId: change.employeeId,
-              date,
-            },
-          },
-          create: {
-            scheduleId: schedule.id,
-            employeeId: change.employeeId,
-            date,
-            ...data,
-          },
-          update: data,
-        });
-      }
-
-      const updatedSchedule = await tx.schedule.update({
-        where: { id: schedule.id },
-        data: { updatedAt: new Date() },
-        select: {
-          id: true,
-          updatedAt: true,
-        },
-      });
-
+    if (!schedule && !hasStoredValues) {
       return {
         status: 'ok' as const,
         applied: changes.length,
-        schedule: {
-          id: updatedSchedule.id,
-          updatedAt: updatedSchedule.updatedAt.toISOString(),
-        },
+        schedule: null,
       };
+    }
+
+    if (!schedule) {
+      schedule = await tx.schedule.create({
+        data: { year, month },
+        select: {
+          id: true,
+          updatedAt: true,
+        },
+      });
+    }
+
+    const existing = await tx.shift.findMany({
+      where: {
+        scheduleId: schedule.id,
+        employeeId: { in: employeeIds },
+        date: {
+          in: changes.map((change) =>
+            shiftDate(year, month, change.day),
+          ),
+        },
+      },
+      select: {
+        id: true,
+        employeeId: true,
+        date: true,
+        updatedAt: true,
+      },
     });
+
+    const existingByKey = new Map(
+      existing.map((shift) => [
+        changeKey(shift.employeeId, shift.date.getUTCDate()),
+        shift,
+      ]),
+    );
+
+    for (const change of changes) {
+      const key = changeKey(change.employeeId, change.day);
+      const current = existingByKey.get(key);
+
+      if (
+        Object.prototype.hasOwnProperty.call(change, 'expectedUpdatedAt')
+      ) {
+        if (change.expectedUpdatedAt === null && current) {
+          throw new ConflictException(
+            'Schedule cell changed since it was loaded',
+          );
+        }
+
+        if (
+          typeof change.expectedUpdatedAt === 'string' &&
+          (!current ||
+            current.updatedAt.toISOString() !== change.expectedUpdatedAt)
+        ) {
+          throw new ConflictException(
+            'Schedule cell changed since it was loaded',
+          );
+        }
+      }
+
+      const date = shiftDate(year, month, change.day);
+
+      if (change.type === 'empty') {
+        await tx.shift.deleteMany({
+          where: {
+            scheduleId: schedule.id,
+            employeeId: change.employeeId,
+            date,
+          },
+        });
+        continue;
+      }
+
+      const data =
+        change.type === 'off'
+          ? {
+              code: null,
+              startTime: null,
+              endTime: null,
+              isOff: true,
+            }
+          : {
+              code: change.code ? change.code.toUpperCase() : null,
+              startTime: change.startTime!,
+              endTime: change.endTime!,
+              isOff: false,
+            };
+
+      await tx.shift.upsert({
+        where: {
+          scheduleId_employeeId_date: {
+            scheduleId: schedule.id,
+            employeeId: change.employeeId,
+            date,
+          },
+        },
+        create: {
+          scheduleId: schedule.id,
+          employeeId: change.employeeId,
+          date,
+          ...data,
+        },
+        update: data,
+      });
+    }
+
+    const updatedSchedule = await tx.schedule.update({
+      where: { id: schedule.id },
+      data: { updatedAt: new Date() },
+      select: {
+        id: true,
+        updatedAt: true,
+      },
+    });
+
+    return {
+      status: 'ok' as const,
+      applied: changes.length,
+      schedule: {
+        id: updatedSchedule.id,
+        updatedAt: updatedSchedule.updatedAt.toISOString(),
+      },
+    };
   }
 
   async getMySchedule(user: AuthUserContext, year: number, month: number) {
