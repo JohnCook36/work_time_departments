@@ -17,6 +17,7 @@ describe('Russian five-day production calendar', () => {
 
   it('marks transferred holiday days off in spring 2026', () => {
     expect(isRussiaFiveDayWorkingDay(2026, 1, 23)).toBe(false);
+    expect(isRussiaFiveDayWorkingDay(2026, 2, 8)).toBe(false);
     expect(isRussiaFiveDayWorkingDay(2026, 2, 9)).toBe(false);
     expect(isRussiaFiveDayWorkingDay(2026, 4, 11)).toBe(false);
   });
