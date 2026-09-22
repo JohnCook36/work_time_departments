@@ -338,6 +338,7 @@ export const statusPalette = {
   dangerBackground: alphaPalette.red60006,
   successBorder: alphaPalette.green50028,
   successBackground: alphaPalette.green50006,
+  neutralSoft: alphaPalette.slate40014,
   subtleBackground: alphaPalette.slate40010,
   overlayShadow: alphaPalette.slate95018,
 } as const;
