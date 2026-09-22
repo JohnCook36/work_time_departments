@@ -18,6 +18,7 @@ interface ExcelImportDrawerProps {
   onOverwriteChange: (value: boolean) => void;
   onApply: () => void;
   onClose: () => void;
+  busy?: boolean;
 }
 
 export function ExcelImportDrawer({
@@ -27,6 +28,7 @@ export function ExcelImportDrawer({
   onOverwriteChange,
   onApply,
   onClose,
+  busy = false,
 }: ExcelImportDrawerProps) {
   const matchedEntries = preview.entries.filter(
     (entry) => entry.employeeId !== null
@@ -42,7 +44,7 @@ export function ExcelImportDrawer({
               {preview.fileName} • лист «{preview.sheetName}»
             </DrawerSubtitle>
           </div>
-          <IconButton type="button" onClick={onClose} title="Закрыть">
+          <IconButton type="button" onClick={onClose} title="Закрыть" disabled={busy}>
             <X size={18} />
           </IconButton>
         </DrawerHeader>
@@ -281,6 +283,7 @@ export function ExcelImportDrawer({
             <input
               type="checkbox"
               checked={overwriteExisting}
+              disabled={busy}
               onChange={(event) => onOverwriteChange(event.target.checked)}
               style={{ marginTop: 2 }}
             />
@@ -314,10 +317,10 @@ export function ExcelImportDrawer({
           type="button"
           $variant="primary"
           onClick={onApply}
-          disabled={matchedEntries === 0}
+          disabled={matchedEntries === 0 || busy}
           style={{ width: '100%', marginTop: 18 }}
         >
-          Применить импорт
+          {busy ? 'Применяю…' : 'Применить импорт'}
         </ActionButton>
       </Drawer>
     </DrawerOverlay>
