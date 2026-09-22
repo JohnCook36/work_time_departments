@@ -103,6 +103,7 @@ import { usePlannerServerSync } from './hooks/usePlannerServerSync';
 import { usePlannerStorage } from './hooks/usePlannerStorage';
 import { useScheduleMutations } from './hooks/useScheduleMutations';
 import { useThemeMode } from './hooks/useThemeMode';
+import { PlannerHeaderScreen } from './screens/planner/PlannerHeaderScreen';
 import {
   DepartmentSection,
   ErrorPanel,
@@ -1335,118 +1336,24 @@ function App() {
 
       <Page>
         <Container>
-          <HeaderCard>
-            <HeaderRow>
-              <HeaderLeft>
-                <ThemeButton
-                  type="button"
-                  onClick={() =>
-                    setThemeMode((value) =>
-                      value === 'light' ? 'dark' : 'light'
-                    )
-                  }
-                  title={
-                    themeMode === 'light'
-                      ? 'Включить тёмную тему'
-                      : 'Включить светлую тему'
-                  }
-                >
-                  {themeMode === 'light' ? <Moon size={19} /> : <Sun size={19} />}
-                </ThemeButton>
-
-                <BrandBlock>
-                  <BrandTitle>🏨 Планировщик смен</BrandTitle>
-                  <Muted>
-                    Расписание сотрудников отеля • Отделы • Drag & Drop • Пожелания
-                  </Muted>
-                </BrandBlock>
-              </HeaderLeft>
-
-              <HeaderActions>
-                <IconButton
-                  type="button"
-                  onClick={prevMonth}
-                  title="Предыдущий месяц"
-                >
-                  <ChevronLeft size={19} />
-                </IconButton>
-
-                <MonthLabel>
-                  {MONTH_NAMES[month]} {year}
-                </MonthLabel>
-
-                <IconButton
-                  type="button"
-                  onClick={nextMonth}
-                  title="Следующий месяц"
-                >
-                  <ChevronRight size={19} />
-                </IconButton>
-
-                <MySchedulePanel year={year} monthIndex={month} />
-                {canManagePlanner && <AdminOnboardingPanel />}
-
-                {canManagePlanner && (
-                  <IconButton
-                    type="button"
-                    onClick={() => setShowHelp((value) => !value)}
-                    title="Справка"
-                  >
-                    <Info size={18} />
-                  </IconButton>
-                )}
-              </HeaderActions>
-            </HeaderRow>
-          </HeaderCard>
-
-          {serverPlannerReadEnabled && (
-            <Card style={{ marginTop: 14, padding: 16 }}>
-              <PanelTitle>Серверный режим графика</PanelTitle>
-              <Muted style={{ marginTop: 4 }}>
-                {serverPlannerStatus === 'loading'
-                  ? 'Загружаю отделы, сотрудников и сохранённые смены с backend. Редактирование временно отключено.'
-                  : serverPlannerStatus === 'error'
-                    ? 'Не удалось обновить данные с backend. Показан локальный кэш, редактирование заблокировано: ' +
-                      (serverPlannerError || 'неизвестная ошибка')
-                    : serverPlannerWriteEnabled
-                      ? 'Данные текущего месяца загружены с backend. Запись включена для смен и Employee; SUPER_ADMIN также может создавать, редактировать, деактивировать и менять порядок отделов.'
-                      : 'Данные текущего месяца загружены с backend. Это контролируемый read-only этап миграции; локальные изменения отключены.'}
-              </Muted>
-            </Card>
-          )}
-
-          {canManagePlanner && showHelp && (
-            <HelpCard>
-              <PanelTitleRow>
-                <div>
-                  <PanelTitle>Как пользоваться</PanelTitle>
-                  <Muted>
-                    Смены сохраняются отдельно для каждого месяца. Пожелания тоже
-                    привязаны к выбранному месяцу.
-                  </Muted>
-                </div>
-                <IconButton type="button" onClick={() => setShowHelp(false)}>
-                  ×
-                </IconButton>
-              </PanelTitleRow>
-
-              <HelpGrid>
-                <div>
-                  <TinyText>Обычная смена: 08:00-17:00</TinyText>
-                  <TinyText>С кодом: E 07:00-16:00</TinyText>
-                  <TinyText>Ночная N: N 20:00-08:00</TinyText>
-                  <TinyText>Выходной: OFF</TinyText>
-                </div>
-                <div>
-                  <TinyText>⋮⋮ — перетащить сотрудника.</TinyText>
-                  <TinyText>⋮⋮ в строке отдела — переместить весь отдел.</TinyText>
-                  <TinyText>▾ / › — свернуть или развернуть отдел.</TinyText>
-                  <TinyText>💬 — открыть пожелания сотрудника.</TinyText>
-                  <TinyText>Можно переносить людей между отделами.</TinyText>
-                </div>
-              </HelpGrid>
-            </HelpCard>
-          )}
+          <PlannerHeaderScreen
+            themeMode={themeMode}
+            onToggleTheme={() =>
+              setThemeMode((value) => (value === 'light' ? 'dark' : 'light'))
+            }
+            year={year}
+            month={month}
+            onPrevMonth={prevMonth}
+            onNextMonth={nextMonth}
+            canManagePlanner={canManagePlanner}
+            showHelp={showHelp}
+            onToggleHelp={() => setShowHelp((value) => !value)}
+            onCloseHelp={() => setShowHelp(false)}
+            serverPlannerReadEnabled={serverPlannerReadEnabled}
+            serverPlannerWriteEnabled={serverPlannerWriteEnabled}
+            serverPlannerStatus={serverPlannerStatus}
+            serverPlannerError={serverPlannerError}
+          />
 
           {canManagePlanner && (
           <ControlsCard>
