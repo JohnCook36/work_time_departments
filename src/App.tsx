@@ -446,9 +446,7 @@ function App() {
   const canImportExcel =
     canManagePlanner &&
     (!serverPlannerReadEnabled ||
-      (serverPlannerWriteEnabled &&
-        serverPlannerStatus === 'ready' &&
-        !isApplyingExcelImport));
+      (serverPlannerWriteEnabled && serverPlannerStatus === 'ready'));
   const canMoveEmployees =
     canManagePlanner &&
     (!serverPlannerReadEnabled ||
@@ -1739,7 +1737,7 @@ function App() {
       return;
     }
 
-    let changes;
+    let changes: ReturnType<typeof buildScheduleCellChange>[];
     try {
       changes = resolved.entries.map((item) => {
         if (!item.employeeId) {
@@ -2081,7 +2079,11 @@ function App() {
               <ActionButton
                 type="button"
                 onClick={() => excelFileInputRef.current?.click()}
-                disabled={!canImportExcel || isImportingExcel}
+                disabled={
+                  !canImportExcel ||
+                  isImportingExcel ||
+                  isApplyingExcelImport
+                }
                 title="Загрузить график из Excel с предпросмотром"
               >
                 <FileUp size={16} />
