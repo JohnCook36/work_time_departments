@@ -1,3 +1,7 @@
+import { ApiTags, ApiOperation, ApiResponse, ApiBadRequestResponse, ApiUnauthorizedResponse, ApiForbiddenResponse, ApiSecurity, ApiConflictResponse, ApiNotFoundResponse, ApiBody, ApiQuery } from '@nestjs/swagger';
+import { departmentScheduleResponse, personalScheduleResponse, scheduleAppliedResponse } from '../openapi.responses';
+import { ApplyPlannerChangesDto, ApplyDepartmentChangesDto } from './schedules.dto';
+
 import {
   BadRequestException,
   Body,
@@ -57,11 +61,24 @@ function requiredChanges(value: unknown): ScheduleCellChange[] {
   return value as ScheduleCellChange[];
 }
 
+@ApiTags('schedules')
+@ApiSecurity('session')
+@ApiSecurity('sessionBearer')
+@ApiUnauthorizedResponse({ description: 'Missing, invalid or expired session.' })
+@ApiForbiddenResponse({ description: 'Insufficient role, department scope or employee ownership.' })
+@ApiBadRequestResponse({ description: 'Invalid request data.' })
+@ApiNotFoundResponse({ description: 'Requested active resource not found.' })
+@ApiConflictResponse({ description: 'Stale version, invalid state transition or conflicting active dependencies.' })
 @Controller('schedule-data')
 @UseGuards(SessionAuthGuard)
 export class SchedulesController {
   constructor(private readonly schedules: SchedulesService) {}
 
+  @ApiOperation({ summary: 'Read persisted schedule for a managed department' })
+  @ApiResponse({ status: 200, schema: departmentScheduleResponse })
+  @ApiQuery({ name: 'departmentId', required: true, schema: { type: 'string' } })
+  @ApiQuery({ name: 'year', required: true, schema: { type: 'integer', minimum: 1970, maximum: 9999 } })
+  @ApiQuery({ name: 'month', required: true, schema: { type: 'integer', minimum: 1, maximum: 12 } })
   @Get('department')
   getDepartmentSchedule(
     @CurrentUser() user: AuthUserContext,
@@ -77,6 +94,9 @@ export class SchedulesController {
     );
   }
 
+  @ApiOperation({ summary: 'Atomically write cells across departments; requires management scope for every affected department' })
+  @ApiBody({ type: ApplyPlannerChangesDto })
+  @ApiResponse({ status: 200, schema: scheduleAppliedResponse })
   @Patch('planner/entries')
   applyPlannerScheduleChanges(
     @CurrentUser() user: AuthUserContext,
@@ -95,6 +115,9 @@ export class SchedulesController {
     );
   }
 
+  @ApiOperation({ summary: 'Write one or more cells atomically within a managed department' })
+  @ApiBody({ type: ApplyDepartmentChangesDto })
+  @ApiResponse({ status: 200, schema: scheduleAppliedResponse })
   @Patch('department/entries')
   applyDepartmentScheduleChanges(
     @CurrentUser() user: AuthUserContext,
@@ -115,6 +138,10 @@ export class SchedulesController {
     );
   }
 
+  @ApiOperation({ summary: 'Read only the authenticated linked employee schedule' })
+  @ApiResponse({ status: 200, schema: personalScheduleResponse })
+  @ApiQuery({ name: 'year', required: true, schema: { type: 'integer', minimum: 1970, maximum: 9999 } })
+  @ApiQuery({ name: 'month', required: true, schema: { type: 'integer', minimum: 1, maximum: 12 } })
   @Get('me')
   getMySchedule(
     @CurrentUser() user: AuthUserContext,

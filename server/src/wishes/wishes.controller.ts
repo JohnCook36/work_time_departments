@@ -1,3 +1,7 @@
+import { ApiTags, ApiOperation, ApiResponse, ApiBadRequestResponse, ApiUnauthorizedResponse, ApiForbiddenResponse, ApiSecurity, ApiNotFoundResponse, ApiBody, ApiQuery } from '@nestjs/swagger';
+import { arrayOf, wishDeletedResponse, wishResponse } from '../openapi.responses';
+import { CreateWishDto } from './wishes.dto';
+
 import {
   BadRequestException,
   Body,
@@ -33,11 +37,23 @@ function requiredInteger(value: string | undefined, field: string): number {
   return Number(normalized);
 }
 
+@ApiTags('wishes')
+@ApiSecurity('session')
+@ApiSecurity('sessionBearer')
+@ApiUnauthorizedResponse({ description: 'Missing, invalid or expired session.' })
+@ApiForbiddenResponse({ description: 'Insufficient role, department scope or employee ownership.' })
+@ApiBadRequestResponse({ description: 'Invalid request data.' })
+@ApiNotFoundResponse({ description: 'Requested active resource not found.' })
 @Controller('wishes')
 @UseGuards(SessionAuthGuard)
 export class WishesController {
   constructor(private readonly wishes: WishesService) {}
 
+  @ApiOperation({ summary: 'List wishes for active employees in a managed department' })
+  @ApiResponse({ status: 200, schema: arrayOf(wishResponse) })
+  @ApiQuery({ name: 'departmentId', required: true, schema: { type: 'string' } })
+  @ApiQuery({ name: 'year', required: true, schema: { type: 'integer', minimum: 1970, maximum: 9999 } })
+  @ApiQuery({ name: 'month', required: true, schema: { type: 'integer', minimum: 1, maximum: 12 } })
   @Get('department')
   listDepartmentWishes(
     @CurrentUser() user: AuthUserContext,
@@ -53,6 +69,9 @@ export class WishesController {
     );
   }
 
+  @ApiOperation({ summary: 'Create a wish for an active employee in a managed department' })
+  @ApiBody({ type: CreateWishDto })
+  @ApiResponse({ status: 201, schema: wishResponse })
   @Post()
   createWish(
     @CurrentUser() user: AuthUserContext,
@@ -61,6 +80,8 @@ export class WishesController {
     return this.wishes.createWish(user, body ?? {});
   }
 
+  @ApiOperation({ summary: 'Delete a wish within management scope' })
+  @ApiResponse({ status: 200, schema: wishDeletedResponse })
   @Delete(':wishId')
   deleteWish(
     @CurrentUser() user: AuthUserContext,
