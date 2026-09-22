@@ -5,6 +5,8 @@ import { OnboardingPage } from '../pages/OnboardingPage';
 import { NotFoundPage } from '../pages/NotFoundPage';
 import { PlannerPage } from '../pages/PlannerPage';
 import { MySchedulePage } from '../pages/MySchedulePage';
+import { ProfilePage } from '../pages/ProfilePage';
+import { TasksPage } from '../pages/TasksPage';
 import {
   AuthenticatedHomeRoute,
   LoginRoute,
@@ -27,6 +29,8 @@ export function AppRouter() {
         <Route element={<ProtectedRoute />}>
           <Route path="/" element={<AuthenticatedHomeRoute />} />
           <Route path="/my-schedule" element={<MySchedulePage />} />
+          <Route path="/tasks" element={<TasksPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
           <Route element={<ManagementRoute />}>
             <Route path="/planner" element={<PlannerPage />} />
           </Route>
