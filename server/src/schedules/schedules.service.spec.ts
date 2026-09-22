@@ -61,6 +61,7 @@ describe('SchedulesService', () => {
 
   const authorization = {
     assertCanAdministerDepartment: jest.fn(),
+    assertCanAdministerDepartments: jest.fn(),
   };
 
   const service = new SchedulesService(
@@ -136,6 +137,83 @@ describe('SchedulesService', () => {
         updatedAt: '2026-09-19T09:00:00.000Z',
       }),
     ]);
+  });
+
+  it('applies a multi-department management batch in one transaction after scope checks', async () => {
+    prisma.employee.findMany.mockResolvedValue([
+      { id: 'employee-a', departmentId: 'department-a' },
+      { id: 'employee-b', departmentId: 'department-b' },
+    ]);
+    transaction.schedule.findUnique.mockResolvedValue({
+      id: 'schedule-1',
+      updatedAt: new Date('2026-09-01T10:00:00.000Z'),
+    });
+
+    const currentUser = user();
+    const result = await service.applyManageableScheduleChanges(
+      currentUser,
+      2026,
+      9,
+      [
+        {
+          employeeId: 'employee-a',
+          day: 7,
+          type: 'off',
+          expectedUpdatedAt: null,
+        },
+        {
+          employeeId: 'employee-b',
+          day: 8,
+          type: 'shift',
+          startTime: '08:00',
+          endTime: '17:00',
+          expectedUpdatedAt: null,
+        },
+      ],
+    );
+
+    expect(
+      authorization.assertCanAdministerDepartments,
+    ).toHaveBeenCalledWith(
+      currentUser,
+      ['department-a', 'department-b'],
+    );
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(transaction.shift.upsert).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({ status: 'ok', applied: 2 });
+  });
+
+  it('rejects a management batch when any Employee is unavailable', async () => {
+    prisma.employee.findMany.mockResolvedValue([
+      { id: 'employee-a', departmentId: 'department-a' },
+    ]);
+
+    await expect(
+      service.applyManageableScheduleChanges(
+        user(),
+        2026,
+        9,
+        [
+          {
+            employeeId: 'employee-a',
+            day: 7,
+            type: 'off',
+            expectedUpdatedAt: null,
+          },
+          {
+            employeeId: 'employee-missing',
+            day: 8,
+            type: 'off',
+            expectedUpdatedAt: null,
+          },
+        ],
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(
+      authorization.assertCanAdministerDepartments,
+    ).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
   it('writes a shift only for an active employee in the administered department', async () => {
