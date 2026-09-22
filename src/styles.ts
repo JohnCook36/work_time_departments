@@ -121,7 +121,7 @@ export const MonthLabel = styled('div')(({ theme }) => ({
 export const HelpCard = styled(Card)(({ theme }) => ({
   padding: 16,
   marginBottom: 16,
-  background: theme.mode === 'dark' ? '#12223a' : '#eff6ff',
+  background: theme.colors.infoSoft,
 }));
 
 export const HelpGrid = styled('div')({
@@ -177,7 +177,7 @@ const fieldStyles = (theme: any) => ({
   transition: 'border-color 120ms ease, box-shadow 120ms ease',
   ':focus': {
     borderColor: theme.colors.primary,
-    boxShadow: '0 0 0 3px ' + (theme.mode === 'dark' ? 'rgba(96,165,250,.16)' : 'rgba(59,130,246,.12)'),
+    boxShadow: '0 0 0 3px ' + theme.colors.focusRing,
   },
 });
 
@@ -202,10 +202,10 @@ export const TextArea = styled('textarea')(({ theme }) => ({
 
 export const ActionButton = styled('button')<{ $variant?: 'primary' | 'secondary' | 'danger' | 'accent' }>(({ theme, $variant = 'secondary' }) => {
   const palette = {
-    primary: { bg: theme.colors.primary, color: '#fff', border: theme.colors.primary },
+    primary: { bg: theme.colors.primary, color: theme.colors.onPrimary, border: theme.colors.primary },
     secondary: { bg: theme.colors.surfaceElevated, color: theme.colors.text, border: theme.colors.border },
     danger: { bg: theme.colors.dangerSoft, color: theme.colors.danger, border: theme.colors.dangerSoft },
-    accent: { bg: theme.mode === 'dark' ? '#281f45' : '#f5f3ff', color: theme.colors.accent, border: theme.mode === 'dark' ? '#403260' : '#ede9fe' },
+    accent: { bg: theme.colors.accentSoft, color: theme.colors.accent, border: theme.colors.accentBorder },
   }[$variant];
 
   return {
@@ -326,7 +326,7 @@ export const TableHeadRow = styled('tr')(({ theme }) => ({
   background: theme.mode === 'dark'
     ? 'linear-gradient(90deg, #111827, #1f2937)'
     : 'linear-gradient(90deg, #1f2937, #374151)',
-  color: '#fff',
+  color: theme.colors.onPrimary,
 }));
 
 export const HeaderCell = styled('th')<{ $weekend?: boolean }>(({ theme, $weekend }) => ({
@@ -338,9 +338,9 @@ export const HeaderCell = styled('th')<{ $weekend?: boolean }>(({ theme, $weeken
   textAlign: 'center',
   fontWeight: 700,
   background: $weekend
-    ? (theme.mode === 'dark' ? '#451f2b' : '#5f2630')
-    : (theme.mode === 'dark' ? '#172033' : '#273449'),
-  borderBottom: '1px solid rgba(255,255,255,.12)',
+    ? (theme.colors.tableHeaderWeekend)
+    : (theme.colors.tableHeaderCell),
+  borderBottom: '1px solid ' + theme.colors.tableHeaderBorder,
 }));
 
 export const StickyHeaderCell = styled('th')(({ theme }) => ({
@@ -352,10 +352,10 @@ export const StickyHeaderCell = styled('th')(({ theme }) => ({
   maxWidth: 230,
   padding: '9px 12px',
   textAlign: 'left',
-  background: theme.mode === 'dark' ? '#111827' : '#1f2937',
-  borderRight: '1px solid rgba(255,255,255,.12)',
-  borderBottom: '1px solid rgba(255,255,255,.12)',
-  boxShadow: '3px 0 8px rgba(15,23,42,.16)',
+  background: theme.colors.tableHeaderStart,
+  borderRight: '1px solid ' + theme.colors.tableHeaderBorder,
+  borderBottom: '1px solid ' + theme.colors.tableHeaderBorder,
+  boxShadow: theme.shadows.sticky,
 }));
 
 export const DepartmentRowCell = styled('td')<{ $over: boolean }>(({ theme, $over }) => ({
@@ -379,7 +379,7 @@ export const DepartmentRowInner = styled('div')({
   minHeight: 28,
   paddingRight: 10,
   background: 'inherit',
-  boxShadow: '8px 0 12px -12px rgba(15,23,42,.45)',
+  boxShadow: theme.shadows.stickyStrong,
 });
 
 export const DepartmentBadge = styled('span')<{ $kind: 'general' | 'fo' | 'night' }>(({ theme, $kind }) => ({
@@ -392,23 +392,23 @@ export const DepartmentBadge = styled('span')<{ $kind: 'general' | 'fo' | 'night
   textTransform: 'uppercase',
   background:
     $kind === 'fo'
-      ? (theme.mode === 'dark' ? '#173a63' : '#dbeafe')
+      ? (theme.colors.foSoft)
       : $kind === 'night'
-        ? (theme.mode === 'dark' ? '#252353' : '#e0e7ff')
+        ? (theme.colors.nightBadgeSoft)
         : theme.colors.offSoft,
   color:
     $kind === 'fo'
       ? theme.colors.primary
       : $kind === 'night'
-        ? (theme.mode === 'dark' ? '#a5b4fc' : '#4338ca')
+        ? (theme.colors.nightBadgeText)
         : theme.colors.textMuted,
 }));
 
 export const EmployeeRow = styled('tr')<{ $dragging: boolean; $odd: boolean }>(({ theme, $dragging, $odd }) => ({
-  background: $odd ? (theme.mode === 'dark' ? '#0f1726' : '#fafafa') : theme.colors.surfaceElevated,
+  background: $odd ? (theme.colors.rowOdd) : theme.colors.surfaceElevated,
   opacity: $dragging ? 0.42 : 1,
   transition: 'background 120ms ease, opacity 120ms ease',
-  ':hover': { background: theme.mode === 'dark' ? '#142238' : '#eff6ff' },
+  ':hover': { background: theme.colors.rowHover },
 }));
 
 export const EmployeeCell = styled('td')(({ theme }) => ({
@@ -422,7 +422,7 @@ export const EmployeeCell = styled('td')(({ theme }) => ({
   borderBottom: '1px solid ' + theme.colors.border,
   borderRight: '1px solid ' + theme.colors.border,
   background: 'inherit',
-  boxShadow: '3px 0 8px rgba(15,23,42,.08)',
+  boxShadow: theme.shadows.sticky,
 }));
 
 export const EmployeeCellInner = styled('div')({
@@ -460,10 +460,10 @@ export const EmployeeNameText = styled('span')({
 export const RowIconButton = styled('button')<{ $active?: boolean }>(({ theme, $active }) => ({
   width: 27,
   height: 27,
-  border: '1px solid ' + ($active ? (theme.mode === 'dark' ? '#6b4d0f' : '#fde68a') : theme.colors.border),
+  border: '1px solid ' + ($active ? (theme.colors.warningBorder) : theme.colors.border),
   borderRadius: 8,
-  background: $active ? (theme.mode === 'dark' ? '#392c10' : '#fffbeb') : theme.colors.surfaceElevated,
-  color: $active ? (theme.mode === 'dark' ? '#facc15' : '#b45309') : theme.colors.textMuted,
+  background: $active ? (theme.colors.warningSoft) : theme.colors.surfaceElevated,
+  color: $active ? (theme.colors.warning) : theme.colors.textMuted,
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
@@ -481,7 +481,7 @@ export const WishCount = styled('span')(({ theme }) => ({
   borderRadius: 999,
   padding: '0 4px',
   background: theme.colors.accent,
-  color: '#fff',
+  color: theme.colors.onPrimary,
   fontSize: 9,
   fontWeight: 800,
   lineHeight: '16px',
@@ -555,9 +555,9 @@ export const MetricCell = styled('td')<{ $tone: 'day' | 'night' | 'total' | 'mut
   fontWeight: $tone === 'total' ? 800 : 700,
   color:
     $tone === 'day'
-      ? (theme.mode === 'dark' ? '#6ee7b7' : '#047857')
+      ? (theme.colors.success)
       : $tone === 'night'
-        ? (theme.mode === 'dark' ? '#a5b4fc' : '#4338ca')
+        ? (theme.colors.nightBadgeText)
         : $tone === 'total'
           ? theme.colors.primary
           : theme.colors.textMuted,
@@ -567,7 +567,7 @@ export const MetricCell = styled('td')<{ $tone: 'day' | 'night' | 'total' | 'mut
       : $tone === 'night'
         ? theme.colors.nightSoft
         : $tone === 'total'
-          ? (theme.mode === 'dark' ? '#132b48' : '#eff6ff')
+          ? (theme.colors.totalSoft)
           : 'transparent',
 }));
 
@@ -578,7 +578,7 @@ export const TotalRow = styled('tr')(({ theme }) => ({
     position: 'sticky',
     bottom: 0,
     zIndex: 20,
-    boxShadow: '0 -3px 10px rgba(15,23,42,.10)',
+    boxShadow: theme.shadows.total,
   },
   '& > td:first-of-type': {
     zIndex: 28,
@@ -600,7 +600,7 @@ export const StickyTotalCell = styled(TotalCell)(({ theme }) => ({
   textAlign: 'left',
   paddingLeft: 12,
   background: theme.colors.department,
-  boxShadow: '3px 0 8px rgba(15,23,42,.08)',
+  boxShadow: theme.shadows.sticky,
 }));
 
 export const ErrorCard = styled(Card)(({ theme }) => ({
@@ -643,7 +643,7 @@ export const Drawer = styled('aside')(({ theme }) => ({
   height: '100%',
   background: theme.colors.surfaceElevated,
   color: theme.colors.text,
-  boxShadow: '-20px 0 50px rgba(0,0,0,.18)',
+  boxShadow: theme.shadows.drawer,
   padding: 20,
   overflowY: 'auto',
   borderLeft: '1px solid ' + theme.colors.border,
@@ -654,7 +654,7 @@ export const Drawer = styled('aside')(({ theme }) => ({
     borderLeft: 0,
     borderTop: '1px solid ' + theme.colors.border,
     borderRadius: '18px 18px 0 0',
-    boxShadow: '0 -18px 42px rgba(0,0,0,.24)',
+    boxShadow: theme.shadows.drawerMobile,
   },
 }));
 
@@ -835,13 +835,13 @@ export const MobileTotalChip = styled('div')<{ $tone?: 'day' | 'night' | 'total'
       : $tone === 'night'
         ? theme.colors.nightSoft
         : $tone === 'total'
-          ? (theme.mode === 'dark' ? '#132b48' : '#eff6ff')
+          ? (theme.colors.totalSoft)
           : theme.colors.offSoft,
   color:
     $tone === 'day'
-      ? (theme.mode === 'dark' ? '#6ee7b7' : '#047857')
+      ? (theme.colors.success)
       : $tone === 'night'
-        ? (theme.mode === 'dark' ? '#a5b4fc' : '#4338ca')
+        ? (theme.colors.nightBadgeText)
         : $tone === 'total'
           ? theme.colors.primary
           : theme.colors.textMuted,
