@@ -384,6 +384,7 @@ function App() {
     canManageDepartments,
     serverDepartmentMetadata,
     setDepartments,
+    setCollapsedDepartments,
     refreshServerPlanner,
   });
 
@@ -646,12 +647,7 @@ function App() {
 
     if (!confirm('Деактивировать пустой отдел?')) return;
 
-    void deactivateDepartment(departmentId).then((result) => {
-      if (result !== 'success') return;
-      setCollapsedDepartments((prev) =>
-        prev.filter((id) => id !== departmentId)
-      );
-    });
+    void deactivateDepartment(departmentId);
   };
 
   const toggleDepartmentCollapsed = (departmentId: string) => {
