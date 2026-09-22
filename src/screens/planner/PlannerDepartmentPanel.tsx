@@ -21,6 +21,10 @@ import {
   TextInput,
   TinyText,
 } from '../../theme/styles';
+import {
+  CompactDepartmentSelect,
+  DepartmentNameInput,
+} from './PlannerDepartmentPanel.styles';
 
 interface PlannerDepartmentPanelProps {
   departments: Department[];
@@ -70,7 +74,7 @@ export function PlannerDepartmentPanel({
         </div>
 
         <ControlsRow>
-          <TextInput
+          <DepartmentNameInput
             value={newDepartmentName}
             onChange={(event) =>
               onNewDepartmentNameChange(event.target.value)
@@ -79,7 +83,6 @@ export function PlannerDepartmentPanel({
               event.key === 'Enter' && onAddDepartment()
             }
             placeholder="Название отдела"
-            style={{ flex: '0 1 220px' }}
           />
 
           <Select
@@ -120,7 +123,7 @@ export function PlannerDepartmentPanel({
                 <TinyText>{employeeCount} сотрудников</TinyText>
               </DepartmentMeta>
 
-              <Select
+              <CompactDepartmentSelect
                 value={department.kind}
                 disabled={mutatingDepartmentId !== null}
                 onChange={(event) =>
@@ -129,14 +132,13 @@ export function PlannerDepartmentPanel({
                     event.target.value as DepartmentKind
                   )
                 }
-                style={{ minHeight: 32, padding: '0 8px' }}
               >
                 <option value="general">Отдел</option>
                 <option value="fo">FO</option>
                 <option value="night">Night</option>
-              </Select>
+              </CompactDepartmentSelect>
 
-              <RowIconButton
+              <RowIconButton>
                 type="button"
                 disabled={mutatingDepartmentId !== null}
                 onClick={() => onRenameDepartment(department)}
