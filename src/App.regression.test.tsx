@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 import * as excelImport from './importExcel';
 import * as plannerApi from './plannerApi';
+import * as printScheduleModule from './printSchedule';
 import { AuthUserContext } from './auth/AuthContext';
 import type { AuthUser } from './auth/api';
 
@@ -145,6 +146,87 @@ describe('App regression flows', () => {
     expect(screen.getByText(/контролируемый read-only этап/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Сотрудник' })).toBeDisabled();
     expect(screen.getByText('08-17')).toBeInTheDocument();
+  });
+
+  it('preloads adjacent server periods before full-month print', async () => {
+    const user = userEvent.setup();
+    const current = serverPlannerSnapshot();
+    const previous = serverPlannerSnapshot();
+    const next = serverPlannerSnapshot();
+    previous.schedule = {
+      'server-employee': {
+        1: {
+          type: 'shift',
+          shift: { start: '07:00', end: '16:00' },
+        },
+      },
+    };
+    next.schedule = {
+      'server-employee': {
+        1: {
+          type: 'off',
+        },
+      },
+    };
+
+    const now = new Date();
+    const previousMonth = new Date(
+      now.getFullYear(),
+      now.getMonth() - 1,
+      1,
+    );
+    const nextMonth = new Date(
+      now.getFullYear(),
+      now.getMonth() + 1,
+      1,
+    );
+
+    vi.stubEnv('VITE_SERVER_PLANNER_READ', '1');
+    const loadSpy = vi
+      .spyOn(plannerApi, 'loadPlannerServerSnapshot')
+      .mockResolvedValueOnce(current)
+      .mockResolvedValueOnce(previous)
+      .mockResolvedValueOnce(next);
+    const printSpy = vi
+      .spyOn(printScheduleModule, 'printSchedule')
+      .mockImplementation(() => undefined);
+
+    renderApp();
+
+    await screen.findByText('Серверный сотрудник');
+    await user.click(screen.getByRole('button', { name: 'Печать' }));
+
+    await waitFor(() => {
+      expect(loadSpy).toHaveBeenCalledWith(
+        previousMonth.getFullYear(),
+        previousMonth.getMonth() + 1,
+      );
+      expect(loadSpy).toHaveBeenCalledWith(
+        nextMonth.getFullYear(),
+        nextMonth.getMonth() + 1,
+      );
+      expect(printSpy).toHaveBeenCalledTimes(1);
+    });
+
+    const printOptions = printSpy.mock.calls[0][0];
+    const previousKey =
+      previousMonth.getFullYear() +
+      '-' +
+      String(previousMonth.getMonth() + 1).padStart(2, '0');
+    const nextKey =
+      nextMonth.getFullYear() +
+      '-' +
+      String(nextMonth.getMonth() + 1).padStart(2, '0');
+
+    expect(
+      printOptions.schedules[previousKey]['server-employee'][1],
+    ).toEqual({
+      type: 'shift',
+      shift: { start: '07:00', end: '16:00' },
+    });
+    expect(
+      printOptions.schedules[nextKey]['server-employee'][1],
+    ).toEqual({ type: 'off' });
   });
 
   it('enables server-backed Department reorder only for Super Admin', async () => {

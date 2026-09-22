@@ -26,6 +26,11 @@ export interface PrintWeekRange {
   days: PrintCalendarDay[];
 }
 
+export interface PrintPeriod {
+  year: number;
+  month: number;
+}
+
 interface PrintScheduleOptions {
   departments: Department[];
   employees: Employee[];
@@ -255,6 +260,37 @@ export function getPrintWeekRanges(
   }
 
   return ranges;
+}
+
+export function getRequiredPrintPeriods(
+  year: number,
+  month: number,
+  rangeKey: string
+): PrintPeriod[] {
+  const ranges =
+    rangeKey === 'month'
+      ? getPrintWeekRanges(year, month)
+      : getPrintWeekRanges(year, month).filter(
+          (range) => range.key === rangeKey
+        );
+
+  const periods: PrintPeriod[] = [];
+  const seen = new Set<string>();
+
+  ranges.forEach((range) => {
+    range.days.forEach((day) => {
+      const key = day.year + '-' + day.month;
+      if (seen.has(key)) return;
+
+      seen.add(key);
+      periods.push({
+        year: day.year,
+        month: day.month,
+      });
+    });
+  });
+
+  return periods;
 }
 
 function buildWeekTable(

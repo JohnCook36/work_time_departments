@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   getMonthWeekRanges,
   getPrintWeekRanges,
+  getRequiredPrintPeriods,
   getVisibleMonthWeekRanges,
 } from './printSchedule';
 
@@ -71,6 +72,38 @@ describe('getMonthWeekRanges', () => {
   });
 });
 
+
+describe('getRequiredPrintPeriods', () => {
+  it('returns previous/current/next periods for a full month with boundary weeks', () => {
+    expect(getRequiredPrintPeriods(2026, 8, 'month')).toEqual([
+      { year: 2026, month: 7 },
+      { year: 2026, month: 8 },
+      { year: 2026, month: 9 },
+    ]);
+  });
+
+  it('loads only the periods touched by the selected week', () => {
+    expect(
+      getRequiredPrintPeriods(2026, 8, 'week:2026-08-31'),
+    ).toEqual([
+      { year: 2026, month: 7 },
+      { year: 2026, month: 8 },
+    ]);
+
+    expect(
+      getRequiredPrintPeriods(2026, 8, 'week:2026-09-28'),
+    ).toEqual([
+      { year: 2026, month: 8 },
+      { year: 2026, month: 9 },
+    ]);
+  });
+
+  it('returns no periods for an unknown week key', () => {
+    expect(
+      getRequiredPrintPeriods(2026, 8, 'week:missing'),
+    ).toEqual([]);
+  });
+});
 
 describe('getVisibleMonthWeekRanges', () => {
   it('splits the visible month into Monday-Sunday ranges', () => {
