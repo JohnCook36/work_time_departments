@@ -22,6 +22,7 @@ interface PlannerManagementScreenProps {
   isCreatingEmployee: boolean;
   onAddEmployee: (values: EmployeeCreateFormValues) => Promise<boolean>;
   canManageDepartments: boolean;
+  canViewDepartments: boolean;
   showDepartments: boolean;
   onToggleDepartments: () => void;
   scheduleView: ScheduleView;
@@ -62,6 +63,7 @@ export function PlannerManagementScreen({
   isCreatingEmployee,
   onAddEmployee,
   canManageDepartments,
+  canViewDepartments,
   showDepartments,
   onToggleDepartments,
   scheduleView,
@@ -99,6 +101,7 @@ export function PlannerManagementScreen({
         isCreatingEmployee={isCreatingEmployee}
         onAddEmployee={onAddEmployee}
         canManageDepartments={canManageDepartments}
+        canViewDepartments={canViewDepartments}
         onToggleDepartments={onToggleDepartments}
         scheduleView={scheduleView}
         onScheduleViewChange={onScheduleViewChange}
@@ -123,6 +126,7 @@ export function PlannerManagementScreen({
         departments={departments}
         employees={employees}
         canManageDepartments={canManageDepartments}
+        canViewDepartments={canViewDepartments}
         showDepartments={showDepartments}
         newDepartmentName={newDepartmentName}
         onNewDepartmentNameChange={onNewDepartmentNameChange}
