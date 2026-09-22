@@ -302,6 +302,75 @@ export class SchedulesService {
       );
     }
 
+    return this.persistScheduleChanges(year, month, changes, employeeIds);
+  }
+
+  async applyManageableScheduleChanges(
+    admin: AuthUserContext,
+    year: number,
+    month: number,
+    changes: ScheduleCellChange[],
+  ) {
+    assertPeriod(year, month);
+
+    if (!Array.isArray(changes) || changes.length === 0) {
+      throw new BadRequestException('changes must contain at least one item');
+    }
+
+    if (changes.length > 5000) {
+      throw new BadRequestException('too many schedule changes in one request');
+    }
+
+    const seen = new Set<string>();
+    for (const change of changes) {
+      validateCellChange(change, year, month);
+      const key = changeKey(change.employeeId, change.day);
+      if (seen.has(key)) {
+        throw new BadRequestException(
+          'duplicate schedule change for the same employee and day',
+        );
+      }
+      seen.add(key);
+    }
+
+    const employeeIds = Array.from(
+      new Set(changes.map((change) => change.employeeId)),
+    );
+
+    const employees = await this.prisma.employee.findMany({
+      where: {
+        id: { in: employeeIds },
+        isActive: true,
+        department: {
+          isActive: true,
+        },
+      },
+      select: {
+        id: true,
+        departmentId: true,
+      },
+    });
+
+    if (employees.length !== employeeIds.length) {
+      throw new BadRequestException(
+        'one or more employees are unavailable',
+      );
+    }
+
+    this.authorization.assertCanAdministerDepartments(
+      admin,
+      employees.map((employee) => employee.departmentId),
+    );
+
+    return this.persistScheduleChanges(year, month, changes, employeeIds);
+  }
+
+  private persistScheduleChanges(
+    year: number,
+    month: number,
+    changes: ScheduleCellChange[],
+    employeeIds: string[],
+  ) {
     return this.prisma.$transaction(async (tx) => {
       let schedule = await tx.schedule.findUnique({
         where: {
