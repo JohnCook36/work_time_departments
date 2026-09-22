@@ -43,6 +43,8 @@ import {
   HourLine,
   HoursShiftDisplay,
   HourTotal,
+  ShiftCodeLine,
+  ShiftTimeLine,
   SortableDepartmentRow,
   SortableEmployeeTableRow,
 } from './PlannerScheduleTable.styles';
@@ -419,16 +421,26 @@ function SortableEmployeeRow({
                         : ''
                   }
                 >
-                  {entry.type === 'empty'
-                    ? '·'
-                    : entry.type === 'off'
-                      ? 'OFF'
-                      : entry.type === 'shift' && entry.shift
-                        ? entry.shift.code ||
-                          entry.shift.start.slice(0, 2) +
-                            '-' +
-                            entry.shift.end.slice(0, 2)
-                        : '⚠'}
+                  {entry.type === 'empty' ? (
+                    '·'
+                  ) : entry.type === 'off' ? (
+                    'OFF'
+                  ) : entry.type === 'shift' && entry.shift ? (
+                    entry.shift.code ? (
+                      <>
+                        <ShiftCodeLine>{entry.shift.code}</ShiftCodeLine>
+                        <ShiftTimeLine>
+                          {entry.shift.start.slice(0, 5)}–{entry.shift.end.slice(0, 5)}
+                        </ShiftTimeLine>
+                      </>
+                    ) : (
+                      entry.shift.start.slice(0, 2) +
+                      '-' +
+                      entry.shift.end.slice(0, 2)
+                    )
+                  ) : (
+                    '⚠'
+                  )}
                 </ShiftDisplay>
               )}
             </ShiftCell>
