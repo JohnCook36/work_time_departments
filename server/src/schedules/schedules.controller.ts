@@ -77,6 +77,24 @@ export class SchedulesController {
     );
   }
 
+  @Patch('manageable/entries')
+  applyManageableScheduleChanges(
+    @CurrentUser() user: AuthUserContext,
+    @Body()
+    body: {
+      year?: unknown;
+      month?: unknown;
+      changes?: unknown;
+    },
+  ) {
+    return this.schedules.applyManageableScheduleChanges(
+      user,
+      requiredBodyInteger(body?.year, 'year'),
+      requiredBodyInteger(body?.month, 'month'),
+      requiredChanges(body?.changes),
+    );
+  }
+
   @Patch('department/entries')
   applyDepartmentScheduleChanges(
     @CurrentUser() user: AuthUserContext,
