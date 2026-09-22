@@ -12,6 +12,8 @@ cp .env.example .env.local
 npm run dev
 ```
 
+Локально frontend запускается на `http://localhost:5173`, backend — на `http://localhost:3000`. Эти порты не должны совпадать.
+
 Frontend обращается к `VITE_API_URL` (по умолчанию `http://localhost:3000`) с существующей cookie session. Для локального OTP используйте конфигурацию backend; production SMS provider пока не подключён.
 
 Существующие режимы planner выбираются переменными `VITE_SERVER_PLANNER_READ` и `VITE_SERVER_PLANNER_WRITE`. Write подразумевает read; при выключенных флагах сохраняется legacy local mode. В server mode источником данных служит backend, без fallback на planner localStorage.
