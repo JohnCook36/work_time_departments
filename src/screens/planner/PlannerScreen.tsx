@@ -459,7 +459,18 @@ export function PlannerScreen() {
 
   const addEmployee = async () => {
     const name = newEmployeeName.trim();
-    if (!name || !newEmployeeDepartmentId || isCreatingEmployee) return;
+
+    if (isCreatingEmployee) return;
+
+    if (!name) {
+      alert('Введите ФИО нового сотрудника.');
+      return;
+    }
+
+    if (!newEmployeeDepartmentId) {
+      alert('Выберите отдел для нового сотрудника.');
+      return;
+    }
 
     if (newEmployeeScheduleMode === 'fixed-weekdays') {
       const fixedEntry = validateShiftInput(
