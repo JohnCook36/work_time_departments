@@ -138,7 +138,7 @@ export function PlannerDepartmentPanel({
                 <option value="night">Night</option>
               </CompactDepartmentSelect>
 
-              <RowIconButton>
+              <RowIconButton
                 type="button"
                 disabled={mutatingDepartmentId !== null}
                 onClick={() => onRenameDepartment(department)}
