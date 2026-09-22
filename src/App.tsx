@@ -165,6 +165,10 @@ import {
   DragHandle,
 } from './styles';
 
+function generateId(): string {
+  return Math.random().toString(36).slice(2, 11);
+}
+
 function getPeriodKey(year: number, month: number): string {
   return year + '-' + String(month + 1).padStart(2, '0');
 }
