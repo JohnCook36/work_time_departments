@@ -1,4 +1,5 @@
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
+import { useForm } from 'react-hook-form';
 import {
   FileSpreadsheet,
   FileUp,
@@ -9,16 +10,21 @@ import {
 } from 'lucide-react';
 
 import { Department, EmployeeScheduleMode } from '../../domain/models';
+import { validateShiftInput } from '../../domain/schedule/shiftHours';
 import {
   ActionButton,
   ControlsCard,
   ControlsRow,
   Divider,
   Select,
-  TextInput,
 } from '../../theme/styles';
 import { ScheduleView } from './PlannerScheduleTable';
 import {
+  EmployeeFieldError,
+  EmployeeForm,
+  EmployeeFormStatus,
+  EmployeeNameField,
+  EmployeeNameInput,
   FixedTimeInput,
   HiddenFileInput,
   PrintRangeSelect,
@@ -29,21 +35,19 @@ interface PrintRange {
   label: string;
 }
 
+export interface EmployeeCreateFormValues {
+  displayName: string;
+  departmentId: string;
+  scheduleMode: EmployeeScheduleMode;
+  fixedStartTime: string;
+  fixedEndTime: string;
+}
+
 interface PlannerControlsToolbarProps {
-  newEmployeeName: string;
-  onNewEmployeeNameChange: (value: string) => void;
-  newEmployeeDepartmentId: string;
-  onNewEmployeeDepartmentChange: (value: string) => void;
-  newEmployeeScheduleMode: EmployeeScheduleMode;
-  onNewEmployeeScheduleModeChange: (value: EmployeeScheduleMode) => void;
-  newEmployeeFixedStartTime: string;
-  onNewEmployeeFixedStartTimeChange: (value: string) => void;
-  newEmployeeFixedEndTime: string;
-  onNewEmployeeFixedEndTimeChange: (value: string) => void;
   departments: Department[];
   canCreateEmployee: boolean;
   isCreatingEmployee: boolean;
-  onAddEmployee: () => void;
+  onAddEmployee: (values: EmployeeCreateFormValues) => Promise<boolean>;
   canManageDepartments: boolean;
   onToggleDepartments: () => void;
   scheduleView: ScheduleView;
@@ -66,16 +70,6 @@ interface PlannerControlsToolbarProps {
 }
 
 export function PlannerControlsToolbar({
-  newEmployeeName,
-  onNewEmployeeNameChange,
-  newEmployeeDepartmentId,
-  onNewEmployeeDepartmentChange,
-  newEmployeeScheduleMode,
-  onNewEmployeeScheduleModeChange,
-  newEmployeeFixedStartTime,
-  onNewEmployeeFixedStartTimeChange,
-  newEmployeeFixedEndTime,
-  onNewEmployeeFixedEndTimeChange,
   departments,
   canCreateEmployee,
   isCreatingEmployee,
@@ -101,81 +95,163 @@ export function PlannerControlsToolbar({
   onClearAll,
 }: PlannerControlsToolbarProps) {
   const excelFileInputRef = useRef<HTMLInputElement | null>(null);
+  const {
+    register,
+    handleSubmit,
+    watch,
+    getValues,
+    setValue,
+    reset,
+    formState: { errors },
+  } = useForm<EmployeeCreateFormValues>({
+    defaultValues: {
+      displayName: '',
+      departmentId: departments[0]?.id || '',
+      scheduleMode: 'flexible',
+      fixedStartTime: '',
+      fixedEndTime: '',
+    },
+  });
+
+  const scheduleMode = watch('scheduleMode');
+
+  useEffect(() => {
+    const departmentId = getValues('departmentId');
+    if (!departments.some((department) => department.id === departmentId)) {
+      setValue('departmentId', departments[0]?.id || '');
+    }
+  }, [departments, getValues, setValue]);
+
+  const submitEmployee = handleSubmit(async (values) => {
+    const created = await onAddEmployee({
+      ...values,
+      displayName: values.displayName.trim(),
+    });
+
+    if (created) {
+      reset({
+        displayName: '',
+        departmentId: departments[0]?.id || '',
+        scheduleMode: 'flexible',
+        fixedStartTime: '',
+        fixedEndTime: '',
+      });
+    }
+  });
 
   return (
     <ControlsCard>
       <ControlsRow>
-        <TextInput
-          type="text"
-          value={newEmployeeName}
-          disabled={!canCreateEmployee || isCreatingEmployee}
-          onChange={(event) => onNewEmployeeNameChange(event.target.value)}
-          onKeyDown={(event) => event.key === 'Enter' && onAddEmployee()}
-          placeholder="ФИО нового сотрудника..."
-        />
-
-        <Select
-          value={newEmployeeDepartmentId}
-          disabled={!canCreateEmployee || isCreatingEmployee}
-          onChange={(event) =>
-            onNewEmployeeDepartmentChange(event.target.value)
-          }
-        >
-          {departments.map((department) => (
-            <option key={department.id} value={department.id}>
-              {department.name}
-            </option>
-          ))}
-        </Select>
-
-        <Select
-          value={newEmployeeScheduleMode}
-          disabled={!canCreateEmployee || isCreatingEmployee}
-          onChange={(event) =>
-            onNewEmployeeScheduleModeChange(
-              event.target.value as EmployeeScheduleMode
-            )
-          }
-          title="Тип рабочего графика сотрудника"
-        >
-          <option value="flexible">Плавающий график</option>
-          <option value="fixed-weekdays">5/2 · фиксированные часы</option>
-        </Select>
-
-        {newEmployeeScheduleMode === 'fixed-weekdays' && (
-          <>
-            <FixedTimeInput
-              type="time"
-              value={newEmployeeFixedStartTime}
+        <EmployeeForm onSubmit={submitEmployee} noValidate>
+          <EmployeeNameField>
+            <EmployeeNameInput
+              type="text"
               disabled={!canCreateEmployee || isCreatingEmployee}
-              onChange={(event) =>
-                onNewEmployeeFixedStartTimeChange(event.target.value)
-              }
-              title="Начало рабочего дня"
-              aria-label="Начало рабочего дня"
+              aria-invalid={errors.displayName ? 'true' : 'false'}
+              placeholder="ФИО нового сотрудника..."
+              {...register('displayName', {
+                required: 'Введите ФИО нового сотрудника',
+                validate: (value) =>
+                  value.trim().length >= 2 || 'Введите корректное ФИО',
+              })}
             />
-            <FixedTimeInput
-              type="time"
-              value={newEmployeeFixedEndTime}
-              disabled={!canCreateEmployee || isCreatingEmployee}
-              onChange={(event) =>
-                onNewEmployeeFixedEndTimeChange(event.target.value)
-              }
-              title="Окончание рабочего дня"
-              aria-label="Окончание рабочего дня"
-            />
-          </>
-        )}
+            {errors.displayName && (
+              <EmployeeFieldError role="alert">
+                {errors.displayName.message}
+              </EmployeeFieldError>
+            )}
+          </EmployeeNameField>
 
-        <ActionButton
-          type="button"
-          $variant="primary"
-          onClick={onAddEmployee}
-          disabled={!canCreateEmployee || isCreatingEmployee}
-        >
-          <Plus size={16} />
-          {isCreatingEmployee ? 'Добавляю…' : 'Добавить сотрудника'}
-        </ActionButton>
+          <Select
+            disabled={!canCreateEmployee || isCreatingEmployee}
+            aria-invalid={errors.departmentId ? 'true' : 'false'}
+            {...register('departmentId', {
+              required: 'Выберите отдел',
+            })}
+          >
+            {departments.map((department) => (
+              <option key={department.id} value={department.id}>
+                {department.name}
+              </option>
+            ))}
+          </Select>
+
+          <Select
+            disabled={!canCreateEmployee || isCreatingEmployee}
+            {...register('scheduleMode')}
+            title="Тип рабочего графика сотрудника"
+          >
+            <option value="flexible">Плавающий график</option>
+            <option value="fixed-weekdays">5/2 · фиксированные часы</option>
+          </Select>
+
+          {scheduleMode === 'fixed-weekdays' && (
+            <>
+              <FixedTimeInput
+                type="time"
+                disabled={!canCreateEmployee || isCreatingEmployee}
+                aria-invalid={errors.fixedStartTime ? 'true' : 'false'}
+                aria-label="Начало рабочего дня"
+                {...register('fixedStartTime', {
+                  validate: (value) =>
+                    scheduleMode !== 'fixed-weekdays' ||
+                    Boolean(value) ||
+                    'Укажите начало рабочего дня',
+                })}
+              />
+              <FixedTimeInput
+                type="time"
+                disabled={!canCreateEmployee || isCreatingEmployee}
+                aria-invalid={errors.fixedEndTime ? 'true' : 'false'}
+                aria-label="Окончание рабочего дня"
+                {...register('fixedEndTime', {
+                  validate: (value) => {
+                    if (scheduleMode !== 'fixed-weekdays') return true;
+                    if (!value) return 'Укажите окончание рабочего дня';
+
+                    const startTime = getValues('fixedStartTime');
+                    if (!startTime) return true;
+
+                    const entry = validateShiftInput(startTime + '-' + value);
+                    return (
+                      entry.type === 'shift' ||
+                      'Проверьте время начала и окончания'
+                    );
+                  },
+                })}
+              />
+            </>
+          )}
+
+          <ActionButton
+            type="submit"
+            $variant="primary"
+            disabled={
+              !canCreateEmployee ||
+              isCreatingEmployee ||
+              departments.length === 0
+            }
+          >
+            <Plus size={16} />
+            {isCreatingEmployee ? 'Добавляю…' : 'Добавить сотрудника'}
+          </ActionButton>
+
+          {(errors.departmentId ||
+            errors.fixedStartTime ||
+            errors.fixedEndTime) && (
+            <EmployeeFormStatus role="alert">
+              {errors.departmentId?.message ||
+                errors.fixedStartTime?.message ||
+                errors.fixedEndTime?.message}
+            </EmployeeFormStatus>
+          )}
+
+          {departments.length === 0 && (
+            <EmployeeFormStatus>
+              Нет доступных отделов для добавления сотрудника.
+            </EmployeeFormStatus>
+          )}
+        </EmployeeForm>
 
         <ActionButton
           type="button"
