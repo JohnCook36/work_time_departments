@@ -305,6 +305,33 @@ describe('DepartmentsService', () => {
     expect(prisma.department.updateMany).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['active Membership', 'membership'],
+    ['pending onboarding request', 'onboardingRequest'],
+    ['active shift-change request', 'shiftChangeRequest'],
+  ] as const)(
+    'blocks Department deactivation while %s remains',
+    async (_label, blocker) => {
+      prisma.department.findFirst.mockResolvedValue({
+        id: 'department-a',
+        updatedAt: new Date('2026-09-22T08:00:00.000Z'),
+      });
+      prisma[blocker].count.mockResolvedValue(1);
+
+      await expect(
+        service.deactivateDepartment(
+          userWith(RoleType.SUPER_ADMIN, null),
+          'department-a',
+          {
+            expectedUpdatedAt: '2026-09-22T08:00:00.000Z',
+          },
+        ),
+      ).rejects.toBeInstanceOf(ConflictException);
+
+      expect(prisma.department.updateMany).not.toHaveBeenCalled();
+    },
+  );
+
   it('blocks deactivation of the final active Department', async () => {
     prisma.department.findFirst.mockResolvedValue({
       id: 'department-a',
