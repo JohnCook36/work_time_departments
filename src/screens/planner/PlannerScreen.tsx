@@ -45,6 +45,11 @@ import { PlannerOverlays } from './PlannerOverlays';
 import { PlannerScheduleWorkspace } from './PlannerScheduleWorkspace';
 import { ScheduleView } from './PlannerScheduleTable';
 import {
+  EmployeeSelfServiceCard,
+  EmployeeSelfServiceText,
+  PoweredByLine,
+} from './PlannerScreen.styles';
+import {
   Card,
   Container,
   Footer,
@@ -798,14 +803,14 @@ export function PlannerScreen() {
           )}
 
           {!canManagePlanner && (
-            <Card style={{ marginTop: 14, padding: 22 }}>
+            <EmployeeSelfServiceCard>
               <PanelTitle>Личный кабинет сотрудника</PanelTitle>
-              <Muted style={{ marginTop: 6 }}>
+              <EmployeeSelfServiceText>
                 Здесь не показываются сводные часы, данные других сотрудников и
                 инструменты изменения общего графика. Выберите нужный месяц и
                 откройте «Мои смены» кнопкой с календарём в шапке.
-              </Muted>
-            </Card>
+              </EmployeeSelfServiceText>
+            </EmployeeSelfServiceCard>
           )}
 
           <Footer>
@@ -813,18 +818,10 @@ export function PlannerScreen() {
               Данные сохраняются локально в браузере • Смены и пожелания раздельно
               по месяцам
             </div>
-            <div
-              style={{
-                marginTop: 6,
-                fontWeight: 700,
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 5,
-              }}
-            >
+            <PoweredByLine>
               Powered by Anastasiya P.
               <Heart size={14} fill="currentColor" aria-hidden="true" />
-            </div>
+            </PoweredByLine>
           </Footer>
         </Container>
       </Page>
