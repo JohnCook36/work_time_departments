@@ -84,7 +84,6 @@ import { AdminOnboardingPanel } from './auth/AdminOnboardingPanel';
 import { MySchedulePanel } from './auth/MySchedulePanel';
 import { hasManagementAccess, useAuthUser } from './auth/AuthContext';
 import {
-  applyDepartmentScheduleChanges,
   applyPlannerScheduleChanges,
   buildDepartmentReorderInput,
   buildEmployeeMoveInput,
@@ -110,6 +109,7 @@ import {
 import { getTheme } from './theme';
 import { usePlannerServerSync } from './hooks/usePlannerServerSync';
 import { usePlannerStorage } from './hooks/usePlannerStorage';
+import { useScheduleMutations } from './hooks/useScheduleMutations';
 import { useThemeMode } from './hooks/useThemeMode';
 import {
   ActionButton,
@@ -281,7 +281,6 @@ function App() {
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [isImportingExcel, setIsImportingExcel] = useState(false);
   const [isApplyingExcelImport, setIsApplyingExcelImport] = useState(false);
-  const [isApplyingBulkSchedule, setIsApplyingBulkSchedule] = useState(false);
   const [isCreatingEmployee, setIsCreatingEmployee] = useState(false);
   const [excelImportPreview, setExcelImportPreview] =
     useState<ExcelImportPreview | null>(null);
@@ -350,12 +349,6 @@ function App() {
     canManagePlanner &&
     (!serverPlannerReadEnabled ||
       (serverPlannerWriteEnabled && serverPlannerStatus === 'ready'));
-  const canBulkEditSchedule =
-    canManagePlanner &&
-    (!serverPlannerReadEnabled ||
-      (serverPlannerWriteEnabled &&
-        serverPlannerStatus === 'ready' &&
-        !isApplyingBulkSchedule));
   const canMoveEmployees =
     canManagePlanner &&
     (!serverPlannerReadEnabled ||
@@ -455,87 +448,36 @@ function App() {
     [periodKey]
   );
 
+  const {
+    updateCell,
+    fillOffAll,
+    clearAll,
+    isApplyingBulkSchedule,
+  } = useScheduleMutations({
+    serverPlannerWriteEnabled,
+    serverPlannerStatus,
+    serverCellMetadata,
+    employees,
+    rawSchedule,
+    year,
+    month,
+    daysInMonth,
+    updateCurrentSchedule,
+    refreshServerPlanner,
+  });
+
+  const canBulkEditSchedule =
+    canManagePlanner &&
+    (!serverPlannerReadEnabled ||
+      (serverPlannerWriteEnabled &&
+        serverPlannerStatus === 'ready' &&
+        !isApplyingBulkSchedule));
+
   const getEntry = useCallback(
     (empId: string, day: number): ShiftEntry => {
       return schedule[empId]?.[day] || { type: 'empty' };
     },
     [schedule]
-  );
-
-  const updateCell = useCallback(
-    (empId: string, day: number, value: string) => {
-      const entry = validateShiftInput(value);
-
-      if (!serverPlannerWriteEnabled) {
-        updateCurrentSchedule((current) => ({
-          ...current,
-          [empId]: {
-            ...(current[empId] || {}),
-            [day]: entry,
-          },
-        }));
-        return;
-      }
-
-      if (entry.type === 'error') {
-        alert(entry.error || 'Некорректная смена.');
-        return;
-      }
-
-      if (serverPlannerStatus !== 'ready') {
-        alert('График ещё не синхронизирован с сервером.');
-        return;
-      }
-
-      const employee = employees.find((item) => item.id === empId);
-      if (!employee) {
-        alert('Сотрудник не найден в серверном графике.');
-        void refreshServerPlanner();
-        return;
-      }
-
-      const change = buildScheduleCellChange(
-        empId,
-        day,
-        entry,
-        serverCellMetadata[empId]?.[day]
-      );
-
-      updateCurrentSchedule((current) => ({
-        ...current,
-        [empId]: {
-          ...(current[empId] || {}),
-          [day]: entry,
-        },
-      }));
-
-      void applyDepartmentScheduleChanges(
-        employee.departmentId,
-        year,
-        month + 1,
-        [change]
-      )
-        .then(() => refreshServerPlanner())
-        .catch((error) => {
-          console.error('Server planner write failed', error);
-          alert(
-            error instanceof Error
-              ? 'Не удалось сохранить смену: ' + error.message
-              : 'Не удалось сохранить смену на сервере.'
-          );
-          void refreshServerPlanner();
-        });
-    },
-    [
-      employees,
-      month,
-      refreshServerPlanner,
-      serverCellMetadata,
-      serverPlannerStatus,
-      serverPlannerWriteEnabled,
-      updateCurrentSchedule,
-      year,
-    ]
   );
 
   const getEmployeeTotals = useCallback(
@@ -1463,137 +1405,6 @@ function App() {
       total: Math.round(total * 100) / 100,
     };
   }, [employees, getEmployeeTotals]);
-
-  const fillOffAll = async () => {
-    if (!confirm('Заполнить все пустые ячейки текущего месяца как OFF?')) return;
-
-    if (!serverPlannerWriteEnabled) {
-      updateCurrentSchedule((current) => {
-        const next = { ...current };
-
-        employees.forEach((employee) => {
-          let employeeSchedule = { ...(next[employee.id] || {}) };
-
-          for (let day = 1; day <= daysInMonth; day++) {
-            if (!employeeSchedule[day] || employeeSchedule[day].type === 'empty') {
-              employeeSchedule = {
-                ...employeeSchedule,
-                [day]: { type: 'off' },
-              };
-            }
-          }
-
-          next[employee.id] = employeeSchedule;
-        });
-
-        return next;
-      });
-      return;
-    }
-
-    const changes = employees.flatMap((employee) => {
-      const employeeSchedule = rawSchedule[employee.id] || {};
-
-      return Array.from({ length: daysInMonth }, (_, index) => index + 1)
-        .filter((day) => {
-          const entry = employeeSchedule[day];
-          return !entry || entry.type === 'empty';
-        })
-        .map((day) =>
-          buildScheduleCellChange(
-            employee.id,
-            day,
-            { type: 'off' },
-            serverCellMetadata[employee.id]?.[day]
-          )
-        );
-    });
-
-    if (changes.length === 0) {
-      alert('Пустых ячеек для заполнения OFF нет.');
-      return;
-    }
-
-    if (changes.length > 5000) {
-      alert(
-        'Слишком много ячеек для одной атомарной операции. Уменьшите количество сотрудников.'
-      );
-      return;
-    }
-
-    try {
-      setIsApplyingBulkSchedule(true);
-      await applyPlannerScheduleChanges(year, month + 1, changes);
-      await refreshServerPlanner();
-    } catch (error) {
-      console.error('Server bulk OFF failed', error);
-      alert(
-        error instanceof Error
-          ? 'Не удалось заполнить OFF: ' + error.message
-          : 'Не удалось заполнить OFF на сервере.'
-      );
-      await refreshServerPlanner();
-    } finally {
-      setIsApplyingBulkSchedule(false);
-    }
-  };
-
-  const clearAll = async () => {
-    if (!confirm('Очистить все смены за текущий месяц?')) return;
-
-    if (!serverPlannerWriteEnabled) {
-      setSchedules((prev) => ({ ...prev, [periodKey]: {} }));
-      return;
-    }
-
-    const changes = employees.flatMap((employee) =>
-      Object.entries(serverCellMetadata[employee.id] || {})
-        .map(([dayValue, metadata]) => ({
-          day: Number(dayValue),
-          metadata,
-        }))
-        .filter(
-          ({ day }) =>
-            Number.isInteger(day) && day >= 1 && day <= daysInMonth
-        )
-        .map(({ day, metadata }) =>
-          buildScheduleCellChange(
-            employee.id,
-            day,
-            { type: 'empty' },
-            metadata
-          )
-        )
-    );
-
-    if (changes.length === 0) {
-      alert('Сохранённых смен за текущий месяц нет.');
-      return;
-    }
-
-    if (changes.length > 5000) {
-      alert(
-        'Слишком много ячеек для одной атомарной операции. Операция отменена.'
-      );
-      return;
-    }
-
-    try {
-      setIsApplyingBulkSchedule(true);
-      await applyPlannerScheduleChanges(year, month + 1, changes);
-      await refreshServerPlanner();
-    } catch (error) {
-      console.error('Server clear month failed', error);
-      alert(
-        error instanceof Error
-          ? 'Не удалось очистить месяц: ' + error.message
-          : 'Не удалось очистить месяц на сервере.'
-      );
-      await refreshServerPlanner();
-    } finally {
-      setIsApplyingBulkSchedule(false);
-    }
-  };
 
   const handleExportExcel = async () => {
     if (isExportingExcel) return;
