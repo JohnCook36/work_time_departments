@@ -433,6 +433,102 @@ describe('App regression flows', () => {
     });
   });
 
+  it('fills only empty raw cells with OFF through the atomic server batch', async () => {
+    const user = userEvent.setup();
+    const snapshot = serverPlannerSnapshot();
+    const now = new Date();
+
+    vi.stubEnv('VITE_SERVER_PLANNER_WRITE', '1');
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    vi.spyOn(plannerApi, 'loadPlannerServerSnapshot').mockResolvedValue(snapshot);
+    const applySpy = vi
+      .spyOn(plannerApi, 'applyPlannerScheduleChanges')
+      .mockResolvedValue({
+        status: 'ok',
+        applied: 1,
+        schedule: {
+          id: 'schedule-current',
+          updatedAt: '2026-09-22T10:00:00.000Z',
+        },
+      });
+
+    renderApp();
+
+    await screen.findByText('Серверный сотрудник');
+    await user.click(screen.getByRole('button', { name: 'OFF все' }));
+
+    await waitFor(() => {
+      expect(applySpy).toHaveBeenCalledTimes(1);
+    });
+
+    const [year, month, changes] = applySpy.mock.calls[0];
+    expect(year).toBe(now.getFullYear());
+    expect(month).toBe(now.getMonth() + 1);
+    expect(changes).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          employeeId: 'server-employee',
+          day: 1,
+        }),
+      ]),
+    );
+    expect(changes).toEqual(
+      expect.arrayContaining([
+        {
+          employeeId: 'server-employee',
+          day: 2,
+          type: 'off',
+          expectedUpdatedAt: null,
+        },
+      ]),
+    );
+    expect(plannerApi.loadPlannerServerSnapshot).toHaveBeenCalledTimes(2);
+  });
+
+  it('clears persisted server cells with their optimistic metadata', async () => {
+    const user = userEvent.setup();
+    const snapshot = serverPlannerSnapshot();
+    const now = new Date();
+
+    vi.stubEnv('VITE_SERVER_PLANNER_WRITE', '1');
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    vi.spyOn(plannerApi, 'loadPlannerServerSnapshot').mockResolvedValue(snapshot);
+    const applySpy = vi
+      .spyOn(plannerApi, 'applyPlannerScheduleChanges')
+      .mockResolvedValue({
+        status: 'ok',
+        applied: 1,
+        schedule: {
+          id: 'schedule-current',
+          updatedAt: '2026-09-22T10:00:00.000Z',
+        },
+      });
+
+    renderApp();
+
+    await screen.findByText('Серверный сотрудник');
+    await user.click(
+      screen.getByRole('button', { name: 'Очистить месяц' }),
+    );
+
+    await waitFor(() => {
+      expect(applySpy).toHaveBeenCalledWith(
+        now.getFullYear(),
+        now.getMonth() + 1,
+        [
+          {
+            employeeId: 'server-employee',
+            day: 1,
+            type: 'empty',
+            expectedUpdatedAt:
+              snapshot.cellMetadata['server-employee'][1].updatedAt,
+          },
+        ],
+      );
+    });
+    expect(plannerApi.loadPlannerServerSnapshot).toHaveBeenCalledTimes(2);
+  });
+
   it('creates an Employee through the backend in server write mode', async () => {
     const user = userEvent.setup();
     const snapshot = serverPlannerSnapshot();
