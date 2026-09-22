@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Check, Clock3, Eraser, Moon, X } from 'lucide-react';
 import { Employee, ShiftCode, ShiftEntry } from '../../domain/models';
-import { statusPalette } from '../../theme/palette';
 import { MONTH_NAMES } from '../../utils/calendar';
 import {
   ActionButton,
@@ -19,6 +18,17 @@ import {
   TextInput,
   TinyText,
 } from '../../theme/styles';
+import {
+  CompactDrawer,
+  DrawerActionsGrid,
+  DrawerNotice,
+  FieldHint,
+  FullRowActionButton,
+  FullWidthInput,
+  FullWidthSelect,
+  ShiftTimeGrid,
+  TimeIconSlot,
+} from './styles';
 
 interface ShiftEditorProps {
   employee: Employee;
@@ -72,10 +82,7 @@ export function ShiftEditor({
 
   return (
     <DrawerOverlay onMouseDown={onClose}>
-      <Drawer
-        onMouseDown={(event) => event.stopPropagation()}
-        style={{ width: 'min(500px, 100vw)' }}
-      >
+      <CompactDrawer onMouseDown={(event) => event.stopPropagation()}>
         <DrawerHeader>
           <div>
             <DrawerTitle>Смена сотрудника</DrawerTitle>
@@ -91,12 +98,11 @@ export function ShiftEditor({
 
         <FormGroup>
           <FormLabel>Код смены</FormLabel>
-          <Select
+          <FullWidthSelect
             value={code}
             onChange={(event) =>
               setCode(event.target.value as ShiftCode | '')
             }
-            style={{ width: '100%' }}
           >
             <option value="">Без кода</option>
             <option value="E">E</option>
@@ -104,43 +110,34 @@ export function ShiftEditor({
             <option value="INN">INN</option>
             <option value="L">L</option>
             <option value="N">N</option>
-          </Select>
+          </FullWidthSelect>
         </FormGroup>
 
         <FormGroup>
           <FormLabel>Время работы</FormLabel>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr auto 1fr',
-              alignItems: 'center',
-              gap: 10,
-            }}
-          >
+          <ShiftTimeGrid>
             <div>
-              <TinyText style={{ marginBottom: 5 }}>Начало</TinyText>
-              <TextInput
+              <FieldHint>Начало</FieldHint>
+              <FullWidthInput
                 type="time"
                 step={900}
                 value={start}
                 onChange={(event) => setStart(event.target.value)}
-                style={{ width: '100%', minWidth: 0 }}
               />
             </div>
 
-            <Clock3 size={18} style={{ marginTop: 20, opacity: 0.6 }} />
+            <TimeIconSlot><Clock3 size={18} /></TimeIconSlot>
 
             <div>
-              <TinyText style={{ marginBottom: 5 }}>Окончание</TinyText>
-              <TextInput
+              <FieldHint>Окончание</FieldHint>
+              <FullWidthInput
                 type="time"
                 step={900}
                 value={end}
                 onChange={(event) => setEnd(event.target.value)}
-                style={{ width: '100%', minWidth: 0 }}
               />
             </div>
-          </div>
+          </ShiftTimeGrid>
         </FormGroup>
 
         <FormGroup>
@@ -159,14 +156,7 @@ export function ShiftEditor({
           </QuickChips>
         </FormGroup>
 
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: 8,
-            marginTop: 18,
-          }}
-        >
+        <DrawerActionsGrid>
           <ActionButton
             type="button"
             $variant="primary"
@@ -183,32 +173,24 @@ export function ShiftEditor({
             OFF
           </ActionButton>
 
-          <ActionButton
+          <FullRowActionButton
             type="button"
             $variant="danger"
             onClick={() => onSave('')}
-            style={{ gridColumn: '1 / -1' }}
           >
             <Eraser size={16} />
             Очистить ячейку
-          </ActionButton>
-        </div>
+          </FullRowActionButton>
+        </DrawerActionsGrid>
 
-        <div
-          style={{
-            marginTop: 16,
-            padding: 12,
-            borderRadius: 12,
-            border: '1px solid ' + statusPalette.neutralBorder,
-          }}
-        >
+        <DrawerNotice>
           <TinyText>
             Обычная смена считается как фактическая длительность минус 1 час
             перерыва. Для N используется специальное правило на 12 оплачиваемых
             часов.
           </TinyText>
-        </div>
-      </Drawer>
+        </DrawerNotice>
+      </CompactDrawer>
     </DrawerOverlay>
   );
 }

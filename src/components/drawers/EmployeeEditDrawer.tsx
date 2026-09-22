@@ -1,8 +1,6 @@
 import { useState } from 'react';
 import { Save, Trash2, X } from 'lucide-react';
 
-import { statusPalette } from '../../theme/palette';
-
 import {
   Department,
   Employee,
@@ -23,6 +21,16 @@ import {
   TextInput,
   TinyText,
 } from '../../theme/styles';
+import {
+  CompactDrawer,
+  DrawerActionsGrid,
+  DrawerAlertText,
+  DrawerNotice,
+  FullRowActionButton,
+  FullWidthInput,
+  FullWidthSelect,
+  TwoColumnGrid,
+} from './styles';
 
 export interface EmployeeEditValues {
   displayName: string;
@@ -112,10 +120,7 @@ export function EmployeeEditDrawer({
 
   return (
     <DrawerOverlay onMouseDown={busy ? undefined : onClose}>
-      <Drawer
-        onMouseDown={(event) => event.stopPropagation()}
-        style={{ width: 'min(500px, 100vw)' }}
-      >
+      <CompactDrawer onMouseDown={(event) => event.stopPropagation()}>
         <DrawerHeader>
           <div>
             <DrawerTitle>Редактирование сотрудника</DrawerTitle>
@@ -136,108 +141,86 @@ export function EmployeeEditDrawer({
 
         <FormGroup>
           <FormLabel>Имя и фамилия</FormLabel>
-          <TextInput
+          <FullWidthInput
             value={displayName}
             onChange={(event) => setDisplayName(event.target.value)}
             disabled={busy}
-            style={{ width: '100%', minWidth: 0 }}
           />
         </FormGroup>
 
         <FormGroup>
           <FormLabel>Отдел</FormLabel>
-          <Select
+          <FullWidthSelect
             value={departmentId}
             onChange={(event) => setDepartmentId(event.target.value)}
             disabled={busy}
-            style={{ width: '100%' }}
           >
             {departments.map((department) => (
               <option key={department.id} value={department.id}>
                 {department.name}
               </option>
             ))}
-          </Select>
+          </FullWidthSelect>
         </FormGroup>
 
         <FormGroup>
           <FormLabel>Ставка</FormLabel>
-          <Select
+          <FullWidthSelect
             value={String(employmentRate)}
             onChange={(event) =>
               setEmploymentRate(normalizeRate(event.target.value))
             }
             disabled={busy}
-            style={{ width: '100%' }}
           >
             <option value="1">1.0</option>
             <option value="0.75">0.75</option>
             <option value="0.5">0.5</option>
-          </Select>
+          </FullWidthSelect>
         </FormGroup>
 
         <FormGroup>
           <FormLabel>Режим графика</FormLabel>
-          <Select
+          <FullWidthSelect
             value={scheduleMode}
             onChange={(event) =>
               setScheduleMode(event.target.value as EmployeeScheduleMode)
             }
             disabled={busy}
-            style={{ width: '100%' }}
           >
             <option value="flexible">Гибкий</option>
             <option value="fixed-weekdays">Фиксированный 5/2</option>
-          </Select>
+          </FullWidthSelect>
         </FormGroup>
 
         {scheduleMode === 'fixed-weekdays' && (
           <FormGroup>
             <FormLabel>Время рабочего дня 5/2</FormLabel>
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: 8,
-              }}
-            >
-              <TextInput
+            <TwoColumnGrid>
+              <FullWidthInput
                 type="time"
                 value={fixedStartTime}
                 onChange={(event) => setFixedStartTime(event.target.value)}
                 disabled={busy}
                 aria-label="Начало рабочего дня"
-                style={{ width: '100%', minWidth: 0 }}
               />
-              <TextInput
+              <FullWidthInput
                 type="time"
                 value={fixedEndTime}
                 onChange={(event) => setFixedEndTime(event.target.value)}
                 disabled={busy}
                 aria-label="Окончание рабочего дня"
-                style={{ width: '100%', minWidth: 0 }}
               />
-            </div>
+            </TwoColumnGrid>
           </FormGroup>
         )}
 
         {error && (
-          <TinyText
-            role="alert"
-            style={{ marginBottom: 14, fontSize: 12, fontWeight: 700 }}
-          >
+          <DrawerAlertText role="alert">
             {error}
-          </TinyText>
+          </DrawerAlertText>
         )}
 
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: 8,
-            marginTop: 18,
-          }}
-        >
+        <DrawerActionsGrid>
           <ActionButton
             type="button"
             $variant="primary"
@@ -256,32 +239,24 @@ export function EmployeeEditDrawer({
             Отмена
           </ActionButton>
 
-          <ActionButton
+          <FullRowActionButton
             type="button"
             $variant="danger"
             onClick={onDeactivate}
             disabled={busy}
-            style={{ gridColumn: '1 / -1' }}
           >
             <Trash2 size={16} />
             Деактивировать сотрудника
-          </ActionButton>
-        </div>
+          </FullRowActionButton>
+        </DrawerActionsGrid>
 
-        <div
-          style={{
-            marginTop: 16,
-            padding: 12,
-            borderRadius: 12,
-            border: '1px solid ' + statusPalette.neutralBorder,
-          }}
-        >
+        <DrawerNotice>
           <TinyText>
             Деактивация не удаляет исторические смены. Если профиль связан с
             аккаунтом, доступ пользователя и активные сессии будут отключены.
           </TinyText>
-        </div>
-      </Drawer>
+        </DrawerNotice>
+      </CompactDrawer>
     </DrawerOverlay>
   );
 }

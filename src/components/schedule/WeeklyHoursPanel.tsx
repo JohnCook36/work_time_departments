@@ -1,7 +1,24 @@
-import { useTheme } from '@emotion/react';
 import { Employee, EmploymentRate, ScheduleData } from '../../domain/models';
 import { calculateShiftHours, getWeeklyNormHours } from '../../domain/schedule/shiftHours';
-import { Card, Muted, PanelTitle, Select, TinyText } from '../../theme/styles';
+import { PanelTitle } from '../../theme/styles';
+import {
+  EmployeeCell,
+  EmployeeHeaderCell,
+  RateCell,
+  RateHeaderCell,
+  RateSelect,
+  WeekCell,
+  WeekHeaderCell,
+  WeeklyDelta,
+  WeeklyFact,
+  WeeklyHint,
+  WeeklyHoursCard,
+  WeeklyHoursDescription,
+  WeeklyHoursHeader,
+  WeeklyHoursScroll,
+  WeeklyHoursTable,
+  WeeklyRow,
+} from './WeeklyHoursPanel.styles';
 
 interface WeekRangeLike {
   key: string;
@@ -56,74 +73,33 @@ export function WeeklyHoursPanel({
   onRateChange,
   readOnly = false,
 }: WeeklyHoursPanelProps) {
-  const theme = useTheme();
-
   return (
-    <Card style={{ marginTop: 14, overflow: 'hidden' }}>
-      <div style={{ padding: '14px 16px 8px' }}>
+    <WeeklyHoursCard>
+      <WeeklyHoursHeader>
         <PanelTitle>Недельная норма</PanelTitle>
-        <Muted style={{ marginTop: 4 }}>
+        <WeeklyHoursDescription>
           Факт сравнивается с нормой по ставке. Для неполной недели в начале или
           конце месяца норма считается только по будним дням, видимым в выбранном
           месяце.
-        </Muted>
-      </div>
+        </WeeklyHoursDescription>
+      </WeeklyHoursHeader>
 
-      <div style={{ overflowX: 'auto', padding: '0 0 10px' }}>
-        <table
-          style={{
-            width: 'max-content',
-            minWidth: '100%',
-            borderCollapse: 'collapse',
-            fontSize: 12,
-          }}
-        >
+      <WeeklyHoursScroll>
+        <WeeklyHoursTable>
           <thead>
             <tr>
-              <th
-                style={{
-                  position: 'sticky',
-                  left: 0,
-                  zIndex: 2,
-                  minWidth: 220,
-                  padding: '9px 12px',
-                  textAlign: 'left',
-                  background: theme.colors.department,
-                  borderTop: '1px solid ' + theme.colors.border,
-                  borderBottom: '1px solid ' + theme.colors.border,
-                  borderRight: '1px solid ' + theme.colors.border,
-                }}
-              >
+              <EmployeeHeaderCell>
                 Сотрудник
-              </th>
+              </EmployeeHeaderCell>
 
-              <th
-                style={{
-                  minWidth: 84,
-                  padding: '9px 8px',
-                  background: theme.colors.department,
-                  borderTop: '1px solid ' + theme.colors.border,
-                  borderBottom: '1px solid ' + theme.colors.border,
-                  borderRight: '1px solid ' + theme.colors.border,
-                }}
-              >
+              <RateHeaderCell>
                 Ставка
-              </th>
+              </RateHeaderCell>
 
               {weeks.map((week) => (
-                <th
-                  key={week.key}
-                  style={{
-                    minWidth: 132,
-                    padding: '9px 8px',
-                    background: theme.colors.department,
-                    borderTop: '1px solid ' + theme.colors.border,
-                    borderBottom: '1px solid ' + theme.colors.border,
-                    borderRight: '1px solid ' + theme.colors.border,
-                  }}
-                >
+                <WeekHeaderCell key={week.key}>
                   Неделя {week.label}
-                </th>
+                </WeekHeaderCell>
               ))}
             </tr>
           </thead>
@@ -133,45 +109,16 @@ export function WeeklyHoursPanel({
               const rate = employee.employmentRate || 1;
 
               return (
-                <tr
-                  key={employee.id}
-                  style={{
-                    background:
-                      index % 2 === 1
-                        ? theme.colors.rowOdd
-                        : theme.colors.surfaceElevated,
-                  }}
-                >
-                  <td
-                    style={{
-                      position: 'sticky',
-                      left: 0,
-                      zIndex: 1,
-                      minWidth: 220,
-                      maxWidth: 220,
-                      padding: '8px 12px',
-                      fontWeight: 700,
-                      background: 'inherit',
-                      borderBottom: '1px solid ' + theme.colors.border,
-                      borderRight: '1px solid ' + theme.colors.border,
-                      boxShadow: theme.shadows.sticky,
-                    }}
-                  >
+                <WeeklyRow key={employee.id} $odd={index % 2 === 1}>
+                  <EmployeeCell>
                     {employee.name}
-                  </td>
+                  </EmployeeCell>
 
-                  <td
-                    style={{
-                      padding: '6px 8px',
-                      textAlign: 'center',
-                      borderBottom: '1px solid ' + theme.colors.border,
-                      borderRight: '1px solid ' + theme.colors.border,
-                    }}
-                  >
+                  <RateCell>
                     {readOnly ? (
                       <strong>{rate}</strong>
                     ) : (
-                      <Select
+                      <RateSelect
                         value={rate}
                         onChange={(event) =>
                           onRateChange(
@@ -180,19 +127,13 @@ export function WeeklyHoursPanel({
                           )
                         }
                         title="Ставка сотрудника"
-                        style={{
-                          minWidth: 68,
-                          height: 30,
-                          padding: '0 7px',
-                          fontSize: 11,
-                        }}
                       >
                         <option value={1}>1.0</option>
                         <option value={0.75}>0.75</option>
                         <option value={0.5}>0.5</option>
-                      </Select>
+                      </RateSelect>
                     )}
-                  </td>
+                  </RateCell>
 
                   {weeks.map((week) => {
                     const fact = getEmployeeWeekFact(
@@ -210,48 +151,30 @@ export function WeeklyHoursPanel({
                     );
                     const delta = roundHours(fact - norm);
                     const isBalanced = Math.abs(delta) < 0.01;
-                    const deltaColor = isBalanced
-                      ? theme.colors.textMuted
+                    const deltaTone = isBalanced
+                      ? 'balanced'
                       : delta > 0
-                        ? theme.colors.success
-                        : theme.colors.warning;
+                        ? 'positive'
+                        : 'negative';
 
                     return (
-                      <td
-                        key={week.key}
-                        style={{
-                          minWidth: 132,
-                          padding: '7px 9px',
-                          textAlign: 'center',
-                          borderBottom: '1px solid ' + theme.colors.border,
-                          borderRight: '1px solid ' + theme.colors.border,
-                        }}
-                      >
-                        <div style={{ fontWeight: 800 }}>
+                      <WeekCell key={week.key}>
+                        <WeeklyFact>
                           {fact} / {norm}
-                        </div>
-                        <TinyText style={{ marginTop: 2 }}>
-                          факт / норма
-                        </TinyText>
-                        <div
-                          style={{
-                            marginTop: 4,
-                            fontSize: 11,
-                            fontWeight: 800,
-                            color: deltaColor,
-                          }}
-                        >
+                        </WeeklyFact>
+                        <WeeklyHint>факт / норма</WeeklyHint>
+                        <WeeklyDelta $tone={deltaTone}>
                           {formatDelta(delta)} ч
-                        </div>
-                      </td>
+                        </WeeklyDelta>
+                      </WeekCell>
                     );
                   })}
-                </tr>
+                </WeeklyRow>
               );
             })}
           </tbody>
-        </table>
-      </div>
-    </Card>
+        </WeeklyHoursTable>
+      </WeeklyHoursScroll>
+    </WeeklyHoursCard>
   );
 }

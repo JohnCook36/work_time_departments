@@ -14,7 +14,6 @@ import {
   MobileDayRow,
   MobileDepartmentBlock,
   MobileDepartmentHeader,
-  MobileEmployeeCard,
   MobileEmployeeHeader,
   MobileEmployeeName,
   MobileEmployeesList,
@@ -32,6 +31,7 @@ import {
   TinyText,
   WishCount,
 } from '../../theme/styles';
+import { MobileDays, SortableMobileEmployeeCard } from './MobileSchedule.styles';
 
 type Totals = { day: number; night: number; total: number; workDays: number };
 
@@ -209,15 +209,17 @@ function MobileEmployee({
   totals: Totals;
 }) {
   const sortable = useSortable({ id: 'emp:' + employee.id });
-  const style = {
-    transform: CSS.Transform.toString(sortable.transform),
-    transition: sortable.transition,
-  };
+  const transform = CSS.Transform.toString(sortable.transform);
   const wishCount = props.getWishCount(employee.id);
   const wishSummary = props.getWishSummary(employee.id);
 
   return (
-    <MobileEmployeeCard ref={sortable.setNodeRef} style={style} $dragging={sortable.isDragging}>
+    <SortableMobileEmployeeCard
+      ref={sortable.setNodeRef}
+      $transform={transform}
+      $transition={sortable.transition}
+      $dragging={sortable.isDragging}
+    >
       <MobileEmployeeHeader>
         <DragHandle type="button" {...sortable.attributes} {...sortable.listeners}>
           <GripVertical size={17} />
@@ -241,7 +243,7 @@ function MobileEmployee({
         <MobileTotalChip $tone="muted">Дней<MobileTotalValue>{totals.workDays}</MobileTotalValue></MobileTotalChip>
       </MobileTotals>
 
-      <div style={{ display: 'grid', gap: 6 }}>
+      <MobileDays>
         {days.map((day) => {
           const entry = props.getEntry(employee.id, day);
           const dow = getDayOfWeek(props.year, props.month, day);
@@ -278,7 +280,7 @@ function MobileEmployee({
             </MobileDayRow>
           );
         })}
-      </div>
-    </MobileEmployeeCard>
+      </MobileDays>
+    </SortableMobileEmployeeCard>
   );
 }

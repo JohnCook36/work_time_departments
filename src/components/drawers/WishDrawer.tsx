@@ -22,6 +22,12 @@ import {
   WishList,
   WishText,
 } from '../../theme/styles';
+import {
+  EmptyIconSlot,
+  FullWidthActionButton,
+  FullWidthSelect,
+  SmallIconButton,
+} from './styles';
 
 interface EmployeeWishDrawerProps {
   employee: Employee;
@@ -96,11 +102,10 @@ export function EmployeeWishDrawer({
 
         <FormGroup>
           <FormLabel>К какому дню относится пожелание</FormLabel>
-          <Select
+          <FullWidthSelect
             value={selectedDay}
             disabled={busy}
             onChange={(event) => setSelectedDay(event.target.value)}
-            style={{ width: '100%' }}
           >
             <option value="general">Общее пожелание на месяц</option>
             {Array.from({ length: daysInMonth }, (_, index) => index + 1).map(
@@ -110,7 +115,7 @@ export function EmployeeWishDrawer({
                 </option>
               )
             )}
-          </Select>
+          </FullWidthSelect>
         </FormGroup>
 
         <FormGroup>
@@ -135,24 +140,20 @@ export function EmployeeWishDrawer({
           </QuickChips>
         </FormGroup>
 
-        <ActionButton
+        <FullWidthActionButton
           type="button"
           $variant="primary"
           onClick={addWish}
           disabled={busy || !text.trim()}
-          style={{ width: '100%' }}
         >
           <Plus size={16} />
           Добавить пожелание
-        </ActionButton>
+        </FullWidthActionButton>
 
         <WishList>
           {sortedWishes.length === 0 ? (
             <EmptyState>
-              <MessageSquare
-                size={26}
-                style={{ margin: '0 auto 8px', opacity: 0.55 }}
-              />
+              <EmptyIconSlot><MessageSquare size={26} /></EmptyIconSlot>
               Пожеланий на этот месяц пока нет.
             </EmptyState>
           ) : (
@@ -160,15 +161,14 @@ export function EmployeeWishDrawer({
               <WishCard key={wish.id}>
                 <WishDay>{wish.day === null ? 'Общее' : String(wish.day)}</WishDay>
                 <WishText>{wish.text}</WishText>
-                <IconButton
+                <SmallIconButton
                   type="button"
                   disabled={busy}
                   onClick={() => onRemove(wish.id)}
                   title="Удалить пожелание"
-                  style={{ width: 30, height: 30 }}
                 >
                   <Trash2 size={14} />
-                </IconButton>
+                </SmallIconButton>
               </WishCard>
             ))
           )}

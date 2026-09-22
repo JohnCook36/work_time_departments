@@ -2,8 +2,17 @@ import React, { useState } from 'react';
 import { CheckCircle2, LogIn } from 'lucide-react';
 import { requestOtp, verifyOtp } from '../../api/auth';
 import { useAuthSession } from '../../auth/AuthSessionProvider';
-import { authPalette } from '../../theme/palette';
-import { pageStyle, cardStyle, inputStyle, buttonStyle, secondaryButtonStyle, ErrorText } from '../../theme/authPageUi';
+import { AuthCard, AuthInput, AuthPage, ErrorText } from '../../theme/authPageUi';
+import {
+  LoginActions,
+  LoginDescription,
+  LoginEyebrow,
+  LoginFieldLabel,
+  LoginFlexButton,
+  LoginFlexSecondaryButton,
+  LoginFullWidthButton,
+  LoginTitle,
+} from './LoginScreen.styles';
 
 export function LoginScreen() {
   const { refresh: onAuthenticated } = useAuthSession();
@@ -50,43 +59,30 @@ export function LoginScreen() {
   };
 
   return (
-    <div style={pageStyle}>
-      <div style={cardStyle}>
-        <div style={{ fontSize: 13, color: authPalette.buttonBackground, fontWeight: 800 }}>
-          Work time departments
-        </div>
-        <h1 style={{ margin: '8px 0 6px', fontSize: 26 }}>
-          Вход для сотрудников
-        </h1>
-        <p style={{ margin: '0 0 20px', color: authPalette.textMuted, lineHeight: 1.5 }}>
+    <AuthPage>
+      <AuthCard>
+        <LoginEyebrow>Work time departments</LoginEyebrow>
+        <LoginTitle>Вход для сотрудников</LoginTitle>
+        <LoginDescription>
           Введите номер телефона в международном формате. После подтверждения
           система проверит, связан ли аккаунт с профилем сотрудника.
-        </p>
+        </LoginDescription>
 
-        <label style={{ display: 'grid', gap: 7, fontSize: 13 }}>
+        <LoginFieldLabel>
           Номер телефона
-          <input
-            style={inputStyle}
+          <AuthInput
             value={phone}
             onChange={(event) => setPhone(event.target.value)}
             placeholder="+7 999 123-45-67"
             autoComplete="tel"
             disabled={busy || step === 'code'}
           />
-        </label>
+        </LoginFieldLabel>
 
         {step === 'code' && (
-          <label
-            style={{
-              display: 'grid',
-              gap: 7,
-              marginTop: 14,
-              fontSize: 13,
-            }}
-          >
+          <LoginFieldLabel $spaced>
             Код подтверждения
-            <input
-              style={inputStyle}
+            <AuthInput
               value={code}
               onChange={(event) =>
                 setCode(event.target.value.replace(/\D/g, '').slice(0, 6))
@@ -97,27 +93,25 @@ export function LoginScreen() {
               maxLength={6}
               autoFocus
             />
-          </label>
+        </LoginFieldLabel>
         )}
 
         <ErrorText message={error} />
 
-        <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
+        <LoginActions>
           {step === 'phone' ? (
-            <button
+            <LoginFullWidthButton
               type="button"
-              style={{ ...buttonStyle, width: '100%' }}
               onClick={sendCode}
               disabled={busy || phone.trim().length < 8}
             >
               <LogIn size={17} />
               {busy ? 'Отправляю…' : 'Получить код'}
-            </button>
+            </LoginFullWidthButton>
           ) : (
             <>
-              <button
+              <LoginFlexSecondaryButton
                 type="button"
-                style={{ ...secondaryButtonStyle, flex: 1 }}
                 onClick={() => {
                   setStep('phone');
                   setCode('');
@@ -126,20 +120,19 @@ export function LoginScreen() {
                 disabled={busy}
               >
                 Изменить номер
-              </button>
-              <button
+              </LoginFlexSecondaryButton>
+              <LoginFlexButton
                 type="button"
-                style={{ ...buttonStyle, flex: 1 }}
                 onClick={confirmCode}
                 disabled={busy || code.length !== 6}
               >
                 <CheckCircle2 size={17} />
                 {busy ? 'Проверяю…' : 'Войти'}
-              </button>
+              </LoginFlexButton>
             </>
           )}
-        </div>
-      </div>
-    </div>
+        </LoginActions>
+      </AuthCard>
+    </AuthPage>
   );
 }
