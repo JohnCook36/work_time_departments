@@ -5,9 +5,9 @@ import {
   applyPlannerScheduleChanges,
   buildScheduleCellChange,
   PlannerCellMetadataMap,
-} from '../plannerApi';
-import { Employee, ScheduleData } from '../types';
-import { validateShiftInput } from '../utils';
+} from '../api/planner';
+import { Employee, ScheduleData } from '../domain/models';
+import { validateShiftInput } from '../domain/schedule/shiftHours';
 import { PlannerServerStatus } from './usePlannerServerSync';
 
 interface UseScheduleMutationsOptions {

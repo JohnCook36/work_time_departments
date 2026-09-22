@@ -5,14 +5,14 @@ import {
   deactivatePlannerEmployee,
   PlannerEmployeeMetadataMap,
   updatePlannerEmployee,
-} from '../plannerApi';
+} from '../api/planner';
 import {
   Employee,
   EmployeeScheduleMode,
   EmployeeWishesData,
   EmploymentRate,
   SchedulePeriodsData,
-} from '../types';
+} from '../domain/models';
 import { PlannerServerStatus } from './usePlannerServerSync';
 
 export interface EmployeeManagementValues {

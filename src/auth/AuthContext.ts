@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react';
 
-import { AuthUser } from './api';
+import { AuthUser } from '../api/auth';
 
 export const AuthUserContext = createContext<AuthUser | null>(null);
 

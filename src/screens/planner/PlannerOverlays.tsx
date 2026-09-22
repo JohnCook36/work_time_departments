@@ -1,9 +1,9 @@
-import { EmployeeEditDrawer, EmployeeEditValues } from '../../EmployeeEditDrawer';
-import { ExcelImportDrawer } from '../../ExcelImportDrawer';
-import { ExcelImportPreview } from '../../importExcel';
-import { ShiftEditor } from '../../ShiftEditor';
-import { Department, Employee, EmployeeWish, ShiftEntry } from '../../types';
-import { EmployeeWishDrawer } from '../../WishDrawer';
+import { EmployeeEditDrawer, EmployeeEditValues } from '../../components/drawers/EmployeeEditDrawer';
+import { ExcelImportDrawer } from '../../components/drawers/ExcelImportDrawer';
+import { ExcelImportPreview } from '../../services/excel/importExcel';
+import { ShiftEditor } from '../../components/drawers/ShiftEditor';
+import { Department, Employee, EmployeeWish, ShiftEntry } from '../../domain/models';
+import { EmployeeWishDrawer } from '../../components/drawers/WishDrawer';
 
 interface EditingCell {
   empId: string;

@@ -3,7 +3,7 @@ name: Playwright E2E
 on:
   pull_request:
     paths:
-      - 'e2e/**'
+      - 'tests/**'
       - 'src/**'
       - 'package.json'
       - 'package-lock.json'

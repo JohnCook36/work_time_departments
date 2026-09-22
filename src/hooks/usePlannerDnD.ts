@@ -21,8 +21,8 @@ import {
   reorderPlannerDepartments,
   reorderPlannerEmployees,
   updatePlannerEmployee,
-} from '../plannerApi';
-import { Department, Employee } from '../types';
+} from '../api/planner';
+import { Department, Employee } from '../domain/models';
 import { PlannerServerStatus } from './usePlannerServerSync';
 
 interface UsePlannerDnDOptions {

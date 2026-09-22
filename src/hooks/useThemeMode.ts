@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import { ThemeMode } from '../theme';
+import { ThemeMode } from '../theme/theme';
 
 const THEME_KEY = 'hotel-shift-planner-theme';
 

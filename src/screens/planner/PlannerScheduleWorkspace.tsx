@@ -14,13 +14,10 @@ import {
   EmploymentRate,
   ScheduleData,
   ShiftEntry,
-} from '../../types';
-import {
-  calculateShiftHours,
-  DAY_NAMES_SHORT,
-  getDayOfWeek,
-} from '../../utils';
-import { WeeklyHoursPanel } from '../../WeeklyHoursPanel';
+} from '../../domain/models';
+import { calculateShiftHours } from '../../domain/schedule/shiftHours';
+import { DAY_NAMES_SHORT, getDayOfWeek } from '../../utils/calendar';
+import { WeeklyHoursPanel } from '../../components/schedule/WeeklyHoursPanel';
 import {
   HeaderCell,
   Legend,
@@ -33,7 +30,7 @@ import {
   TableShell,
   TotalCell,
   TotalRow,
-} from '../../styles';
+} from '../../theme/styles';
 import {
   DepartmentSection,
   ErrorPanel,
