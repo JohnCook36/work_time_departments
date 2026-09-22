@@ -850,10 +850,10 @@ function App() {
         name,
         kind: newDepartmentKind,
       });
-      setNewEmployeeDepartmentId(created.id);
       setNewDepartmentName('');
       setNewDepartmentKind('general');
       await refreshServerPlanner();
+      setNewEmployeeDepartmentId(created.id);
     } catch (error) {
       console.error('Server department create failed', error);
       alert(
