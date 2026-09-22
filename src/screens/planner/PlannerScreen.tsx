@@ -56,12 +56,7 @@ import {
   MONTH_NAMES,
   validateShiftInput,
 } from '../../utils';
-import { EmployeeWishDrawer } from '../../WishDrawer';
-import {
-  EmployeeEditDrawer,
-  EmployeeEditValues,
-} from '../../EmployeeEditDrawer';
-import { ExcelImportDrawer } from '../../ExcelImportDrawer';
+import { EmployeeEditValues } from '../../EmployeeEditDrawer';
 import {
   applyExcelImportEntries,
   ExcelImportPreview,
@@ -75,7 +70,6 @@ import {
   getVisibleMonthWeekRanges,
   printSchedule,
 } from '../../printSchedule';
-import { ShiftEditor } from '../../ShiftEditor';
 import { WeeklyHoursPanel } from '../../WeeklyHoursPanel';
 import { AdminOnboardingPanel } from '../../auth/AdminOnboardingPanel';
 import { MySchedulePanel } from '../../auth/MySchedulePanel';
@@ -107,6 +101,7 @@ import { useScheduleMutations } from '../../hooks/useScheduleMutations';
 import { useThemeMode } from '../../hooks/useThemeMode';
 import { PlannerHeaderScreen } from './PlannerHeaderScreen';
 import { PlannerManagementScreen } from './PlannerManagementScreen';
+import { PlannerOverlays } from './PlannerOverlays';
 import {
   DepartmentSection,
   ErrorPanel,
@@ -1691,65 +1686,50 @@ export function PlannerScreen() {
         </Container>
       </Page>
 
-      {canImportExcel && excelImportPreview && (
-        <ExcelImportDrawer
-          preview={excelImportPreview}
-          conflictCount={excelImportConflictCount}
-          overwriteExisting={overwriteExcelCells}
-          onOverwriteChange={setOverwriteExcelCells}
-          onApply={() => void applyExcelImport()}
-          busy={isApplyingExcelImport}
-          onClose={() => {
-            setExcelImportPreview(null);
-            setOverwriteExcelCells(false);
-          }}
-        />
-      )}
-
-      {canEditScheduleCells && selectedShiftEmployee && editingCell && (
-        <ShiftEditor
-          key={selectedShiftEmployee.id + '-' + editingCell.day + '-' + periodKey}
-          employee={selectedShiftEmployee}
-          day={editingCell.day}
-          year={year}
-          month={month}
-          entry={getEntry(selectedShiftEmployee.id, editingCell.day)}
-          onSave={(value) => {
-            updateCell(selectedShiftEmployee.id, editingCell.day, value);
-            setEditingCell(null);
-          }}
-          onClose={() => setEditingCell(null)}
-        />
-      )}
-
-      {selectedEditEmployee && canManageEmployeeProfiles && (
-        <EmployeeEditDrawer
-          key={selectedEditEmployee.id}
-          employee={selectedEditEmployee}
-          departments={departments}
-          busy={mutatingEmployeeId === selectedEditEmployee.id}
-          onSave={saveEmployeeEdit}
-          onDeactivate={() => removeEmployee(selectedEditEmployee.id)}
-          onClose={() => setEditingEmployeeId(null)}
-        />
-      )}
-
-      {canEditWishes && selectedWishEmployee && (
-        <EmployeeWishDrawer
-          key={selectedWishEmployee.id + periodKey}
-          employee={selectedWishEmployee}
-          year={year}
-          month={month}
-          daysInMonth={daysInMonth}
-          wishes={wishes[selectedWishEmployee.id]?.[periodKey] || []}
-          busy={mutatingWishId !== null}
-          onAdd={(wish) => addWish(selectedWishEmployee.id, wish)}
-          onRemove={(wishId) =>
-            removeWish(selectedWishEmployee.id, wishId)
-          }
-          onClose={() => setWishEmployeeId(null)}
-        />
-      )}
+      <PlannerOverlays
+        canImportExcel={canImportExcel}
+        excelImportPreview={excelImportPreview}
+        excelImportConflictCount={excelImportConflictCount}
+        overwriteExcelCells={overwriteExcelCells}
+        onOverwriteExcelCellsChange={setOverwriteExcelCells}
+        onApplyExcelImport={() => void applyExcelImport()}
+        isApplyingExcelImport={isApplyingExcelImport}
+        onCloseExcelImport={() => {
+          setExcelImportPreview(null);
+          setOverwriteExcelCells(false);
+        }}
+        canEditScheduleCells={canEditScheduleCells}
+        selectedShiftEmployee={selectedShiftEmployee}
+        editingCell={editingCell}
+        periodKey={periodKey}
+        year={year}
+        month={month}
+        getEntry={getEntry}
+        onSaveShift={(employeeId, day, value) => {
+          updateCell(employeeId, day, value);
+          setEditingCell(null);
+        }}
+        onCloseShift={() => setEditingCell(null)}
+        selectedEditEmployee={selectedEditEmployee}
+        canManageEmployeeProfiles={canManageEmployeeProfiles}
+        departments={departments}
+        mutatingEmployeeId={mutatingEmployeeId}
+        onSaveEmployee={saveEmployeeEdit}
+        onDeactivateEmployee={(employeeId) => removeEmployee(employeeId)}
+        onCloseEmployee={() => setEditingEmployeeId(null)}
+        canEditWishes={canEditWishes}
+        selectedWishEmployee={selectedWishEmployee}
+        daysInMonth={daysInMonth}
+        selectedEmployeeWishes={
+          selectedWishEmployee
+            ? wishes[selectedWishEmployee.id]?.[periodKey] || []
+            : []
+        }
+        mutatingWishId={mutatingWishId}
+        onAddWish={(employeeId, wish) => addWish(employeeId, wish)}
+        onRemoveWish={(employeeId, wishId) => removeWish(employeeId, wishId)}
+        onCloseWishes={() => setWishEmployeeId(null)}
+      />
     </ThemeProvider>
   );
 }
