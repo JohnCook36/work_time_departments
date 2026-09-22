@@ -16,7 +16,6 @@ import {
 import { PlannerServerStatus } from './usePlannerServerSync';
 
 interface UsePlannerWishesOptions {
-  wishes: EmployeeWishesData;
   setWishes: Dispatch<SetStateAction<EmployeeWishesData>>;
   periodKey: string;
   year: number;
