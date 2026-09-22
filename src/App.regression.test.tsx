@@ -391,6 +391,89 @@ describe('App regression flows', () => {
     expect(plannerApi.loadPlannerServerSnapshot).toHaveBeenCalledTimes(2);
   });
 
+  it('edits an Employee through the backend with optimistic metadata', async () => {
+    const user = userEvent.setup();
+    const snapshot = serverPlannerSnapshot();
+    vi.stubEnv('VITE_SERVER_PLANNER_WRITE', '1');
+    vi.spyOn(plannerApi, 'loadPlannerServerSnapshot').mockResolvedValue(snapshot);
+    const updateSpy = vi
+      .spyOn(plannerApi, 'updatePlannerEmployee')
+      .mockResolvedValue({
+        id: 'server-employee',
+        displayName: 'Обновлённый сотрудник',
+        employmentRate: 1,
+        scheduleMode: 'FLEXIBLE',
+        fixedStartTime: null,
+        fixedEndTime: null,
+        departmentId: 'server-department',
+        position: 0,
+        isActive: true,
+        isLinked: false,
+        updatedAt: '2026-09-22T10:00:00.000Z',
+      });
+
+    renderApp();
+
+    await screen.findByText('Серверный сотрудник');
+    await user.click(
+      screen.getByRole('button', { name: 'Редактировать сотрудника' }),
+    );
+
+    expect(
+      screen.getByText('Редактирование сотрудника'),
+    ).toBeInTheDocument();
+
+    const nameInput = screen.getByDisplayValue('Серверный сотрудник');
+    await user.clear(nameInput);
+    await user.type(nameInput, 'Обновлённый сотрудник');
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }));
+
+    await waitFor(() => {
+      expect(updateSpy).toHaveBeenCalledWith('server-employee', {
+        displayName: 'Обновлённый сотрудник',
+        departmentId: 'server-department',
+        employmentRate: 1,
+        scheduleMode: 'FLEXIBLE',
+        fixedStartTime: null,
+        fixedEndTime: null,
+        expectedUpdatedAt:
+          snapshot.employeeMetadata['server-employee'].updatedAt,
+      });
+    });
+    expect(plannerApi.loadPlannerServerSnapshot).toHaveBeenCalledTimes(2);
+  });
+
+  it('soft-deactivates an Employee through the backend with optimistic metadata', async () => {
+    const user = userEvent.setup();
+    const snapshot = serverPlannerSnapshot();
+    vi.stubEnv('VITE_SERVER_PLANNER_WRITE', '1');
+    vi.spyOn(plannerApi, 'loadPlannerServerSnapshot').mockResolvedValue(snapshot);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const deactivateSpy = vi
+      .spyOn(plannerApi, 'deactivatePlannerEmployee')
+      .mockResolvedValue({
+        status: 'ok',
+        employeeId: 'server-employee',
+      });
+
+    renderApp();
+
+    await screen.findByText('Серверный сотрудник');
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Деактивировать / удалить сотрудника',
+      }),
+    );
+
+    await waitFor(() => {
+      expect(deactivateSpy).toHaveBeenCalledWith(
+        'server-employee',
+        snapshot.employeeMetadata['server-employee'].updatedAt,
+      );
+    });
+    expect(plannerApi.loadPlannerServerSnapshot).toHaveBeenCalledTimes(2);
+  });
+
   it('updates Employee rate through the backend with optimistic metadata', async () => {
     const user = userEvent.setup();
     const snapshot = serverPlannerSnapshot();
