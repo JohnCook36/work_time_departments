@@ -18,7 +18,8 @@ import {
   getMySchedule,
   logout,
 } from '../../api/auth';
-import { hasManagementAccess, useAuthUser } from '../../auth/AuthContext';
+import { useAuthUser } from '../../auth/AuthContext';
+import { AppSectionNav } from '../../components/navigation/AppSectionNav';
 import { useAuthSession } from '../../auth/AuthSessionProvider';
 import {
   buildVisibleShifts,
@@ -47,7 +48,6 @@ import {
   SchedulePageHeading,
   SchedulePageSubtitle,
   SchedulePageTitle,
-  ScheduleRouteLink,
   ShiftBody,
   ShiftDate,
   ShiftDayName,
@@ -80,7 +80,6 @@ function dayOfMonth(date: string): number {
 export function MyScheduleScreen() {
   const user = useAuthUser();
   const { refresh: refreshSession } = useAuthSession();
-  const canManagePlanner = hasManagementAccess(user);
   const initialNow = useMemo(() => new Date(), []);
   const [year, setYear] = useState(initialNow.getFullYear());
   const [monthIndex, setMonthIndex] = useState(initialNow.getMonth());
@@ -178,11 +177,6 @@ export function MyScheduleScreen() {
             </SchedulePageHeading>
 
             <ScheduleHeaderActions>
-              {canManagePlanner && (
-                <ScheduleRouteLink to="/planner">
-                  Планировщик
-                </ScheduleRouteLink>
-              )}
               <ThemeToggleButton
                 type="button"
                 onClick={() =>
@@ -204,6 +198,8 @@ export function MyScheduleScreen() {
               </LogoutButton>
             </ScheduleHeaderActions>
           </SchedulePageHeader>
+
+          <AppSectionNav />
 
           <ScheduleCard>
             <PeriodNavigation>
