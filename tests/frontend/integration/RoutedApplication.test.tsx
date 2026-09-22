@@ -73,8 +73,8 @@ describe('Routing foundation with real session provider and ErrorBoundary', () =
   it('allows management users to open /planner', async () => {
     vi.mocked(api.getMe).mockResolvedValue(managerUser);
     open('/planner');
-    expect(await screen.findByText('Personal schedule: example-user')).toBeInTheDocument();
-    expect(window.location.pathname).toBe('/my-schedule');
+    expect(await screen.findByText('Existing application: example-user')).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/planner');
   });
 
   it('allows management users to open /my-schedule', async () => {
@@ -165,8 +165,8 @@ describe('Routing foundation with real session provider and ErrorBoundary', () =
     expect(await screen.findByText('Запрос ожидает подтверждения администратора')).toBeInTheDocument();
     expect(screen.queryByText('Existing application: example-user')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Проверить статус' }));
-    expect(await screen.findByText('Existing application: example-user')).toBeInTheDocument();
-    expect(window.location.pathname).toBe('/planner');
+    expect(await screen.findByText('Personal schedule: example-user')).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/my-schedule');
   });
 
   it('cancels a pending request and returns to profile selection', async () => {
