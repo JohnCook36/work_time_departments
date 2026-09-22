@@ -511,17 +511,7 @@ function App() {
         ...prev,
         [periodKey]: snapshot.schedule,
       }));
-      setWishes((prev) => {
-        const next = { ...prev };
-        snapshot.employees.forEach((employee) => {
-          next[employee.id] = {
-            ...(next[employee.id] || {}),
-            [periodKey]:
-              snapshot.wishes[employee.id]?.[periodKey] || [],
-          };
-        });
-        return next;
-      });
+      setWishes(snapshot.wishes);
       setServerCellMetadata(snapshot.cellMetadata);
       setServerEmployeeMetadata(snapshot.employeeMetadata);
       setServerDepartmentMetadata(snapshot.departmentMetadata);
