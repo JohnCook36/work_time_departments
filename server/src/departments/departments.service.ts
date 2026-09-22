@@ -3,11 +3,24 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  NotFoundException,
 } from '@nestjs/common';
-import { Prisma, RoleType } from '@prisma/client';
+import {
+  DepartmentKind,
+  OnboardingRequestStatus,
+  Prisma,
+  RoleType,
+  ShiftChangeRequestStatus,
+} from '@prisma/client';
 
 import { AuthUserContext } from '../auth/auth.service';
 import { PrismaService } from '../prisma/prisma.service';
+
+export interface DepartmentMutationInput {
+  name?: unknown;
+  kind?: unknown;
+  expectedUpdatedAt?: unknown;
+}
 
 export interface DepartmentReorderInput {
   orderedDepartmentIds?: unknown;
@@ -19,6 +32,32 @@ function requireString(value: unknown, field: string): string {
     throw new BadRequestException(field + ' is required');
   }
   return value.trim();
+}
+
+function requireDepartmentName(value: unknown): string {
+  const name = requireString(value, 'name');
+  if (name.length < 2 || name.length > 80) {
+    throw new BadRequestException('name must contain between 2 and 80 characters');
+  }
+  return name;
+}
+
+function optionalDepartmentName(value: unknown): string | undefined {
+  return value === undefined ? undefined : requireDepartmentName(value);
+}
+
+function optionalDepartmentKind(value: unknown): DepartmentKind | undefined {
+  if (value === undefined) return undefined;
+
+  if (
+    value !== DepartmentKind.GENERAL &&
+    value !== DepartmentKind.FO &&
+    value !== DepartmentKind.NIGHT
+  ) {
+    throw new BadRequestException('kind must be GENERAL, FO, or NIGHT');
+  }
+
+  return value;
 }
 
 function requireDepartmentOrder(value: unknown): string[] {
@@ -80,23 +119,288 @@ function requireExpectedUpdatedAtMap(
   return expected;
 }
 
+function assertSuperAdmin(user: AuthUserContext): void {
+  const isSuperAdmin = user.memberships.some(
+    (membership) => membership.role === RoleType.SUPER_ADMIN,
+  );
+
+  if (!isSuperAdmin) {
+    throw new ForbiddenException(
+      'Only Super Admin can modify department structure',
+    );
+  }
+}
+
+const departmentSelect = {
+  id: true,
+  name: true,
+  kind: true,
+  position: true,
+  isActive: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.DepartmentSelect;
+
 @Injectable()
 export class DepartmentsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async createDepartment(
+    user: AuthUserContext,
+    input: DepartmentMutationInput,
+  ) {
+    assertSuperAdmin(user);
+
+    const name = requireDepartmentName(input.name);
+    const kind = optionalDepartmentKind(input.kind) ?? DepartmentKind.GENERAL;
+
+    return this.prisma.$transaction(
+      async (tx) => {
+        const lastDepartment = await tx.department.findFirst({
+          where: { isActive: true },
+          orderBy: [{ position: 'desc' }, { createdAt: 'desc' }],
+          select: { position: true },
+        });
+
+        return tx.department.create({
+          data: {
+            name,
+            kind,
+            position: (lastDepartment?.position ?? -1) + 1,
+          },
+          select: departmentSelect,
+        });
+      },
+      {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      },
+    );
+  }
+
+  async updateDepartment(
+    user: AuthUserContext,
+    departmentId: string,
+    input: DepartmentMutationInput,
+  ) {
+    assertSuperAdmin(user);
+
+    const normalizedDepartmentId = requireString(
+      departmentId,
+      'departmentId',
+    );
+    const expectedUpdatedAt = requireExpectedUpdatedAt(
+      input.expectedUpdatedAt,
+    );
+    const name = optionalDepartmentName(input.name);
+    const kind = optionalDepartmentKind(input.kind);
+
+    if (name === undefined && kind === undefined) {
+      throw new BadRequestException(
+        'At least one Department field must be provided',
+      );
+    }
+
+    const current = await this.prisma.department.findFirst({
+      where: {
+        id: normalizedDepartmentId,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        updatedAt: true,
+      },
+    });
+
+    if (!current) {
+      throw new NotFoundException('Department not found');
+    }
+
+    if (current.updatedAt.getTime() !== expectedUpdatedAt.getTime()) {
+      throw new ConflictException(
+        'Department changed after it was loaded',
+      );
+    }
+
+    const result = await this.prisma.department.updateMany({
+      where: {
+        id: normalizedDepartmentId,
+        isActive: true,
+        updatedAt: expectedUpdatedAt,
+      },
+      data: {
+        ...(name !== undefined ? { name } : {}),
+        ...(kind !== undefined ? { kind } : {}),
+      },
+    });
+
+    if (result.count !== 1) {
+      throw new ConflictException(
+        'Department changed during update',
+      );
+    }
+
+    const updated = await this.prisma.department.findFirst({
+      where: {
+        id: normalizedDepartmentId,
+        isActive: true,
+      },
+      select: departmentSelect,
+    });
+
+    if (!updated) {
+      throw new ConflictException(
+        'Department became unavailable after update',
+      );
+    }
+
+    return updated;
+  }
+
+  async deactivateDepartment(
+    user: AuthUserContext,
+    departmentId: string,
+    input: DepartmentMutationInput,
+  ) {
+    assertSuperAdmin(user);
+
+    const normalizedDepartmentId = requireString(
+      departmentId,
+      'departmentId',
+    );
+    const expectedUpdatedAt = requireExpectedUpdatedAt(
+      input.expectedUpdatedAt,
+    );
+
+    return this.prisma.$transaction(
+      async (tx) => {
+        const current = await tx.department.findFirst({
+          where: {
+            id: normalizedDepartmentId,
+            isActive: true,
+          },
+          select: {
+            id: true,
+            updatedAt: true,
+          },
+        });
+
+        if (!current) {
+          throw new NotFoundException('Department not found');
+        }
+
+        if (current.updatedAt.getTime() !== expectedUpdatedAt.getTime()) {
+          throw new ConflictException(
+            'Department changed after it was loaded',
+          );
+        }
+
+        const [
+          activeDepartmentCount,
+          activeEmployeeCount,
+          activeMembershipCount,
+          pendingOnboardingCount,
+          activeShiftChangeCount,
+        ] = await Promise.all([
+          tx.department.count({
+            where: { isActive: true },
+          }),
+          tx.employee.count({
+            where: {
+              departmentId: normalizedDepartmentId,
+              isActive: true,
+            },
+          }),
+          tx.membership.count({
+            where: {
+              departmentId: normalizedDepartmentId,
+              isActive: true,
+            },
+          }),
+          tx.onboardingRequest.count({
+            where: {
+              departmentId: normalizedDepartmentId,
+              status: OnboardingRequestStatus.PENDING,
+            },
+          }),
+          tx.shiftChangeRequest.count({
+            where: {
+              status: {
+                in: [
+                  ShiftChangeRequestStatus.PENDING_TARGET,
+                  ShiftChangeRequestStatus.PENDING_MANAGER,
+                ],
+              },
+              OR: [
+                { requesterDepartmentId: normalizedDepartmentId },
+                { targetDepartmentId: normalizedDepartmentId },
+              ],
+            },
+          }),
+        ]);
+
+        if (activeDepartmentCount <= 1) {
+          throw new ConflictException(
+            'At least one active Department must remain',
+          );
+        }
+
+        if (activeEmployeeCount > 0) {
+          throw new ConflictException(
+            'Move or deactivate active Employees before deactivating Department',
+          );
+        }
+
+        if (activeMembershipCount > 0) {
+          throw new ConflictException(
+            'Remove active Department memberships before deactivating Department',
+          );
+        }
+
+        if (pendingOnboardingCount > 0) {
+          throw new ConflictException(
+            'Resolve pending onboarding requests before deactivating Department',
+          );
+        }
+
+        if (activeShiftChangeCount > 0) {
+          throw new ConflictException(
+            'Resolve active shift-change requests before deactivating Department',
+          );
+        }
+
+        const result = await tx.department.updateMany({
+          where: {
+            id: normalizedDepartmentId,
+            isActive: true,
+            updatedAt: expectedUpdatedAt,
+          },
+          data: {
+            isActive: false,
+          },
+        });
+
+        if (result.count !== 1) {
+          throw new ConflictException(
+            'Department changed during deactivation',
+          );
+        }
+
+        return {
+          status: 'ok' as const,
+          departmentId: normalizedDepartmentId,
+        };
+      },
+      {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      },
+    );
+  }
 
   async reorderDepartments(
     user: AuthUserContext,
     input: DepartmentReorderInput,
   ) {
-    const isSuperAdmin = user.memberships.some(
-      (membership) => membership.role === RoleType.SUPER_ADMIN,
-    );
-
-    if (!isSuperAdmin) {
-      throw new ForbiddenException(
-        'Only Super Admin can reorder departments',
-      );
-    }
+    assertSuperAdmin(user);
 
     const orderedDepartmentIds = requireDepartmentOrder(
       input.orderedDepartmentIds,
