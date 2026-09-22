@@ -395,6 +395,7 @@ function App() {
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [isImportingExcel, setIsImportingExcel] = useState(false);
   const [isApplyingExcelImport, setIsApplyingExcelImport] = useState(false);
+  const [isApplyingBulkSchedule, setIsApplyingBulkSchedule] = useState(false);
   const [isCreatingEmployee, setIsCreatingEmployee] = useState(false);
   const [excelImportPreview, setExcelImportPreview] =
     useState<ExcelImportPreview | null>(null);
@@ -449,6 +450,12 @@ function App() {
     canManagePlanner &&
     (!serverPlannerReadEnabled ||
       (serverPlannerWriteEnabled && serverPlannerStatus === 'ready'));
+  const canBulkEditSchedule =
+    canManagePlanner &&
+    (!serverPlannerReadEnabled ||
+      (serverPlannerWriteEnabled &&
+        serverPlannerStatus === 'ready' &&
+        !isApplyingBulkSchedule));
   const canMoveEmployees =
     canManagePlanner &&
     (!serverPlannerReadEnabled ||
@@ -1602,34 +1609,135 @@ function App() {
     };
   }, [employees, getEmployeeTotals]);
 
-  const fillOffAll = () => {
+  const fillOffAll = async () => {
     if (!confirm('Заполнить все пустые ячейки текущего месяца как OFF?')) return;
 
-    updateCurrentSchedule((current) => {
-      const next = { ...current };
+    if (!serverPlannerWriteEnabled) {
+      updateCurrentSchedule((current) => {
+        const next = { ...current };
 
-      employees.forEach((employee) => {
-        let employeeSchedule = { ...(next[employee.id] || {}) };
+        employees.forEach((employee) => {
+          let employeeSchedule = { ...(next[employee.id] || {}) };
 
-        for (let day = 1; day <= daysInMonth; day++) {
-          if (!employeeSchedule[day] || employeeSchedule[day].type === 'empty') {
-            employeeSchedule = {
-              ...employeeSchedule,
-              [day]: { type: 'off' },
-            };
+          for (let day = 1; day <= daysInMonth; day++) {
+            if (!employeeSchedule[day] || employeeSchedule[day].type === 'empty') {
+              employeeSchedule = {
+                ...employeeSchedule,
+                [day]: { type: 'off' },
+              };
+            }
           }
-        }
 
-        next[employee.id] = employeeSchedule;
+          next[employee.id] = employeeSchedule;
+        });
+
+        return next;
       });
+      return;
+    }
 
-      return next;
+    const changes = employees.flatMap((employee) => {
+      const employeeSchedule = rawSchedule[employee.id] || {};
+
+      return Array.from({ length: daysInMonth }, (_, index) => index + 1)
+        .filter((day) => {
+          const entry = employeeSchedule[day];
+          return !entry || entry.type === 'empty';
+        })
+        .map((day) =>
+          buildScheduleCellChange(
+            employee.id,
+            day,
+            { type: 'off' },
+            serverCellMetadata[employee.id]?.[day]
+          )
+        );
     });
+
+    if (changes.length === 0) {
+      alert('Пустых ячеек для заполнения OFF нет.');
+      return;
+    }
+
+    if (changes.length > 5000) {
+      alert(
+        'Слишком много ячеек для одной атомарной операции. Уменьшите количество сотрудников.'
+      );
+      return;
+    }
+
+    try {
+      setIsApplyingBulkSchedule(true);
+      await applyPlannerScheduleChanges(year, month + 1, changes);
+      await refreshServerPlanner();
+    } catch (error) {
+      console.error('Server bulk OFF failed', error);
+      alert(
+        error instanceof Error
+          ? 'Не удалось заполнить OFF: ' + error.message
+          : 'Не удалось заполнить OFF на сервере.'
+      );
+      await refreshServerPlanner();
+    } finally {
+      setIsApplyingBulkSchedule(false);
+    }
   };
 
-  const clearAll = () => {
+  const clearAll = async () => {
     if (!confirm('Очистить все смены за текущий месяц?')) return;
-    setSchedules((prev) => ({ ...prev, [periodKey]: {} }));
+
+    if (!serverPlannerWriteEnabled) {
+      setSchedules((prev) => ({ ...prev, [periodKey]: {} }));
+      return;
+    }
+
+    const changes = employees.flatMap((employee) =>
+      Object.entries(serverCellMetadata[employee.id] || {})
+        .map(([dayValue, metadata]) => ({
+          day: Number(dayValue),
+          metadata,
+        }))
+        .filter(
+          ({ day }) =>
+            Number.isInteger(day) && day >= 1 && day <= daysInMonth
+        )
+        .map(({ day, metadata }) =>
+          buildScheduleCellChange(
+            employee.id,
+            day,
+            { type: 'empty' },
+            metadata
+          )
+        )
+    );
+
+    if (changes.length === 0) {
+      alert('Сохранённых смен за текущий месяц нет.');
+      return;
+    }
+
+    if (changes.length > 5000) {
+      alert(
+        'Слишком много ячеек для одной атомарной операции. Операция отменена.'
+      );
+      return;
+    }
+
+    try {
+      setIsApplyingBulkSchedule(true);
+      await applyPlannerScheduleChanges(year, month + 1, changes);
+      await refreshServerPlanner();
+    } catch (error) {
+      console.error('Server clear month failed', error);
+      alert(
+        error instanceof Error
+          ? 'Не удалось очистить месяц: ' + error.message
+          : 'Не удалось очистить месяц на сервере.'
+      );
+      await refreshServerPlanner();
+    } finally {
+      setIsApplyingBulkSchedule(false);
+    }
   };
 
   const handleExportExcel = async () => {
@@ -2184,20 +2292,20 @@ function App() {
 
               <ActionButton
                 type="button"
-                onClick={fillOffAll}
-                disabled={!canEditPlanner}
+                onClick={() => void fillOffAll()}
+                disabled={!canBulkEditSchedule}
               >
-                OFF все
+                {isApplyingBulkSchedule ? 'Применяю…' : 'OFF все'}
               </ActionButton>
 
               <ActionButton
                 type="button"
                 $variant="danger"
-                onClick={clearAll}
-                disabled={!canEditPlanner}
+                onClick={() => void clearAll()}
+                disabled={!canBulkEditSchedule}
               >
                 <Trash2 size={15} />
-                Очистить месяц
+                {isApplyingBulkSchedule ? 'Применяю…' : 'Очистить месяц'}
               </ActionButton>
             </ControlsRow>
           </ControlsCard>
