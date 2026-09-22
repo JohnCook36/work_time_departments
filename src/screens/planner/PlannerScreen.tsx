@@ -14,7 +14,6 @@ import {
   Employee,
   EmploymentRate,
   EmployeeScheduleMode,
-  EmployeeWish,
   EmployeeWishesData,
   ScheduleData,
   SchedulePeriodsData,
@@ -43,8 +42,6 @@ import { hasManagementAccess, useAuthUser } from '../../auth/AuthContext';
 import {
   applyPlannerScheduleChanges,
   buildScheduleCellChange,
-  createPlannerWish,
-  deletePlannerWish,
   loadPlannerServerSnapshot,
   PlannerServerSnapshot,
 } from '../../plannerApi';
@@ -58,6 +55,7 @@ import { useEmployeeManagement } from '../../hooks/useEmployeeManagement';
 import { usePlannerDnD } from '../../hooks/usePlannerDnD';
 import { usePlannerServerSync } from '../../hooks/usePlannerServerSync';
 import { usePlannerStorage } from '../../hooks/usePlannerStorage';
+import { usePlannerWishes } from '../../hooks/usePlannerWishes';
 import { useScheduleMutations } from '../../hooks/useScheduleMutations';
 import { useThemeMode } from '../../hooks/useThemeMode';
 import { PlannerHeaderScreen } from './PlannerHeaderScreen';
@@ -73,10 +71,6 @@ import {
   Page,
   PanelTitle,
 } from '../../styles';
-
-function generateId(): string {
-  return Math.random().toString(36).slice(2, 11);
-}
 
 function getPeriodKey(year: number, month: number): string {
   return year + '-' + String(month + 1).padStart(2, '0');
@@ -171,7 +165,6 @@ export function PlannerScreen() {
   const [showHelp, setShowHelp] = useState(false);
   const [showDepartments, setShowDepartments] = useState(false);
   const [wishEmployeeId, setWishEmployeeId] = useState<string | null>(null);
-  const [mutatingWishId, setMutatingWishId] = useState<string | null>(null);
   const [editingEmployeeId, setEditingEmployeeId] = useState<string | null>(
     null
   );
@@ -250,6 +243,20 @@ export function PlannerScreen() {
     serverEmployeeMetadata,
     serverDepartmentMetadata,
     isSuperAdmin,
+    refreshServerPlanner,
+  });
+
+  const {
+    addWish,
+    removeWish,
+    mutatingWishId,
+  } = usePlannerWishes({
+    setWishes,
+    periodKey: getPeriodKey(year, month),
+    year,
+    month,
+    serverPlannerWriteEnabled,
+    serverPlannerStatus,
     refreshServerPlanner,
   });
 
@@ -356,7 +363,6 @@ export function PlannerScreen() {
   useEffect(() => {
     if (!serverPlannerReadEnabled) {
       setEditingEmployeeId(null);
-      setMutatingWishId(null);
       return;
     }
 
@@ -575,85 +581,6 @@ export function PlannerScreen() {
         ? prev.filter((id) => id !== departmentId)
         : [...prev, departmentId]
     );
-  };
-
-  const addWish = (employeeId: string, wish: Omit<EmployeeWish, 'id'>) => {
-    if (!serverPlannerWriteEnabled) {
-      setWishes((prev) => ({
-        ...prev,
-        [employeeId]: {
-          ...(prev[employeeId] || {}),
-          [periodKey]: [
-            ...(prev[employeeId]?.[periodKey] || []),
-            { ...wish, id: generateId() },
-          ],
-        },
-      }));
-      return;
-    }
-
-    if (serverPlannerStatus !== 'ready' || mutatingWishId !== null) {
-      alert('График ещё не готов к изменению пожеланий.');
-      return;
-    }
-
-    setMutatingWishId('create:' + employeeId);
-    void createPlannerWish({
-      employeeId,
-      year,
-      month: month + 1,
-      day: wish.day,
-      text: wish.text,
-    })
-      .then(() => refreshServerPlanner())
-      .catch((error) => {
-        console.error('Server wish create failed', error);
-        alert(
-          error instanceof Error
-            ? 'Не удалось добавить пожелание: ' + error.message
-            : 'Не удалось добавить пожелание на сервере.'
-        );
-        void refreshServerPlanner();
-      })
-      .finally(() => {
-        setMutatingWishId(null);
-      });
-  };
-
-  const removeWish = (employeeId: string, wishId: string) => {
-    if (!serverPlannerWriteEnabled) {
-      setWishes((prev) => ({
-        ...prev,
-        [employeeId]: {
-          ...(prev[employeeId] || {}),
-          [periodKey]: (prev[employeeId]?.[periodKey] || []).filter(
-            (wish) => wish.id !== wishId
-          ),
-        },
-      }));
-      return;
-    }
-
-    if (serverPlannerStatus !== 'ready' || mutatingWishId !== null) {
-      alert('График ещё не готов к изменению пожеланий.');
-      return;
-    }
-
-    setMutatingWishId(wishId);
-    void deletePlannerWish(wishId)
-      .then(() => refreshServerPlanner())
-      .catch((error) => {
-        console.error('Server wish delete failed', error);
-        alert(
-          error instanceof Error
-            ? 'Не удалось удалить пожелание: ' + error.message
-            : 'Не удалось удалить пожелание на сервере.'
-        );
-        void refreshServerPlanner();
-      })
-      .finally(() => {
-        setMutatingWishId(null);
-      });
   };
 
   const prevMonth = () => {
