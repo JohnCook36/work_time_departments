@@ -18,6 +18,11 @@ import {
   TextInput,
 } from '../../theme/styles';
 import { ScheduleView } from './PlannerScheduleTable';
+import {
+  FixedTimeInput,
+  HiddenFileInput,
+  PrintRangeSelect,
+} from './PlannerControlsToolbar.styles';
 
 interface PrintRange {
   key: string;
@@ -139,7 +144,7 @@ export function PlannerControlsToolbar({
 
         {newEmployeeScheduleMode === 'fixed-weekdays' && (
           <>
-            <TextInput
+            <FixedTimeInput
               type="time"
               value={newEmployeeFixedStartTime}
               disabled={!canCreateEmployee || isCreatingEmployee}
@@ -148,9 +153,8 @@ export function PlannerControlsToolbar({
               }
               title="Начало рабочего дня"
               aria-label="Начало рабочего дня"
-              style={{ width: 118 }}
             />
-            <TextInput
+            <FixedTimeInput
               type="time"
               value={newEmployeeFixedEndTime}
               disabled={!canCreateEmployee || isCreatingEmployee}
@@ -159,7 +163,6 @@ export function PlannerControlsToolbar({
               }
               title="Окончание рабочего дня"
               aria-label="Окончание рабочего дня"
-              style={{ width: 118 }}
             />
           </>
         )}
@@ -202,11 +205,10 @@ export function PlannerControlsToolbar({
 
         <Divider />
 
-        <input
+        <HiddenFileInput
           ref={excelFileInputRef}
           type="file"
           accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-          style={{ display: 'none' }}
           onChange={(event) => {
             onExcelFile(event.target.files?.[0] || null);
             event.currentTarget.value = '';
@@ -234,12 +236,11 @@ export function PlannerControlsToolbar({
           {isExportingExcel ? 'Excel…' : 'Экспорт Excel'}
         </ActionButton>
 
-        <Select
+        <PrintRangeSelect
           value={printRangeKey}
           disabled={isPreparingPrint}
           onChange={(event) => onPrintRangeChange(event.target.value)}
           title="Что печатать"
-          style={{ minWidth: 150 }}
         >
           <option value="month">Весь месяц</option>
           {printCalendarWeekRanges.map((range) => (
@@ -247,7 +248,7 @@ export function PlannerControlsToolbar({
               Неделя {range.label}
             </option>
           ))}
-        </Select>
+        </PrintRangeSelect>
 
         <ActionButton
           type="button"
