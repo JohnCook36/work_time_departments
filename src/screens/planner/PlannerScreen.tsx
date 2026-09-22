@@ -496,7 +496,6 @@ export function PlannerScreen() {
 
     setNewDepartmentName('');
     setNewDepartmentKind('general');
-    setNewEmployeeDepartmentId(createdDepartmentId);
   };
 
   const renameDepartment = (department: Department) => {
@@ -646,6 +645,7 @@ export function PlannerScreen() {
               isCreatingEmployee={isCreatingEmployee}
               onAddEmployee={addEmployee}
               canManageDepartments={canManageDepartments}
+              canViewDepartments={canManagePlanner}
               showDepartments={showDepartments}
               onToggleDepartments={() =>
                 setShowDepartments((value) => !value)
@@ -741,8 +741,9 @@ export function PlannerScreen() {
 
           <Footer>
             <div>
-              Данные сохраняются локально в браузере • Смены и пожелания раздельно
-              по месяцам
+              {serverPlannerReadEnabled
+                ? 'Данные загружаются с сервера • Смены и пожелания раздельно по месяцам'
+                : 'Локальный demo-режим • Данные сохраняются только в этом браузере'}
             </div>
             <PoweredByLine>
               Powered by Anastasiya P.
