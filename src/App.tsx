@@ -74,6 +74,7 @@ import {
 import { exportScheduleToExcel } from './exportExcel';
 import {
   getMonthWeekRanges,
+  getRequiredPrintPeriods,
   getVisibleMonthWeekRanges,
   printSchedule,
 } from './printSchedule';
@@ -400,6 +401,7 @@ function App() {
   const [overwriteExcelCells, setOverwriteExcelCells] = useState(false);
   const excelFileInputRef = useRef<HTMLInputElement | null>(null);
   const [printRangeKey, setPrintRangeKey] = useState('month');
+  const [isPreparingPrint, setIsPreparingPrint] = useState(false);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [dragTargetDepartmentId, setDragTargetDepartmentId] = useState<string | null>(null);
   const [serverPlannerStatus, setServerPlannerStatus] = useState<
@@ -1651,12 +1653,66 @@ function App() {
     }
   };
 
-  const handlePrintSchedule = () => {
+  const handlePrintSchedule = async () => {
+    if (isPreparingPrint) return;
+
+    let printPeriods = effectiveSchedulePeriods;
+
+    if (serverPlannerReadEnabled) {
+      try {
+        setIsPreparingPrint(true);
+
+        const requiredPeriods = getRequiredPrintPeriods(
+          year,
+          month,
+          printRangeKey
+        );
+        const adjacentPeriods = requiredPeriods.filter(
+          (period) => period.year !== year || period.month !== month
+        );
+
+        const adjacentSnapshots = await Promise.all(
+          adjacentPeriods.map(async (period) => ({
+            period,
+            snapshot: await loadPlannerServerSnapshot(
+              period.year,
+              period.month + 1
+            ),
+          }))
+        );
+
+        const serverSchedules = {
+          ...schedules,
+          [periodKey]: rawSchedule,
+        };
+
+        adjacentSnapshots.forEach(({ period, snapshot }) => {
+          serverSchedules[getPeriodKey(period.year, period.month)] =
+            snapshot.schedule;
+        });
+
+        printPeriods = buildEffectiveSchedulePeriods(
+          employees,
+          serverSchedules,
+          year,
+          month
+        );
+      } catch (error) {
+        console.error('Server print period preload failed', error);
+        alert(
+          'Не удалось загрузить соседние месяцы для печати. Попробуйте ещё раз.'
+        );
+        return;
+      } finally {
+        setIsPreparingPrint(false);
+      }
+    }
+
     printSchedule({
       departments,
       employees,
       schedule,
-      schedules: effectiveSchedulePeriods,
+      schedules: printPeriods,
       year,
       month,
       daysInMonth,
@@ -2103,6 +2159,7 @@ function App() {
 
               <Select
                 value={printRangeKey}
+                disabled={isPreparingPrint}
                 onChange={(event) => setPrintRangeKey(event.target.value)}
                 title="Что печатать"
                 style={{ minWidth: 150 }}
@@ -2117,11 +2174,12 @@ function App() {
 
               <ActionButton
                 type="button"
-                onClick={handlePrintSchedule}
+                onClick={() => void handlePrintSchedule()}
+                disabled={isPreparingPrint}
                 title="Открыть печатную версию A4"
               >
                 <Printer size={16} />
-                Печать
+                {isPreparingPrint ? 'Готовлю…' : 'Печать'}
               </ActionButton>
 
               <ActionButton
