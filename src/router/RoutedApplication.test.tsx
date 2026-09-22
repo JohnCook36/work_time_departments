@@ -1,12 +1,12 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import App from '../App';
+import App from '../screens/planner/PlannerScreen';
 import { useAuthUser } from '../auth/AuthContext';
 import * as api from '../auth/api';
 import { RoutedApplication } from './RoutedApplication';
 
-vi.mock('../App', () => ({ default: vi.fn() }));
+vi.mock('../screens/planner/PlannerScreen', () => ({ default: vi.fn() }));
 
 const user: api.AuthUser = {
   id: 'example-user', phoneE164: '+12025550100',
