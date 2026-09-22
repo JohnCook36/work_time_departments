@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Check, Clock3, Eraser, Moon, X } from 'lucide-react';
 import { Employee, ShiftCode, ShiftEntry } from './types';
+import { statusPalette } from './theme/palette';
 import { MONTH_NAMES } from './utils';
 import {
   ActionButton,
@@ -198,7 +199,7 @@ export function ShiftEditor({
             marginTop: 16,
             padding: 12,
             borderRadius: 12,
-            border: '1px solid rgba(148,163,184,.28)',
+            border: '1px solid ' + statusPalette.neutralBorder,
           }}
         >
           <TinyText>
