@@ -97,9 +97,7 @@ import {
   deactivatePlannerEmployee,
   deletePlannerWish,
   loadPlannerServerSnapshot,
-  PlannerCellMetadataMap,
-  PlannerDepartmentMetadataMap,
-  PlannerEmployeeMetadataMap,
+  PlannerServerSnapshot,
   reorderPlannerDepartments,
   reorderPlannerEmployees,
   updatePlannerDepartment,
@@ -110,6 +108,7 @@ import {
   buildEffectiveSchedulePeriods,
 } from './employeeSchedule';
 import { getTheme } from './theme';
+import { usePlannerServerSync } from './hooks/usePlannerServerSync';
 import { usePlannerStorage } from './hooks/usePlannerStorage';
 import { useThemeMode } from './hooks/useThemeMode';
 import {
@@ -292,18 +291,6 @@ function App() {
   const [isPreparingPrint, setIsPreparingPrint] = useState(false);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [dragTargetDepartmentId, setDragTargetDepartmentId] = useState<string | null>(null);
-  const [serverPlannerStatus, setServerPlannerStatus] = useState<
-    'disabled' | 'loading' | 'ready' | 'error'
-  >(serverPlannerReadEnabled ? 'loading' : 'disabled');
-  const [serverPlannerError, setServerPlannerError] = useState<string | null>(
-    null
-  );
-  const [serverCellMetadata, setServerCellMetadata] =
-    useState<PlannerCellMetadataMap>({});
-  const [serverEmployeeMetadata, setServerEmployeeMetadata] =
-    useState<PlannerEmployeeMetadataMap>({});
-  const [serverDepartmentMetadata, setServerDepartmentMetadata] =
-    useState<PlannerDepartmentMetadataMap>({});
   const [updatingEmployeeRateId, setUpdatingEmployeeRateId] =
     useState<string | null>(null);
   const [mutatingEmployeeId, setMutatingEmployeeId] =
@@ -314,7 +301,33 @@ function App() {
     useState<string | null>(null);
   const [mutatingDepartmentId, setMutatingDepartmentId] =
     useState<string | null>(null);
-  const serverPlannerLoadVersion = useRef(0);
+
+  const applyServerPlannerSnapshot = useCallback(
+    (snapshot: PlannerServerSnapshot) => {
+      setDepartments(snapshot.departments);
+      setEmployees(snapshot.employees);
+      setSchedules((prev) => ({
+        ...prev,
+        [getPeriodKey(year, month)]: snapshot.schedule,
+      }));
+      setWishes(snapshot.wishes);
+    },
+    [month, year]
+  );
+
+  const {
+    status: serverPlannerStatus,
+    error: serverPlannerError,
+    cellMetadata: serverCellMetadata,
+    employeeMetadata: serverEmployeeMetadata,
+    departmentMetadata: serverDepartmentMetadata,
+    refresh: refreshServerPlanner,
+  } = usePlannerServerSync({
+    enabled: serverPlannerReadEnabled,
+    year,
+    month,
+    onSnapshot: applyServerPlannerSnapshot,
+  });
 
   const canManageEmployeeProfiles =
     canManagePlanner &&
@@ -406,47 +419,8 @@ function App() {
     collapsedDepartments,
   ]);
 
-  const refreshServerPlanner = useCallback(async () => {
-    const loadVersion = ++serverPlannerLoadVersion.current;
-    setServerPlannerStatus('loading');
-    setServerPlannerError(null);
-
-    try {
-      const snapshot = await loadPlannerServerSnapshot(year, month + 1);
-      if (loadVersion !== serverPlannerLoadVersion.current) return;
-
-      setDepartments(snapshot.departments);
-      setEmployees(snapshot.employees);
-      setSchedules((prev) => ({
-        ...prev,
-        [periodKey]: snapshot.schedule,
-      }));
-      setWishes(snapshot.wishes);
-      setServerCellMetadata(snapshot.cellMetadata);
-      setServerEmployeeMetadata(snapshot.employeeMetadata);
-      setServerDepartmentMetadata(snapshot.departmentMetadata);
-      setServerPlannerStatus('ready');
-    } catch (error) {
-      if (loadVersion !== serverPlannerLoadVersion.current) return;
-
-      console.error('Server planner load failed', error);
-      setServerPlannerStatus('error');
-      setServerPlannerError(
-        error instanceof Error
-          ? error.message
-          : 'Не удалось загрузить график с сервера.'
-      );
-    }
-  }, [year, month, periodKey]);
-
   useEffect(() => {
     if (!serverPlannerReadEnabled) {
-      serverPlannerLoadVersion.current++;
-      setServerPlannerStatus('disabled');
-      setServerPlannerError(null);
-      setServerCellMetadata({});
-      setServerEmployeeMetadata({});
-      setServerDepartmentMetadata({});
       setUpdatingEmployeeRateId(null);
       setMutatingEmployeeId(null);
       setEditingEmployeeId(null);
@@ -459,12 +433,7 @@ function App() {
 
     setEditingCell(null);
     setWishEmployeeId(null);
-    void refreshServerPlanner();
-
-    return () => {
-      serverPlannerLoadVersion.current++;
-    };
-  }, [serverPlannerReadEnabled, refreshServerPlanner]);
+  }, [serverPlannerReadEnabled]);
 
   useEffect(() => {
     setPrintRangeKey('month');
