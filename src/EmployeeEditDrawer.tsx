@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Save, Trash2, X } from 'lucide-react';
 
+import { statusPalette } from './theme/palette';
+
 import {
   Department,
   Employee,
@@ -271,7 +273,7 @@ export function EmployeeEditDrawer({
             marginTop: 16,
             padding: 12,
             borderRadius: 12,
-            border: '1px solid rgba(148,163,184,.28)',
+            border: '1px solid ' + statusPalette.neutralBorder,
           }}
         >
           <TinyText>
