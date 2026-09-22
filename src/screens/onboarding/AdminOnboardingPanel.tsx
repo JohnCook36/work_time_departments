@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useTheme } from '@emotion/react';
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { AnimatePresence, useReducedMotion } from 'framer-motion';
 import {
   Check,
   RefreshCw,
@@ -11,6 +10,29 @@ import {
 } from 'lucide-react';
 
 import { IconButton } from '../../theme/styles';
+import {
+  AdminControls,
+  AdminDepartmentSelect,
+  AdminDescription,
+  AdminDrawer,
+  AdminError,
+  AdminHeader,
+  AdminOverlay,
+  AdminTitle,
+  ApproveButton,
+  RejectButton,
+  RequestActions,
+  RequestBody,
+  RequestCard,
+  RequestHeader,
+  RequestMeta,
+  RequestName,
+  RequestsEmpty,
+  RequestsList,
+  RequestsLoading,
+  RequestsSection,
+  RequestTimestamp,
+} from './AdminOnboardingPanel.styles';
 import {
   AdminOnboardingRequest,
   OnboardingDepartment,
@@ -37,7 +59,6 @@ function requestLabel(request: AdminOnboardingRequest): string {
 }
 
 export function AdminOnboardingPanel() {
-  const theme = useTheme();
   const reduceMotion = useReducedMotion();
   const [available, setAvailable] = useState<boolean | null>(null);
   const [open, setOpen] = useState(false);
@@ -156,7 +177,7 @@ export function AdminOnboardingPanel() {
       {createPortal(
         <AnimatePresence>
           {open && (
-            <motion.div
+            <AdminOverlay
               key="admin-onboarding-overlay"
               initial={reduceMotion ? false : { opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -167,16 +188,8 @@ export function AdminOnboardingPanel() {
                   setOpen(false);
                 }
               }}
-              style={{
-                position: 'fixed',
-                inset: 0,
-                zIndex: 12000,
-                display: 'flex',
-                justifyContent: 'flex-end',
-                background: theme.colors.overlay,
-              }}
             >
-              <motion.aside
+              <AdminDrawer
                 initial={
                   reduceMotion ? false : { opacity: 0, x: 36 }
                 }
@@ -185,49 +198,17 @@ export function AdminOnboardingPanel() {
                   reduceMotion ? undefined : { opacity: 0, x: 36 }
                 }
                 transition={{ duration: 0.2, ease: 'easeOut' }}
-                style={{
-                  width: 'min(520px, 100%)',
-                  height: '100%',
-                  overflowY: 'auto',
-                  padding: 20,
-                  background: theme.colors.surfaceElevated,
-                  color: theme.colors.text,
-                  borderLeft: '1px solid ' + theme.colors.border,
-                  boxShadow: theme.shadows.drawer,
-                }}
               >
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    justifyContent: 'space-between',
-                    gap: 12,
-                  }}
-                >
+                <AdminHeader>
                   <div>
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        fontWeight: 800,
-                        fontSize: 18,
-                      }}
-                    >
+                    <AdminTitle>
                       <ShieldCheck size={20} />
                       Привязка аккаунтов
-                    </div>
-                    <div
-                      style={{
-                        marginTop: 5,
-                        color: theme.colors.textMuted,
-                        fontSize: 13,
-                        lineHeight: 1.45,
-                      }}
-                    >
+                    </AdminTitle>
+                    <AdminDescription>
                       Аккаунт станет сотрудником только после подтверждения
                       руководителем.
-                    </div>
+                    </AdminDescription>
                   </div>
 
                   <IconButton
@@ -237,37 +218,21 @@ export function AdminOnboardingPanel() {
                   >
                     <X size={18} />
                   </IconButton>
-                </div>
+                </AdminHeader>
 
-                <div
-                  style={{
-                    display: 'flex',
-                    gap: 8,
-                    marginTop: 18,
-                  }}
-                >
-                  <select
+                <AdminControls>
+                  <AdminDepartmentSelect
                     value={selectedDepartmentId}
                     onChange={(event) =>
                       setSelectedDepartmentId(event.target.value)
                     }
-                    style={{
-                      flex: 1,
-                      minWidth: 0,
-                      height: 40,
-                      borderRadius: 10,
-                      border: '1px solid ' + theme.colors.border,
-                      background: theme.colors.surface,
-                      color: theme.colors.text,
-                      padding: '0 10px',
-                    }}
                   >
                     {departments.map((department) => (
                       <option key={department.id} value={department.id}>
                         {department.name}
                       </option>
                     ))}
-                  </select>
+                  </AdminDepartmentSelect>
 
                   <IconButton
                     type="button"
@@ -276,172 +241,81 @@ export function AdminOnboardingPanel() {
                   >
                     <RefreshCw size={17} />
                   </IconButton>
-                </div>
+                </AdminControls>
 
                 {error && (
-                  <div
-                    style={{
-                      marginTop: 12,
-                      padding: 10,
-                      borderRadius: 10,
-                      background: theme.colors.dangerSoft,
-                      color: theme.colors.danger,
-                      fontSize: 13,
-                    }}
-                  >
-                    {error}
-                  </div>
+                  <AdminError>{error}</AdminError>
                 )}
 
-                <div style={{ marginTop: 16 }}>
+                <RequestsSection>
                   {loading ? (
-                    <div
-                      style={{
-                        padding: 20,
-                        textAlign: 'center',
-                        color: theme.colors.textMuted,
-                      }}
-                    >
-                      Загружаем заявки…
-                    </div>
+                    <RequestsLoading>Загружаем заявки…</RequestsLoading>
                   ) : requests.length === 0 ? (
-                    <div
-                      style={{
-                        padding: 22,
-                        borderRadius: 14,
-                        border: '1px dashed ' + theme.colors.border,
-                        textAlign: 'center',
-                        color: theme.colors.textMuted,
-                      }}
-                    >
+                    <RequestsEmpty>
                       Для отдела «{selectedDepartment?.name || '—'}» новых
                       заявок нет.
-                    </div>
+                    </RequestsEmpty>
                   ) : (
-                    <div style={{ display: 'grid', gap: 10 }}>
+                    <RequestsList>
                       {requests.map((request) => {
                         const busy = busyRequestId === request.id;
 
                         return (
-                          <motion.div
+                          <RequestCard
                             layout={!reduceMotion}
                             key={request.id}
-                            style={{
-                              padding: 14,
-                              borderRadius: 14,
-                              border: '1px solid ' + theme.colors.border,
-                              background: theme.colors.surface,
-                            }}
                           >
-                            <div
-                              style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                gap: 12,
-                              }}
-                            >
-                              <div style={{ minWidth: 0 }}>
-                                <div
-                                  style={{
-                                    fontWeight: 800,
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                  }}
-                                >
+                            <RequestHeader>
+                              <RequestBody>
+                                <RequestName>
                                   {requestLabel(request)}
-                                </div>
-                                <div
-                                  style={{
-                                    marginTop: 4,
-                                    color: theme.colors.textMuted,
-                                    fontSize: 12,
-                                  }}
-                                >
+                                </RequestName>
+                                <RequestMeta>
                                   {request.type === 'LINK_EXISTING'
                                     ? 'Привязка к существующему сотруднику'
                                     : 'Создание нового профиля'}
                                   {' • '}
                                   {maskPhone(request.user.phoneE164)}
-                                </div>
-                                <div
-                                  style={{
-                                    marginTop: 3,
-                                    color: theme.colors.textMuted,
-                                    fontSize: 11,
-                                  }}
-                                >
+                                </RequestMeta>
+                                <RequestTimestamp>
                                   {new Date(
                                     request.createdAt,
                                   ).toLocaleString('ru-RU')}
-                                </div>
-                              </div>
-                            </div>
+                                </RequestTimestamp>
+                              </RequestBody>
+                            </RequestHeader>
 
-                            <div
-                              style={{
-                                display: 'grid',
-                                gridTemplateColumns: '1fr 1fr',
-                                gap: 8,
-                                marginTop: 12,
-                              }}
-                            >
-                              <button
+                            <RequestActions>
+                              <RejectButton
                                 type="button"
                                 disabled={busy}
                                 onClick={() =>
                                   void resolve(request, 'reject')
                                 }
-                                style={{
-                                  minHeight: 38,
-                                  borderRadius: 10,
-                                  border:
-                                    '1px solid ' + theme.colors.border,
-                                  background: theme.colors.dangerSoft,
-                                  color: theme.colors.danger,
-                                  fontWeight: 800,
-                                  cursor: busy ? 'wait' : 'pointer',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  gap: 7,
-                                }}
                               >
                                 <X size={16} />
                                 Отклонить
-                              </button>
+                              </RejectButton>
 
-                              <button
+                              <ApproveButton
                                 type="button"
                                 disabled={busy}
                                 onClick={() =>
                                   void resolve(request, 'approve')
                                 }
-                                style={{
-                                  minHeight: 38,
-                                  borderRadius: 10,
-                                  border: 0,
-                                  background: theme.colors.primary,
-                                  color: theme.colors.onPrimary,
-                                  fontWeight: 800,
-                                  cursor: busy ? 'wait' : 'pointer',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  gap: 7,
-                                }}
                               >
                                 <Check size={16} />
                                 {busy ? 'Обработка…' : 'Подтвердить'}
-                              </button>
-                            </div>
-                          </motion.div>
+                              </ApproveButton>
+                            </RequestActions>
+                          </RequestCard>
                         );
                       })}
-                    </div>
+                    </RequestsList>
                   )}
-                </div>
-              </motion.aside>
-            </motion.div>
+                </RequestsSection>
+              </AdminDrawer>
+            </AdminOverlay>
           )}
         </AnimatePresence>,
         document.body,
