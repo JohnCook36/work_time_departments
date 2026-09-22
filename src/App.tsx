@@ -60,6 +60,10 @@ import {
   validateShiftInput,
 } from './utils';
 import { EmployeeWishDrawer } from './WishDrawer';
+import {
+  EmployeeEditDrawer,
+  EmployeeEditValues,
+} from './EmployeeEditDrawer';
 import { ExcelImportDrawer } from './ExcelImportDrawer';
 import {
   applyExcelImportEntries,
@@ -86,6 +90,7 @@ import {
   createPlannerDepartment,
   createPlannerEmployee,
   deactivatePlannerDepartment,
+  deactivatePlannerEmployee,
   loadPlannerServerSnapshot,
   PlannerCellMetadataMap,
   PlannerDepartmentMetadataMap,
@@ -377,6 +382,9 @@ function App() {
   const [showHelp, setShowHelp] = useState(false);
   const [showDepartments, setShowDepartments] = useState(false);
   const [wishEmployeeId, setWishEmployeeId] = useState<string | null>(null);
+  const [editingEmployeeId, setEditingEmployeeId] = useState<string | null>(
+    null
+  );
   const [scheduleView, setScheduleView] = useState<ScheduleView>('schedule');
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [isImportingExcel, setIsImportingExcel] = useState(false);
@@ -402,6 +410,8 @@ function App() {
     useState<PlannerDepartmentMetadataMap>({});
   const [updatingEmployeeRateId, setUpdatingEmployeeRateId] =
     useState<string | null>(null);
+  const [mutatingEmployeeId, setMutatingEmployeeId] =
+    useState<string | null>(null);
   const [movingEmployeeId, setMovingEmployeeId] =
     useState<string | null>(null);
   const [movingDepartmentId, setMovingDepartmentId] =
@@ -410,10 +420,13 @@ function App() {
     useState<string | null>(null);
   const serverPlannerLoadVersion = useRef(0);
 
-  const canCreateEmployee =
+  const canManageEmployeeProfiles =
     canManagePlanner &&
     (!serverPlannerReadEnabled ||
-      (serverPlannerWriteEnabled && serverPlannerStatus === 'ready'));
+      (serverPlannerWriteEnabled &&
+        serverPlannerStatus === 'ready' &&
+        mutatingEmployeeId === null));
+  const canCreateEmployee = canManageEmployeeProfiles;
   const canEditEmployeeRate =
     canManagePlanner &&
     (!serverPlannerReadEnabled ||
@@ -515,6 +528,8 @@ function App() {
       setServerEmployeeMetadata({});
       setServerDepartmentMetadata({});
       setUpdatingEmployeeRateId(null);
+      setMutatingEmployeeId(null);
+      setEditingEmployeeId(null);
       setMovingEmployeeId(null);
       setMovingDepartmentId(null);
       setMutatingDepartmentId(null);
@@ -799,26 +814,148 @@ function App() {
       });
   };
 
-  const removeEmployee = (id: string) => {
-    if (!confirm('Удалить сотрудника, его смены и пожелания?')) return;
+  const saveEmployeeEdit = (values: EmployeeEditValues) => {
+    if (!editingEmployeeId || mutatingEmployeeId !== null) return;
 
-    setEmployees((prev) => prev.filter((employee) => employee.id !== id));
-    setSchedules((prev) => {
-      const next: SchedulePeriodsData = {};
-      Object.entries(prev).forEach(([key, periodSchedule]) => {
-        const periodNext = { ...periodSchedule };
-        delete periodNext[id];
-        next[key] = periodNext;
+    const employeeId = editingEmployeeId;
+
+    if (!serverPlannerWriteEnabled) {
+      setEmployees((prev) =>
+        prev.map((employee) =>
+          employee.id === employeeId
+            ? {
+                ...employee,
+                name: values.displayName,
+                departmentId: values.departmentId,
+                employmentRate: values.employmentRate,
+                scheduleMode: values.scheduleMode,
+                ...(values.scheduleMode === 'fixed-weekdays'
+                  ? {
+                      fixedStartTime: values.fixedStartTime || undefined,
+                      fixedEndTime: values.fixedEndTime || undefined,
+                    }
+                  : {
+                      fixedStartTime: undefined,
+                      fixedEndTime: undefined,
+                    }),
+              }
+            : employee
+        )
+      );
+      setEditingEmployeeId(null);
+      return;
+    }
+
+    if (serverPlannerStatus !== 'ready') {
+      alert('График ещё не готов к редактированию сотрудника.');
+      return;
+    }
+
+    const metadata = serverEmployeeMetadata[employeeId];
+    if (!metadata) {
+      alert('Не удалось определить версию сотрудника. Обновляю данные.');
+      setEditingEmployeeId(null);
+      void refreshServerPlanner();
+      return;
+    }
+
+    setMutatingEmployeeId(employeeId);
+    void updatePlannerEmployee(employeeId, {
+      displayName: values.displayName,
+      departmentId: values.departmentId,
+      employmentRate: values.employmentRate,
+      scheduleMode:
+        values.scheduleMode === 'fixed-weekdays'
+          ? 'FIXED_WEEKDAYS'
+          : 'FLEXIBLE',
+      fixedStartTime: values.fixedStartTime,
+      fixedEndTime: values.fixedEndTime,
+      expectedUpdatedAt: metadata.updatedAt,
+    })
+      .then(async () => {
+        setEditingEmployeeId(null);
+        await refreshServerPlanner();
+      })
+      .catch((error) => {
+        console.error('Server employee edit failed', error);
+        alert(
+          error instanceof Error
+            ? 'Не удалось изменить сотрудника: ' + error.message
+            : 'Не удалось изменить сотрудника на сервере.'
+        );
+        setEditingEmployeeId(null);
+        void refreshServerPlanner();
+      })
+      .finally(() => {
+        setMutatingEmployeeId(null);
       });
-      return next;
-    });
-    setWishes((prev) => {
-      const next = { ...prev };
-      delete next[id];
-      return next;
-    });
+  };
 
-    if (wishEmployeeId === id) setWishEmployeeId(null);
+  const removeEmployee = (id: string) => {
+    const promptText = serverPlannerWriteEnabled
+      ? 'Деактивировать сотрудника? Исторические смены будут сохранены.'
+      : 'Удалить сотрудника, его смены и пожелания?';
+
+    if (!confirm(promptText)) return;
+
+    if (!serverPlannerWriteEnabled) {
+      setEmployees((prev) => prev.filter((employee) => employee.id !== id));
+      setSchedules((prev) => {
+        const next: SchedulePeriodsData = {};
+        Object.entries(prev).forEach(([key, periodSchedule]) => {
+          const periodNext = { ...periodSchedule };
+          delete periodNext[id];
+          next[key] = periodNext;
+        });
+        return next;
+      });
+      setWishes((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+
+      if (wishEmployeeId === id) setWishEmployeeId(null);
+      if (editingEmployeeId === id) setEditingEmployeeId(null);
+      return;
+    }
+
+    if (
+      serverPlannerStatus !== 'ready' ||
+      mutatingEmployeeId !== null
+    ) {
+      alert('График ещё не готов к деактивации сотрудника.');
+      return;
+    }
+
+    const metadata = serverEmployeeMetadata[id];
+    if (!metadata) {
+      alert('Не удалось определить версию сотрудника. Обновляю данные.');
+      setEditingEmployeeId(null);
+      void refreshServerPlanner();
+      return;
+    }
+
+    setMutatingEmployeeId(id);
+    void deactivatePlannerEmployee(id, metadata.updatedAt)
+      .then(async () => {
+        if (wishEmployeeId === id) setWishEmployeeId(null);
+        if (editingEmployeeId === id) setEditingEmployeeId(null);
+        await refreshServerPlanner();
+      })
+      .catch((error) => {
+        console.error('Server employee deactivate failed', error);
+        alert(
+          error instanceof Error
+            ? 'Не удалось деактивировать сотрудника: ' + error.message
+            : 'Не удалось деактивировать сотрудника на сервере.'
+        );
+        setEditingEmployeeId(null);
+        void refreshServerPlanner();
+      })
+      .finally(() => {
+        setMutatingEmployeeId(null);
+      });
   };
 
   const addDepartment = async () => {
@@ -1522,6 +1659,11 @@ function App() {
       ? null
       : employees.find((employee) => employee.id === wishEmployeeId) || null;
 
+  const selectedEditEmployee =
+    editingEmployeeId === null
+      ? null
+      : employees.find((employee) => employee.id === editingEmployeeId) || null;
+
   const selectedShiftEmployee =
     editingCell === null
       ? null
@@ -2025,6 +2167,7 @@ function App() {
                           getEntry={getEntry}
                           getEmployeeTotals={getEmployeeTotals}
                           removeEmployee={removeEmployee}
+                          onEditEmployee={setEditingEmployeeId}
                           getWishCount={(employeeId) =>
                             wishes[employeeId]?.[periodKey]?.length || 0
                           }
@@ -2043,6 +2186,7 @@ function App() {
                           onOpenWishes={setWishEmployeeId}
                           scheduleView={scheduleView}
                           editable={canEditPlanner}
+                          employeeProfileEditable={canManageEmployeeProfiles}
                           scheduleEditable={canEditScheduleCells}
                           employeeDraggable={canMoveEmployees}
                           departmentDraggable={canMoveDepartments}
@@ -2272,6 +2416,18 @@ function App() {
         />
       )}
 
+      {selectedEditEmployee && canManageEmployeeProfiles && (
+        <EmployeeEditDrawer
+          key={selectedEditEmployee.id}
+          employee={selectedEditEmployee}
+          departments={departments}
+          busy={mutatingEmployeeId === selectedEditEmployee.id}
+          onSave={saveEmployeeEdit}
+          onDeactivate={() => removeEmployee(selectedEditEmployee.id)}
+          onClose={() => setEditingEmployeeId(null)}
+        />
+      )}
+
       {canEditPlanner && selectedWishEmployee && (
         <EmployeeWishDrawer
           key={selectedWishEmployee.id + periodKey}
@@ -2307,11 +2463,13 @@ interface DepartmentSectionProps {
     workDays: number;
   };
   removeEmployee: (id: string) => void;
+  onEditEmployee: (employeeId: string) => void;
   getWishCount: (employeeId: string) => number;
   getWishSummary: (employeeId: string) => string;
   onOpenWishes: (employeeId: string) => void;
   scheduleView: ScheduleView;
   editable: boolean;
+  employeeProfileEditable: boolean;
   scheduleEditable: boolean;
   employeeDraggable: boolean;
   departmentDraggable: boolean;
@@ -2331,11 +2489,13 @@ function DepartmentSection({
   getEntry,
   getEmployeeTotals,
   removeEmployee,
+  onEditEmployee,
   getWishCount,
   getWishSummary,
   onOpenWishes,
   scheduleView,
   editable,
+  employeeProfileEditable,
   scheduleEditable,
   employeeDraggable,
   departmentDraggable,
@@ -2428,11 +2588,13 @@ function DepartmentSection({
               getEntry={getEntry}
               totals={getEmployeeTotals(employee.id)}
               removeEmployee={removeEmployee}
+              onEditEmployee={onEditEmployee}
               wishCount={getWishCount(employee.id)}
               wishSummary={getWishSummary(employee.id)}
               onOpenWishes={onOpenWishes}
               scheduleView={scheduleView}
               editable={editable}
+              employeeProfileEditable={employeeProfileEditable}
               scheduleEditable={scheduleEditable}
               draggable={employeeDraggable}
             />
@@ -2453,11 +2615,13 @@ interface SortableEmployeeRowProps {
   getEntry: (empId: string, day: number) => ShiftEntry;
   totals: { day: number; night: number; total: number; workDays: number };
   removeEmployee: (id: string) => void;
+  onEditEmployee: (employeeId: string) => void;
   wishCount: number;
   wishSummary: string;
   onOpenWishes: (employeeId: string) => void;
   scheduleView: ScheduleView;
   editable: boolean;
+  employeeProfileEditable: boolean;
   scheduleEditable: boolean;
   draggable: boolean;
 }
@@ -2472,11 +2636,13 @@ function SortableEmployeeRow({
   getEntry,
   totals,
   removeEmployee,
+  onEditEmployee,
   wishCount,
   wishSummary,
   onOpenWishes,
   scheduleView,
   editable,
+  employeeProfileEditable,
   scheduleEditable,
   draggable,
 }: SortableEmployeeRowProps) {
@@ -2557,9 +2723,22 @@ function SortableEmployeeRow({
 
           <RowIconButton
             type="button"
-            disabled={!editable}
+            disabled={!employeeProfileEditable}
+            onClick={() => onEditEmployee(employee.id)}
+            title="Редактировать сотрудника"
+          >
+            <Pencil size={14} />
+          </RowIconButton>
+
+          <RowIconButton
+            type="button"
+            disabled={!employeeProfileEditable}
             onClick={() => removeEmployee(employee.id)}
-            title="Удалить сотрудника"
+            title={
+              serverPlannerWriteEnabled
+                ? 'Деактивировать сотрудника'
+                : 'Удалить сотрудника'
+            }
           >
             <Trash2 size={14} />
           </RowIconButton>
