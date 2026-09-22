@@ -35,6 +35,16 @@ import {
   TinyText,
   WishCount,
 } from '../../theme/styles';
+import {
+  ErrorPanelList,
+  ErrorPanelTitle,
+  FixedScheduleBadge,
+  HourLine,
+  HoursShiftDisplay,
+  HourTotal,
+  SortableDepartmentRow,
+  SortableEmployeeTableRow,
+} from './PlannerScheduleTable.styles';
 
 export type ScheduleView = 'schedule' | 'hours';
 
@@ -115,15 +125,16 @@ export function DepartmentSection({
     id: 'dep:' + department.id,
   });
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.55 : 1,
-  };
+  const transformValue = CSS.Transform.toString(transform);
 
   return (
     <>
-      <tr ref={setSortableNodeRef} style={style}>
+      <SortableDepartmentRow
+        ref={setSortableNodeRef}
+        $transform={transformValue}
+        $transition={transition}
+        $dragging={isDragging}
+      >
         <DepartmentRowCell
           ref={setDropNodeRef}
           colSpan={columnCount}
@@ -166,7 +177,7 @@ export function DepartmentSection({
             )}
           </DepartmentRowInner>
         </DepartmentRowCell>
-      </tr>
+      </SortableDepartmentRow>
 
       {!collapsed && (
         <SortableContext
@@ -254,15 +265,13 @@ function SortableEmployeeRow({
     id: 'emp:' + employee.id,
   });
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
+  const transformValue = CSS.Transform.toString(transform);
 
   return (
-    <EmployeeRow
+    <SortableEmployeeTableRow
       ref={setNodeRef}
-      style={style}
+      $transform={transformValue}
+      $transition={transition}
       $dragging={isDragging}
       $odd={index % 2 === 1}
     >
@@ -287,20 +296,9 @@ function SortableEmployeeRow({
           {employee.scheduleMode === 'fixed-weekdays' &&
             employee.fixedStartTime &&
             employee.fixedEndTime && (
-              <span
-                title="Автоматический базовый график 5/2"
-                style={{
-                  flex: '0 0 auto',
-                  padding: '2px 6px',
-                  borderRadius: 999,
-                  fontSize: 9,
-                  fontWeight: 800,
-                  opacity: 0.72,
-                  whiteSpace: 'nowrap',
-                }}
-              >
+              <FixedScheduleBadge title="Автоматический базовый график 5/2">
                 5/2 {employee.fixedStartTime}-{employee.fixedEndTime}
-              </span>
+              </FixedScheduleBadge>
             )}
 
           <RowIconButton
@@ -379,13 +377,7 @@ function SortableEmployeeRow({
               }
             >
               {scheduleView === 'hours' ? (
-                <ShiftDisplay
-                  style={{
-                    flexDirection: 'column',
-                    gap: 1,
-                    lineHeight: 1.08,
-                    cursor: 'default',
-                  }}
+                <HoursShiftDisplay
                   title={
                     entry.type === 'shift'
                       ? 'Дневные: ' + hours.day +
@@ -400,9 +392,9 @@ function SortableEmployeeRow({
                 >
                   {entry.type === 'shift' ? (
                     <>
-                      <span style={{ fontSize: 9 }}>Д {hours.day}</span>
-                      <span style={{ fontSize: 9 }}>Н {hours.night}</span>
-                      <strong style={{ fontSize: 10 }}>Σ {hours.total}</strong>
+                      <HourLine>Д {hours.day}</HourLine>
+                      <HourLine>Н {hours.night}</HourLine>
+                      <HourTotal>Σ {hours.total}</HourTotal>
                     </>
                   ) : entry.type === 'off' ? (
                     'OFF'
@@ -411,7 +403,7 @@ function SortableEmployeeRow({
                   ) : (
                     '·'
                   )}
-                </ShiftDisplay>
+                </HoursShiftDisplay>
               ) : (
                 <ShiftDisplay
                   title={
@@ -444,7 +436,7 @@ function SortableEmployeeRow({
       <MetricCell $tone="night">{totals.night}</MetricCell>
       <MetricCell $tone="total">{totals.total}</MetricCell>
       <MetricCell $tone="muted">{totals.workDays}</MetricCell>
-    </EmployeeRow>
+    </SortableEmployeeTableRow>
   );
 }
 
@@ -477,18 +469,18 @@ export function ErrorPanel({
 
   return (
     <ErrorCard>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800 }}>
+      <ErrorPanelTitle>
         <AlertTriangle size={17} />
         Ошибки в заполнении ({errors.length})
-      </div>
+      </ErrorPanelTitle>
 
-      <div style={{ marginTop: 8, display: 'grid', gap: 4, fontSize: 13 }}>
+      <ErrorPanelList>
         {errors.map((error, index) => (
           <div key={index}>
             <strong>{error.empName}</strong> → день {error.day}: {error.error}
           </div>
         ))}
-      </div>
+      </ErrorPanelList>
     </ErrorCard>
   );
 }
