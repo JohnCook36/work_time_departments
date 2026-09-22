@@ -30,6 +30,7 @@ interface PlannerDepartmentPanelProps {
   departments: Department[];
   employees: Employee[];
   canManageDepartments: boolean;
+  canViewDepartments: boolean;
   showDepartments: boolean;
   newDepartmentName: string;
   onNewDepartmentNameChange: (value: string) => void;
@@ -49,6 +50,7 @@ export function PlannerDepartmentPanel({
   departments,
   employees,
   canManageDepartments,
+  canViewDepartments,
   showDepartments,
   newDepartmentName,
   onNewDepartmentNameChange,
@@ -60,7 +62,7 @@ export function PlannerDepartmentPanel({
   onRenameDepartment,
   onRemoveDepartment,
 }: PlannerDepartmentPanelProps) {
-  if (!canManageDepartments || !showDepartments) return null;
+  if (!canViewDepartments || !showDepartments) return null;
 
   return (
     <DepartmentPanel>
@@ -73,7 +75,8 @@ export function PlannerDepartmentPanel({
           </Muted>
         </div>
 
-        <ControlsRow>
+        {canManageDepartments ? (
+          <ControlsRow>
           <DepartmentNameInput
             value={newDepartmentName}
             onChange={(event) =>
@@ -108,6 +111,11 @@ export function PlannerDepartmentPanel({
             {mutatingDepartmentId === 'create' ? 'Добавляю…' : 'Отдел'}
           </ActionButton>
         </ControlsRow>
+        ) : (
+          <Muted>
+            Структуру отделов может изменять только SUPER_ADMIN. Для вашей роли доступен просмотр.
+          </Muted>
+        )}
       </PanelTitleRow>
 
       <DepartmentGrid>
@@ -125,7 +133,7 @@ export function PlannerDepartmentPanel({
 
               <CompactDepartmentSelect
                 value={department.kind}
-                disabled={mutatingDepartmentId !== null}
+                disabled={!canManageDepartments || mutatingDepartmentId !== null}
                 onChange={(event) =>
                   onChangeDepartmentKind(
                     department.id,
@@ -140,7 +148,7 @@ export function PlannerDepartmentPanel({
 
               <RowIconButton
                 type="button"
-                disabled={mutatingDepartmentId !== null}
+                disabled={!canManageDepartments || mutatingDepartmentId !== null}
                 onClick={() => onRenameDepartment(department)}
                 title="Переименовать"
               >
@@ -149,7 +157,7 @@ export function PlannerDepartmentPanel({
 
               <RowIconButton
                 type="button"
-                disabled={mutatingDepartmentId !== null}
+                disabled={!canManageDepartments || mutatingDepartmentId !== null}
                 onClick={() => onRemoveDepartment(department.id)}
                 title="Деактивировать пустой отдел"
               >
