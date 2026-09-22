@@ -3,6 +3,7 @@ import type {
   DepartmentKind,
   Employee,
   EmploymentRate,
+  EmployeeWishesData,
   ScheduleData,
   ShiftCode,
   ShiftEntry,
@@ -85,10 +86,30 @@ export interface PlannerDepartmentMetadataMap {
   [departmentId: string]: PlannerDepartmentMetadata;
 }
 
+export interface WishResponse {
+  id: string;
+  employeeId: string;
+  year: number;
+  month: number;
+  day: number | null;
+  text: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WishMutationInput {
+  employeeId: string;
+  year: number;
+  month: number;
+  day: number | null;
+  text: string;
+}
+
 export interface PlannerServerSnapshot {
   departments: Department[];
   employees: Employee[];
   schedule: ScheduleData;
+  wishes: EmployeeWishesData;
   cellMetadata: PlannerCellMetadataMap;
   employeeMetadata: PlannerEmployeeMetadataMap;
   departmentMetadata: PlannerDepartmentMetadataMap;
@@ -196,10 +217,12 @@ export function mapEmployeeResponse(
 export function mapDepartmentScheduleResponses(
   responses: DepartmentScheduleResponse[],
   manageableDepartments: ManageableDepartmentResponse[] = [],
+  wishResponses: WishResponse[] = [],
 ): PlannerServerSnapshot {
   const departments: Department[] = [];
   const employees: Employee[] = [];
   const schedule: ScheduleData = {};
+  const wishes: EmployeeWishesData = {};
   const cellMetadata: PlannerCellMetadataMap = {};
   const employeeMetadata: PlannerEmployeeMetadataMap = {};
   const departmentMetadata: PlannerDepartmentMetadataMap = {};
@@ -261,10 +284,30 @@ export function mapDepartmentScheduleResponses(
     });
   });
 
+  wishResponses.forEach((wish) => {
+    const periodKey =
+      String(wish.year) + '-' + String(wish.month).padStart(2, '0');
+    const employeeWishes = wishes[wish.employeeId] || {};
+    const periodWishes = employeeWishes[periodKey] || [];
+
+    wishes[wish.employeeId] = {
+      ...employeeWishes,
+      [periodKey]: [
+        ...periodWishes,
+        {
+          id: wish.id,
+          day: wish.day,
+          text: wish.text,
+        },
+      ],
+    };
+  });
+
   return {
     departments,
     employees,
     schedule,
+    wishes,
     cellMetadata,
     employeeMetadata,
     departmentMetadata,
@@ -423,18 +466,61 @@ export function getDepartmentPlannerSchedule(
   );
 }
 
+export function getDepartmentWishes(
+  departmentId: string,
+  year: number,
+  month: number,
+) {
+  const params = new URLSearchParams({
+    departmentId,
+    year: String(year),
+    month: String(month),
+  });
+
+  return apiRequest<WishResponse[]>(
+    '/wishes/department?' + params.toString(),
+  );
+}
+
+export function createPlannerWish(input: WishMutationInput) {
+  return apiRequest<WishResponse>('/wishes', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function deletePlannerWish(wishId: string) {
+  return apiRequest<{ status: 'ok'; wishId: string }>(
+    '/wishes/' + encodeURIComponent(wishId),
+    {
+      method: 'DELETE',
+    },
+  );
+}
+
 export async function loadPlannerServerSnapshot(
   year: number,
   month: number,
 ): Promise<PlannerServerSnapshot> {
   const departments = await getManageableDepartments();
-  const responses = await Promise.all(
-    departments.map((department) =>
-      getDepartmentPlannerSchedule(department.id, year, month),
+  const [responses, departmentWishResponses] = await Promise.all([
+    Promise.all(
+      departments.map((department) =>
+        getDepartmentPlannerSchedule(department.id, year, month),
+      ),
     ),
-  );
+    Promise.all(
+      departments.map((department) =>
+        getDepartmentWishes(department.id, year, month),
+      ),
+    ),
+  ]);
 
-  return mapDepartmentScheduleResponses(responses, departments);
+  return mapDepartmentScheduleResponses(
+    responses,
+    departments,
+    departmentWishResponses.flat(),
+  );
 }
 
 export function applyDepartmentScheduleChanges(
