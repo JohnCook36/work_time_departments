@@ -2,6 +2,7 @@ import React from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuthSession } from '../auth/AuthSessionProvider';
 import { pageStyle, cardStyle, buttonStyle } from '../auth/authPageUi';
+import { authPalette } from '../theme/palette';
 
 // Keep the URL unchanged until session resolution; never redirect on network errors.
 export function SessionRoutes() {
@@ -9,7 +10,7 @@ export function SessionRoutes() {
   if (state === 'loading') {
     return (
       <div style={pageStyle}>
-        <div style={{ color: '#94a3b8' }}>Проверяем сессию…</div>
+        <div style={{ color: authPalette.textMuted }}>Проверяем сессию…</div>
       </div>
     );
   }
@@ -19,7 +20,7 @@ export function SessionRoutes() {
       <div style={pageStyle}>
         <div style={cardStyle}>
           <h1 style={{ marginTop: 0 }}>Backend недоступен</h1>
-          <p style={{ color: '#94a3b8' }}>{error}</p>
+          <p style={{ color: authPalette.textMuted }}>{error}</p>
           <button type="button" style={buttonStyle} onClick={refresh}>
             Повторить
           </button>
