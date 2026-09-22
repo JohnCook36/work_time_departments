@@ -543,6 +543,24 @@ export function applyDepartmentScheduleChanges(
   );
 }
 
+export function applyManageableScheduleChanges(
+  year: number,
+  month: number,
+  changes: ScheduleCellChange[],
+) {
+  return apiRequest<ApplyScheduleChangesResponse>(
+    '/schedule-data/manageable/entries',
+    {
+      method: 'PATCH',
+      body: JSON.stringify({
+        year,
+        month,
+        changes,
+      }),
+    },
+  );
+}
+
 export function createPlannerEmployee(input: EmployeeMutationInput) {
   return apiRequest<EmployeeResponse>('/employees', {
     method: 'POST',
