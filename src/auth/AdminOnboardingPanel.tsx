@@ -193,7 +193,7 @@ export function AdminOnboardingPanel() {
                   background: theme.colors.surfaceElevated,
                   color: theme.colors.text,
                   borderLeft: '1px solid ' + theme.colors.border,
-                  boxShadow: '-18px 0 50px rgba(15,23,42,.18)',
+                  boxShadow: theme.shadows.drawer,
                 }}
               >
                 <div
@@ -421,10 +421,7 @@ export function AdminOnboardingPanel() {
                                   borderRadius: 10,
                                   border: 0,
                                   background: theme.colors.primary,
-                                  color:
-                                    theme.mode === 'dark'
-                                      ? '#08111f'
-                                      : '#ffffff',
+                                  color: theme.colors.onPrimary,
                                   fontWeight: 800,
                                   cursor: busy ? 'wait' : 'pointer',
                                   display: 'inline-flex',
