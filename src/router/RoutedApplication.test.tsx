@@ -1,12 +1,12 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import App from '../App';
+import { PlannerScreen } from '../screens/PlannerScreen';
 import { useAuthUser } from '../auth/AuthContext';
 import * as api from '../auth/api';
 import { RoutedApplication } from './RoutedApplication';
 
-vi.mock('../App', () => ({ default: vi.fn() }));
+vi.mock('../screens/PlannerScreen', () => ({ PlannerScreen: vi.fn() }));
 
 const user: api.AuthUser = {
   id: 'example-user', phoneE164: '+12025550100',
@@ -29,7 +29,7 @@ function open(path: string) {
 
 describe('Routing foundation with real root AuthGate and ErrorBoundary', () => {
   beforeEach(() => {
-    vi.mocked(App).mockImplementation(ExistingApplication);
+    vi.mocked(PlannerScreen).mockImplementation(ExistingApplication);
     vi.spyOn(api, 'getMe').mockResolvedValue(user);
   });
   afterEach(() => { window.history.replaceState(null, '', '/'); });
@@ -80,7 +80,7 @@ describe('Routing foundation with real root AuthGate and ErrorBoundary', () => {
       if (event.error === error) event.preventDefault();
     };
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    vi.mocked(App).mockImplementation(() => { throw error; });
+    vi.mocked(PlannerScreen).mockImplementation(() => { throw error; });
     window.addEventListener('error', suppressExpectedError);
     try {
       open('/planner');
