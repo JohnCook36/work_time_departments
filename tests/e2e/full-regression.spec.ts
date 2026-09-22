@@ -202,7 +202,7 @@ test('shift editor saves the 08:00-17:00 preset into the cell', async ({ page })
   await page.getByRole('button', { name: '08:00–17:00' }).click();
   await page.getByRole('button', { name: /Сохранить смену/ }).click();
 
-  await expect(row.getByTitle('08:00–17:00')).toHaveText('08-17');
+  await expect(row.getByTitle('08:00–17:00')).toHaveText('08:00–17:00');
 });
 
 test('Excel preview protects a cell and allows confirmed overwrite', async ({ page }) => {
