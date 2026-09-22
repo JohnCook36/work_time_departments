@@ -156,7 +156,7 @@ export function WeeklyHoursPanel({
                       background: 'inherit',
                       borderBottom: '1px solid ' + theme.colors.border,
                       borderRight: '1px solid ' + theme.colors.border,
-                      boxShadow: '3px 0 8px rgba(15,23,42,.08)',
+                      boxShadow: theme.shadows.sticky,
                     }}
                   >
                     {employee.name}
