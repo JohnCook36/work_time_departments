@@ -54,12 +54,8 @@ describe('EmployeeEditDrawer', () => {
     await user.selectOptions(selects[1], '0.75');
     await user.selectOptions(selects[2], 'fixed-weekdays');
 
-    const startInput = screen.getByRole('textbox', {
-      name: 'Начало рабочего дня',
-    });
-    const endInput = screen.getByRole('textbox', {
-      name: 'Окончание рабочего дня',
-    });
+    const startInput = screen.getByLabelText('Начало рабочего дня');
+    const endInput = screen.getByLabelText('Окончание рабочего дня');
     await user.clear(startInput);
     await user.type(startInput, '09:00');
     await user.clear(endInput);
@@ -84,12 +80,8 @@ describe('EmployeeEditDrawer', () => {
     const selects = screen.getAllByRole('combobox');
     await user.selectOptions(selects[2], 'fixed-weekdays');
 
-    const startInput = screen.getByRole('textbox', {
-      name: 'Начало рабочего дня',
-    });
-    const endInput = screen.getByRole('textbox', {
-      name: 'Окончание рабочего дня',
-    });
+    const startInput = screen.getByLabelText('Начало рабочего дня');
+    const endInput = screen.getByLabelText('Окончание рабочего дня');
     await user.clear(startInput);
     await user.type(startInput, '08:00');
     await user.clear(endInput);
