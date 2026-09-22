@@ -66,9 +66,7 @@ function shiftTitle(shift: MyScheduleShift): string {
   if (shift.isOff) return 'OFF';
   if (!shift.startTime || !shift.endTime) return 'Смена без времени';
 
-  return [shift.code, shift.startTime + '–' + shift.endTime]
-    .filter(Boolean)
-    .join(' ');
+  return shift.startTime + '–' + shift.endTime;
 }
 
 function dayOfMonth(date: string): number {
