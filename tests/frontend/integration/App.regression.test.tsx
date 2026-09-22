@@ -151,7 +151,7 @@ describe('App regression flows', () => {
     expect(await screen.findByText('Серверный сотрудник')).toBeInTheDocument();
     expect(screen.getByText(/контролируемый read-only этап/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Добавить сотрудника' })).toBeDisabled();
-    expect(screen.getByText('08-17')).toBeInTheDocument();
+    expect(screen.getByText('08:00–17:00')).toBeInTheDocument();
   });
 
   it('ignores and does not overwrite planner localStorage in server read mode', async () => {
@@ -460,7 +460,7 @@ describe('App regression flows', () => {
 
     renderApp();
 
-    await user.click(await screen.findByText('08-17'));
+    await user.click(await screen.findByText('08:00–17:00'));
     expect(screen.getByText('Смена сотрудника')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Отделы' })).toBeEnabled();
 
@@ -858,7 +858,7 @@ describe('App regression flows', () => {
     seedCurrentSchedule();
     renderApp();
 
-    expect(screen.getByText('15-23')).toBeInTheDocument();
+    expect(screen.getByText('15:00–23:00')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'День / ночь' }));
 
@@ -878,7 +878,7 @@ describe('App regression flows', () => {
 
     await user.click(screen.getByRole('button', { name: 'График' }));
 
-    expect(screen.getByText('15-23')).toBeInTheDocument();
+    expect(screen.getByText('15:00–23:00')).toBeInTheDocument();
     expect(screen.queryByText('Недельная норма')).not.toBeInTheDocument();
   });
 
@@ -901,7 +901,7 @@ describe('App regression flows', () => {
     renderApp();
 
     expect(screen.getByText('Legacy Employee')).toBeInTheDocument();
-    expect(screen.getByText('08-17')).toBeInTheDocument();
+    expect(screen.getByText('08:00–17:00')).toBeInTheDocument();
 
     await waitFor(() => {
       const migrated = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
@@ -1056,7 +1056,7 @@ describe('App regression flows', () => {
     expect(window.alert).toHaveBeenLastCalledWith(
       'Импортировано смен: 0\nЗащищено заполненных ячеек: 1',
     );
-    expect(screen.getByText('08-17')).toBeInTheDocument();
+    expect(screen.getByText('08:00–17:00')).toBeInTheDocument();
 
     fireEvent.change(fileInput, { target: { files: [file] } });
     expect(await screen.findByText('Предпросмотр импорта')).toBeInTheDocument();
@@ -1066,7 +1066,7 @@ describe('App regression flows', () => {
     await user.click(screen.getByRole('button', { name: 'Применить импорт' }));
 
     expect(window.alert).toHaveBeenCalledTimes(2);
-    expect(await screen.findByText('15-23')).toBeInTheDocument();
+    expect(await screen.findByText('15:00–23:00')).toBeInTheDocument();
     await waitFor(() => {
       const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
       expect(stored.schedules[currentPeriodKey()].employee[1].shift).toEqual({
