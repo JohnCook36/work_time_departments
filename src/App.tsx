@@ -83,6 +83,7 @@ import { MySchedulePanel } from './auth/MySchedulePanel';
 import { hasManagementAccess, useAuthUser } from './auth/AuthContext';
 import {
   applyDepartmentScheduleChanges,
+  applyManageableScheduleChanges,
   buildDepartmentReorderInput,
   buildEmployeeMoveInput,
   buildEmployeeReorderInput,
@@ -97,6 +98,7 @@ import {
   PlannerCellMetadataMap,
   PlannerDepartmentMetadataMap,
   PlannerEmployeeMetadataMap,
+  ScheduleCellChange,
   reorderPlannerDepartments,
   reorderPlannerEmployees,
   updatePlannerDepartment,
@@ -391,6 +393,7 @@ function App() {
   const [scheduleView, setScheduleView] = useState<ScheduleView>('schedule');
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [isImportingExcel, setIsImportingExcel] = useState(false);
+  const [isBulkWriting, setIsBulkWriting] = useState(false);
   const [isCreatingEmployee, setIsCreatingEmployee] = useState(false);
   const [excelImportPreview, setExcelImportPreview] =
     useState<ExcelImportPreview | null>(null);
@@ -436,6 +439,12 @@ function App() {
       (serverPlannerWriteEnabled &&
         serverPlannerStatus === 'ready' &&
         mutatingWishId === null));
+  const canEditBulkSchedule =
+    canManagePlanner &&
+    (!serverPlannerReadEnabled ||
+      (serverPlannerWriteEnabled &&
+        serverPlannerStatus === 'ready' &&
+        !isBulkWriting));
   const canEditEmployeeRate =
     canManagePlanner &&
     (!serverPlannerReadEnabled ||
@@ -541,6 +550,7 @@ function App() {
       setMutatingEmployeeId(null);
       setEditingEmployeeId(null);
       setMutatingWishId(null);
+      setIsBulkWriting(false);
       setMovingEmployeeId(null);
       setMovingDepartmentId(null);
       setMutatingDepartmentId(null);
@@ -1593,34 +1603,120 @@ function App() {
     };
   }, [employees, getEmployeeTotals]);
 
+  const runServerBulkChanges = async (
+    changes: ScheduleCellChange[],
+    errorPrefix: string,
+  ) => {
+    if (changes.length === 0) {
+      return;
+    }
+
+    try {
+      setIsBulkWriting(true);
+      await applyManageableScheduleChanges(year, month + 1, changes);
+      await refreshServerPlanner();
+    } catch (error) {
+      console.error('Server bulk schedule write failed', error);
+      alert(
+        error instanceof Error
+          ? errorPrefix + ': ' + error.message
+          : errorPrefix + ' на сервере.'
+      );
+      await refreshServerPlanner();
+      throw error;
+    } finally {
+      setIsBulkWriting(false);
+    }
+  };
+
   const fillOffAll = () => {
     if (!confirm('Заполнить все пустые ячейки текущего месяца как OFF?')) return;
 
-    updateCurrentSchedule((current) => {
-      const next = { ...current };
+    if (!serverPlannerWriteEnabled) {
+      updateCurrentSchedule((current) => {
+        const next = { ...current };
 
-      employees.forEach((employee) => {
-        let employeeSchedule = { ...(next[employee.id] || {}) };
+        employees.forEach((employee) => {
+          let employeeSchedule = { ...(next[employee.id] || {}) };
 
-        for (let day = 1; day <= daysInMonth; day++) {
-          if (!employeeSchedule[day] || employeeSchedule[day].type === 'empty') {
-            employeeSchedule = {
-              ...employeeSchedule,
-              [day]: { type: 'off' },
-            };
+          for (let day = 1; day <= daysInMonth; day++) {
+            if (!employeeSchedule[day] || employeeSchedule[day].type === 'empty') {
+              employeeSchedule = {
+                ...employeeSchedule,
+                [day]: { type: 'off' },
+              };
+            }
           }
-        }
 
-        next[employee.id] = employeeSchedule;
+          next[employee.id] = employeeSchedule;
+        });
+
+        return next;
       });
+      return;
+    }
 
-      return next;
+    if (!canEditBulkSchedule) {
+      alert('График ещё не готов к массовому изменению.');
+      return;
+    }
+
+    const changes: ScheduleCellChange[] = [];
+    employees.forEach((employee) => {
+      for (let day = 1; day <= daysInMonth; day++) {
+        const rawEntry = rawSchedule[employee.id]?.[day];
+        if (!rawEntry || rawEntry.type === 'empty') {
+          changes.push(
+            buildScheduleCellChange(
+              employee.id,
+              day,
+              { type: 'off' },
+              serverCellMetadata[employee.id]?.[day],
+            ),
+          );
+        }
+      }
     });
+
+    void runServerBulkChanges(
+      changes,
+      'Не удалось заполнить пустые ячейки как OFF',
+    );
   };
 
   const clearAll = () => {
     if (!confirm('Очистить все смены за текущий месяц?')) return;
-    setSchedules((prev) => ({ ...prev, [periodKey]: {} }));
+
+    if (!serverPlannerWriteEnabled) {
+      setSchedules((prev) => ({ ...prev, [periodKey]: {} }));
+      return;
+    }
+
+    if (!canEditBulkSchedule) {
+      alert('График ещё не готов к массовому изменению.');
+      return;
+    }
+
+    const changes: ScheduleCellChange[] = [];
+    Object.entries(rawSchedule).forEach(([employeeId, employeeSchedule]) => {
+      Object.entries(employeeSchedule).forEach(([dayValue, entry]) => {
+        if (entry.type === 'empty') return;
+        const day = Number(dayValue);
+        changes.push(
+          buildScheduleCellChange(
+            employeeId,
+            day,
+            { type: 'empty' },
+            serverCellMetadata[employeeId]?.[day],
+          ),
+        );
+      });
+    });
+
+    void runServerBulkChanges(
+      changes,
+      'Не удалось очистить текущий месяц',
+    );
   };
 
   const handleExportExcel = async () => {
@@ -1690,8 +1786,8 @@ function App() {
     }, 0);
   }, [excelImportPreview, schedule, daysInMonth]);
 
-  const applyExcelImport = () => {
-    if (!excelImportPreview) return;
+  const applyExcelImport = async () => {
+    if (!excelImportPreview || isBulkWriting) return;
 
     const result = applyExcelImportEntries({
       currentSchedule: rawSchedule,
@@ -1700,11 +1796,6 @@ function App() {
       daysInMonth,
       overwriteExisting: overwriteExcelCells,
     });
-
-    updateCurrentSchedule(() => result.schedule);
-
-    setExcelImportPreview(null);
-    setOverwriteExcelCells(false);
 
     const details = [
       'Импортировано смен: ' + result.applied,
@@ -1716,7 +1807,63 @@ function App() {
         : null,
     ].filter(Boolean);
 
-    alert(details.join('\n'));
+    if (!serverPlannerWriteEnabled) {
+      updateCurrentSchedule(() => result.schedule);
+      setExcelImportPreview(null);
+      setOverwriteExcelCells(false);
+      alert(details.join('\n'));
+      return;
+    }
+
+    if (!canEditBulkSchedule) {
+      alert('График ещё не готов к импорту.');
+      return;
+    }
+
+    const changesByCell = new Map<string, ScheduleCellChange>();
+
+    excelImportPreview.entries.forEach((item) => {
+      if (
+        !item.employeeId ||
+        item.day < 1 ||
+        item.day > daysInMonth
+      ) {
+        return;
+      }
+
+      const before = rawSchedule[item.employeeId]?.[item.day];
+      const after = result.schedule[item.employeeId]?.[item.day];
+
+      if (
+        !after ||
+        after.type === 'error' ||
+        JSON.stringify(before) === JSON.stringify(after)
+      ) {
+        return;
+      }
+
+      changesByCell.set(
+        item.employeeId + ':' + item.day,
+        buildScheduleCellChange(
+          item.employeeId,
+          item.day,
+          after,
+          serverCellMetadata[item.employeeId]?.[item.day],
+        ),
+      );
+    });
+
+    try {
+      await runServerBulkChanges(
+        Array.from(changesByCell.values()),
+        'Не удалось применить Excel-импорт',
+      );
+      setExcelImportPreview(null);
+      setOverwriteExcelCells(false);
+      alert(details.join('\n'));
+    } catch {
+      // Ошибка уже показана в runServerBulkChanges; preview оставляем открытым.
+    }
   };
 
   const selectedWishEmployee =
@@ -2006,7 +2153,7 @@ function App() {
               <ActionButton
                 type="button"
                 onClick={() => excelFileInputRef.current?.click()}
-                disabled={!canEditPlanner || isImportingExcel}
+                disabled={!canEditBulkSchedule || isImportingExcel || isBulkWriting}
                 title="Загрузить график из Excel с предпросмотром"
               >
                 <FileUp size={16} />
@@ -2050,7 +2197,7 @@ function App() {
               <ActionButton
                 type="button"
                 onClick={fillOffAll}
-                disabled={!canEditPlanner}
+                disabled={!canEditBulkSchedule}
               >
                 OFF все
               </ActionButton>
@@ -2059,7 +2206,7 @@ function App() {
                 type="button"
                 $variant="danger"
                 onClick={clearAll}
-                disabled={!canEditPlanner}
+                disabled={!canEditBulkSchedule}
               >
                 <Trash2 size={15} />
                 Очистить месяц
@@ -2451,13 +2598,14 @@ function App() {
         </Container>
       </Page>
 
-      {canEditPlanner && excelImportPreview && (
+      {canEditBulkSchedule && excelImportPreview && (
         <ExcelImportDrawer
           preview={excelImportPreview}
           conflictCount={excelImportConflictCount}
           overwriteExisting={overwriteExcelCells}
+          busy={isBulkWriting}
           onOverwriteChange={setOverwriteExcelCells}
-          onApply={applyExcelImport}
+          onApply={() => void applyExcelImport()}
           onClose={() => {
             setExcelImportPreview(null);
             setOverwriteExcelCells(false);
