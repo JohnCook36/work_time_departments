@@ -58,6 +58,19 @@ export class EmployeesController {
     return this.employees.reorderEmployees(user, body ?? {});
   }
 
+  @Patch(':employeeId/deactivate')
+  deactivateEmployee(
+    @CurrentUser() user: AuthUserContext,
+    @Param('employeeId') employeeId: string,
+    @Body() body: EmployeeMutationInput,
+  ) {
+    return this.employees.deactivateEmployee(
+      user,
+      requiredString(employeeId, 'employeeId'),
+      body ?? {},
+    );
+  }
+
   @Patch(':employeeId')
   updateEmployee(
     @CurrentUser() user: AuthUserContext,

@@ -4,7 +4,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { EmployeeScheduleMode } from '@prisma/client';
+import {
+  EmployeeScheduleMode,
+  OnboardingRequestStatus,
+  RoleType,
+  ShiftChangeRequestStatus,
+} from '@prisma/client';
 
 import { AuthUserContext } from '../auth/auth.service';
 import { AuthorizationService } from '../auth/authorization.service';
@@ -146,6 +151,12 @@ function normalizeWorkPattern(input: {
   if (!input.fixedStartTime || !input.fixedEndTime) {
     throw new BadRequestException(
       'fixedStartTime and fixedEndTime are required for FIXED_WEEKDAYS',
+    );
+  }
+
+  if (input.fixedStartTime === input.fixedEndTime) {
+    throw new BadRequestException(
+      'fixedStartTime and fixedEndTime must be different',
     );
   }
 
@@ -350,6 +361,165 @@ export class EmployeesService {
       }
 
       return { status: 'ok' as const, reordered: orderedEmployeeIds.length };
+    });
+  }
+
+  async deactivateEmployee(
+    admin: AuthUserContext,
+    employeeId: string,
+    input: EmployeeMutationInput,
+  ) {
+    const expectedUpdatedAt = requireExpectedUpdatedAt(input.expectedUpdatedAt);
+
+    return this.prisma.$transaction(async (tx) => {
+      const existing = await tx.employee.findUnique({
+        where: { id: employeeId },
+        select: {
+          id: true,
+          departmentId: true,
+          isActive: true,
+          userId: true,
+          updatedAt: true,
+          user: {
+            select: {
+              memberships: {
+                where: { isActive: true },
+                select: {
+                  role: true,
+                  departmentId: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!existing || !existing.isActive) {
+        throw new NotFoundException('Employee not found');
+      }
+
+      this.authorization.assertCanAdministerDepartment(
+        admin,
+        existing.departmentId,
+      );
+
+      if (existing.updatedAt.getTime() !== expectedUpdatedAt.getTime()) {
+        throw new ConflictException('Employee changed after it was loaded');
+      }
+
+      if (existing.userId === admin.id) {
+        throw new ConflictException(
+          'You cannot deactivate your own employee profile',
+        );
+      }
+
+      const targetHasManagementAccess =
+        existing.user?.memberships.some(
+          (membership) =>
+            membership.role === RoleType.SUPER_ADMIN ||
+            membership.role === RoleType.DEPARTMENT_ADMIN,
+        ) ?? false;
+
+      const adminIsSuperAdmin = admin.memberships.some(
+        (membership) => membership.role === RoleType.SUPER_ADMIN,
+      );
+
+      if (targetHasManagementAccess && !adminIsSuperAdmin) {
+        throw new ConflictException(
+          'Only Super Admin can deactivate a management account',
+        );
+      }
+
+      const [pendingOnboardingCount, activeShiftChangeCount] =
+        await Promise.all([
+          tx.onboardingRequest.count({
+            where: {
+              status: OnboardingRequestStatus.PENDING,
+              OR: [
+                { employeeId: existing.id },
+                ...(existing.userId ? [{ userId: existing.userId }] : []),
+              ],
+            },
+          }),
+          tx.shiftChangeRequest.count({
+            where: {
+              status: {
+                in: [
+                  ShiftChangeRequestStatus.PENDING_TARGET,
+                  ShiftChangeRequestStatus.PENDING_MANAGER,
+                ],
+              },
+              OR: [
+                { requesterEmployeeId: existing.id },
+                { targetEmployeeId: existing.id },
+              ],
+            },
+          }),
+        ]);
+
+      if (pendingOnboardingCount > 0) {
+        throw new ConflictException(
+          'Resolve pending onboarding requests before deactivating Employee',
+        );
+      }
+
+      if (activeShiftChangeCount > 0) {
+        throw new ConflictException(
+          'Resolve active shift-change requests before deactivating Employee',
+        );
+      }
+
+      const employeeUpdate = await tx.employee.updateMany({
+        where: {
+          id: existing.id,
+          isActive: true,
+          updatedAt: expectedUpdatedAt,
+        },
+        data: {
+          isActive: false,
+        },
+      });
+
+      if (employeeUpdate.count !== 1) {
+        throw new ConflictException('Employee changed during deactivation');
+      }
+
+      if (existing.userId) {
+        await tx.user.updateMany({
+          where: {
+            id: existing.userId,
+            isActive: true,
+          },
+          data: {
+            isActive: false,
+          },
+        });
+
+        await tx.membership.updateMany({
+          where: {
+            userId: existing.userId,
+            isActive: true,
+          },
+          data: {
+            isActive: false,
+          },
+        });
+
+        await tx.authSession.updateMany({
+          where: {
+            userId: existing.userId,
+            revokedAt: null,
+          },
+          data: {
+            revokedAt: new Date(),
+          },
+        });
+      }
+
+      return {
+        status: 'ok' as const,
+        employeeId: existing.id,
+      };
     });
   }
 
