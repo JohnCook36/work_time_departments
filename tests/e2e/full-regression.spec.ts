@@ -202,7 +202,7 @@ test('shift editor saves the 08:00-17:00 preset into the cell', async ({ page })
   await page.getByRole('button', { name: '08:00–17:00' }).click();
   await page.getByRole('button', { name: /Сохранить смену/ }).click();
 
-  await expect(row.getByTitle('08:00-17:00')).toHaveText('08-17');
+  await expect(row.getByTitle('08:00–17:00')).toHaveText('08-17');
 });
 
 test('Excel preview protects a cell and allows confirmed overwrite', async ({ page }) => {
@@ -234,7 +234,7 @@ test('Excel preview protects a cell and allows confirmed overwrite', async ({ pa
   await expect(page.getByText('Конфликтов с текущим графиком')).toBeVisible();
   page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: 'Применить импорт' }).click();
-  await expect(employeeRow(page).getByTitle('08:00-17:00')).toBeVisible();
+  await expect(employeeRow(page).getByTitle('08:00–17:00')).toBeVisible();
 
   await input.setInputFiles({
     name: 'import.xlsx',
@@ -247,7 +247,7 @@ test('Excel preview protects a cell and allows confirmed overwrite', async ({ pa
   page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: 'Применить импорт' }).click();
 
-  await expect(employeeRow(page).getByTitle('15:00-23:00')).toBeVisible();
+  await expect(employeeRow(page).getByTitle('15:00–23:00')).toBeVisible();
 });
 
 test('employment rate changes the weekly norm', async ({ page }) => {
