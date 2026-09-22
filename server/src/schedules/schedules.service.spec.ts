@@ -27,6 +27,9 @@ function user(overrides: Partial<AuthUserContext> = {}): AuthUserContext {
 
 describe('SchedulesService', () => {
   const transaction = {
+    employee: {
+      findMany: jest.fn(),
+    },
     schedule: {
       findUnique: jest.fn(),
       create: jest.fn(),
@@ -140,7 +143,7 @@ describe('SchedulesService', () => {
   });
 
   it('applies a multi-department management batch in one transaction after scope checks', async () => {
-    prisma.employee.findMany.mockResolvedValue([
+    transaction.employee.findMany.mockResolvedValue([
       { id: 'employee-a', departmentId: 'department-a' },
       { id: 'employee-b', departmentId: 'department-b' },
     ]);
@@ -184,7 +187,7 @@ describe('SchedulesService', () => {
   });
 
   it('rejects a management batch when any Employee is unavailable', async () => {
-    prisma.employee.findMany.mockResolvedValue([
+    transaction.employee.findMany.mockResolvedValue([
       { id: 'employee-a', departmentId: 'department-a' },
     ]);
 
@@ -217,7 +220,7 @@ describe('SchedulesService', () => {
   });
 
   it('writes a shift only for an active employee in the administered department', async () => {
-    prisma.employee.findMany.mockResolvedValue([{ id: 'employee-1' }]);
+    transaction.employee.findMany.mockResolvedValue([{ id: 'employee-1' }]);
     transaction.schedule.findUnique.mockResolvedValue({
       id: 'schedule-1',
       updatedAt: new Date('2026-09-01T10:00:00.000Z'),
@@ -243,7 +246,7 @@ describe('SchedulesService', () => {
     expect(
       authorization.assertCanAdministerDepartment,
     ).toHaveBeenCalledWith(currentUser, 'department-a');
-    expect(prisma.employee.findMany).toHaveBeenCalledWith(
+    expect(transaction.employee.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
           id: { in: ['employee-1'] },
@@ -294,7 +297,7 @@ describe('SchedulesService', () => {
       ),
     );
 
-    expect(prisma.employee.findMany).not.toHaveBeenCalled();
+    expect(transaction.employee.findMany).not.toHaveBeenCalled();
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
@@ -304,7 +307,7 @@ describe('SchedulesService', () => {
   ])(
     'accepts an overnight shift from %s to %s',
     async (startTime, endTime) => {
-      prisma.employee.findMany.mockResolvedValue([{ id: 'employee-1' }]);
+      transaction.employee.findMany.mockResolvedValue([{ id: 'employee-1' }]);
       transaction.schedule.findUnique.mockResolvedValue({
         id: 'schedule-1',
         updatedAt: new Date('2026-09-01T10:00:00.000Z'),
@@ -335,7 +338,7 @@ describe('SchedulesService', () => {
   );
 
   it('rejects schedule writes for an employee outside the department', async () => {
-    prisma.employee.findMany.mockResolvedValue([]);
+    transaction.employee.findMany.mockResolvedValue([]);
 
     await expect(
       service.applyDepartmentScheduleChanges(
@@ -359,7 +362,7 @@ describe('SchedulesService', () => {
   });
 
   it('rejects stale optimistic writes', async () => {
-    prisma.employee.findMany.mockResolvedValue([{ id: 'employee-1' }]);
+    transaction.employee.findMany.mockResolvedValue([{ id: 'employee-1' }]);
     transaction.schedule.findUnique.mockResolvedValue({
       id: 'schedule-1',
       updatedAt: new Date('2026-09-01T10:00:00.000Z'),
@@ -396,7 +399,7 @@ describe('SchedulesService', () => {
   });
 
   it('deletes a stored cell when change type is empty', async () => {
-    prisma.employee.findMany.mockResolvedValue([{ id: 'employee-1' }]);
+    transaction.employee.findMany.mockResolvedValue([{ id: 'employee-1' }]);
     transaction.schedule.findUnique.mockResolvedValue({
       id: 'schedule-1',
       updatedAt: new Date('2026-09-01T10:00:00.000Z'),
