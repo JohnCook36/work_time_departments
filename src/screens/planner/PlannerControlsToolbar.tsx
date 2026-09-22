@@ -174,7 +174,7 @@ export function PlannerControlsToolbar({
           disabled={!canCreateEmployee || isCreatingEmployee}
         >
           <Plus size={16} />
-          {isCreatingEmployee ? 'Добавляю…' : 'Сотрудник'}
+          {isCreatingEmployee ? 'Добавляю…' : 'Добавить сотрудника'}
         </ActionButton>
 
         <ActionButton
