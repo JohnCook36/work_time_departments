@@ -12,7 +12,7 @@ export const ServerModeDescription = styled(Muted)({
   marginTop: 4,
 });
 
-export const PersonalScheduleLink = styled(Link)(({ theme }) => ({
+export const HeaderRouteLink = styled(Link)(({ theme }) => ({
   width: 38,
   height: 38,
   borderRadius: 11,
