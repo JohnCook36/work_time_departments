@@ -1,5 +1,4 @@
 import { createPortal } from 'react-dom';
-import { useTheme } from '@emotion/react';
 import { DragOverlay } from '@dnd-kit/core';
 import {
   SortableContext,
@@ -36,6 +35,15 @@ import {
   ErrorPanel,
   ScheduleView,
 } from './PlannerScheduleTable';
+import {
+  DayName,
+  DragDepartmentCard,
+  DragEmployeeBody,
+  DragEmployeeCard,
+  DragEmployeeName,
+  DragTargetText,
+  EmptyEmployees,
+} from './PlannerScheduleWorkspace.styles';
 
 interface EmployeeTotals {
   day: number;
@@ -120,7 +128,6 @@ export function PlannerScheduleWorkspace({
   canEditEmployeeRate,
   updatingEmployeeRateId,
 }: PlannerScheduleWorkspaceProps) {
-  const theme = useTheme();
   const columnCount = daysInMonth + 5;
 
   return (
@@ -141,9 +148,7 @@ export function PlannerScheduleWorkspace({
 
                   return (
                     <HeaderCell key={day} $weekend={isWeekend}>
-                      <div style={{ fontSize: 10, opacity: 0.68 }}>
-                        {DAY_NAMES_SHORT[dayOfWeek]}
-                      </div>
+                      <DayName>{DAY_NAMES_SHORT[dayOfWeek]}</DayName>
                       <div>{day}</div>
                     </HeaderCell>
                   );
@@ -261,9 +266,7 @@ export function PlannerScheduleWorkspace({
         </TableScroll>
 
         {employees.length === 0 && (
-          <div style={{ padding: 28, textAlign: 'center' }}>
-            Сотрудников пока нет.
-          </div>
+          <EmptyEmployees>Сотрудников пока нет.</EmptyEmployees>
         )}
       </TableShell>
 
@@ -274,56 +277,22 @@ export function PlannerScheduleWorkspace({
           dropAnimation={{ duration: 140, easing: 'ease-out' }}
         >
           {draggedEmployee ? (
-            <div
-              style={{
-                minWidth: 260,
-                maxWidth: 360,
-                padding: '11px 14px',
-                borderRadius: 12,
-                border: '1px solid ' + theme.colors.primary,
-                background: theme.colors.surfaceElevated,
-                color: theme.colors.text,
-                boxShadow: theme.shadows.dragOverlay,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-              }}
-            >
+            <DragEmployeeCard>
               <GripVertical size={17} />
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontWeight: 800 }}>{draggedEmployee.name}</div>
-                <div
-                  style={{
-                    marginTop: 2,
-                    fontSize: 11,
-                    color: theme.colors.textMuted,
-                  }}
-                >
+              <DragEmployeeBody>
+                <DragEmployeeName>{draggedEmployee.name}</DragEmployeeName>
+                <DragTargetText>
                   {dragTargetDepartment
                     ? 'Переместить в: ' + dragTargetDepartment.name
                     : 'Перетащите в нужный отдел'}
-                </div>
-              </div>
-            </div>
+                </DragTargetText>
+              </DragEmployeeBody>
+            </DragEmployeeCard>
           ) : draggedDepartment ? (
-            <div
-              style={{
-                minWidth: 250,
-                padding: '11px 14px',
-                borderRadius: 12,
-                border: '1px solid ' + theme.colors.primary,
-                background: theme.colors.surfaceElevated,
-                color: theme.colors.text,
-                boxShadow: theme.shadows.dragOverlay,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                fontWeight: 800,
-              }}
-            >
+            <DragDepartmentCard>
               <GripVertical size={17} />
               {draggedDepartment.name}
-            </div>
+            </DragDepartmentCard>
           ) : null}
         </DragOverlay>,
         document.body
