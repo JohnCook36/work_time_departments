@@ -82,6 +82,48 @@ describe('mapDepartmentScheduleResponses', () => {
     ]);
   });
 
+  it('maps server wishes with real ids into the selected period', () => {
+    const snapshot = mapDepartmentScheduleResponses(
+      [response()],
+      [],
+      [
+        {
+          id: 'wish-1',
+          employeeId: 'employee-1',
+          year: 2026,
+          month: 9,
+          day: 22,
+          text: 'Желательно выходной',
+          createdAt: '2026-09-19T10:00:00.000Z',
+          updatedAt: '2026-09-19T10:00:00.000Z',
+        },
+        {
+          id: 'wish-2',
+          employeeId: 'employee-1',
+          year: 2026,
+          month: 9,
+          day: null,
+          text: 'Без поздних смен',
+          createdAt: '2026-09-19T10:05:00.000Z',
+          updatedAt: '2026-09-19T10:05:00.000Z',
+        },
+      ],
+    );
+
+    expect(snapshot.wishes['employee-1']['2026-09']).toEqual([
+      {
+        id: 'wish-1',
+        day: 22,
+        text: 'Желательно выходной',
+      },
+      {
+        id: 'wish-2',
+        day: null,
+        text: 'Без поздних смен',
+      },
+    ]);
+  });
+
   it('preserves Employee updatedAt metadata for optimistic updates', () => {
     const snapshot = mapDepartmentScheduleResponses([response()]);
 

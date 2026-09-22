@@ -70,6 +70,11 @@ function serverPlannerSnapshot(): plannerApi.PlannerServerSnapshot {
         },
       },
     },
+    wishes: {
+      'server-employee': {
+        [currentPeriodKey()]: [],
+      },
+    },
     cellMetadata: {
       'server-employee': {
         1: {
@@ -470,6 +475,84 @@ describe('App regression flows', () => {
         'server-employee',
         snapshot.employeeMetadata['server-employee'].updatedAt,
       );
+    });
+    expect(plannerApi.loadPlannerServerSnapshot).toHaveBeenCalledTimes(2);
+  });
+
+  it('creates an Employee wish through the backend in server write mode', async () => {
+    const user = userEvent.setup();
+    const snapshot = serverPlannerSnapshot();
+    const now = new Date();
+    vi.stubEnv('VITE_SERVER_PLANNER_WRITE', '1');
+    vi.spyOn(plannerApi, 'loadPlannerServerSnapshot').mockResolvedValue(snapshot);
+    const createWishSpy = vi
+      .spyOn(plannerApi, 'createPlannerWish')
+      .mockResolvedValue({
+        id: 'wish-created',
+        employeeId: 'server-employee',
+        year: now.getFullYear(),
+        month: now.getMonth() + 1,
+        day: null,
+        text: 'Желательно выходной',
+        createdAt: '2026-09-22T10:00:00.000Z',
+        updatedAt: '2026-09-22T10:00:00.000Z',
+      });
+
+    renderApp();
+
+    await screen.findByText('Серверный сотрудник');
+    await user.click(screen.getByTitle('Добавить пожелания по графику'));
+    await user.type(
+      screen.getByPlaceholderText(/Например: выходной/),
+      'Желательно выходной',
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'Добавить пожелание' }),
+    );
+
+    await waitFor(() => {
+      expect(createWishSpy).toHaveBeenCalledWith({
+        employeeId: 'server-employee',
+        year: now.getFullYear(),
+        month: now.getMonth() + 1,
+        day: null,
+        text: 'Желательно выходной',
+      });
+    });
+    expect(plannerApi.loadPlannerServerSnapshot).toHaveBeenCalledTimes(2);
+  });
+
+  it('deletes a persisted Employee wish by its server id', async () => {
+    const user = userEvent.setup();
+    const snapshot = serverPlannerSnapshot();
+    snapshot.wishes['server-employee'][currentPeriodKey()] = [
+      {
+        id: 'server-wish',
+        day: null,
+        text: 'Без поздних смен',
+      },
+    ];
+
+    vi.stubEnv('VITE_SERVER_PLANNER_WRITE', '1');
+    vi.spyOn(plannerApi, 'loadPlannerServerSnapshot').mockResolvedValue(snapshot);
+    const deleteWishSpy = vi
+      .spyOn(plannerApi, 'deletePlannerWish')
+      .mockResolvedValue({
+        status: 'ok',
+        wishId: 'server-wish',
+      });
+
+    renderApp();
+
+    await screen.findByText('Серверный сотрудник');
+    await user.click(screen.getByTitle(/Пожелания:/));
+    expect(screen.getByText('Без поздних смен')).toBeInTheDocument();
+    await user.click(
+      screen.getByRole('button', { name: 'Удалить пожелание' }),
+    );
+
+    await waitFor(() => {
+      expect(deleteWishSpy).toHaveBeenCalledWith('server-wish');
     });
     expect(plannerApi.loadPlannerServerSnapshot).toHaveBeenCalledTimes(2);
   });
