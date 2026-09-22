@@ -8,7 +8,7 @@ export function NotFoundPage() {
     <NotFoundLayout>
       <h1>404 — Страница не найдена</h1>
       <p>Проверьте адрес или вернитесь в приложение.</p>
-      <Link to="/planner">Вернуться в приложение</Link>
+      <Link to="/">Вернуться в приложение</Link>
     </NotFoundLayout>
   );
 }
