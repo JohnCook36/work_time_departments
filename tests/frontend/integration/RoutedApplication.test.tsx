@@ -57,8 +57,8 @@ describe('Routing foundation with real session provider and ErrorBoundary', () =
   it('redirects management user from / to /planner', async () => {
     vi.mocked(api.getMe).mockResolvedValue(managerUser);
     open('/');
-    expect(await screen.findByText('Personal schedule')).toBeInTheDocument();
-    expect(window.location.pathname).toBe('/my-schedule');
+    expect(await screen.findByText('Existing application: example-user')).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/planner');
   });
 
   it('redirects linked EMPLOYEE away from /planner to /my-schedule', async () => {
@@ -71,8 +71,8 @@ describe('Routing foundation with real session provider and ErrorBoundary', () =
   it('allows management user to open /planner', async () => {
     vi.mocked(api.getMe).mockResolvedValue(managerUser);
     open('/planner');
-    expect(await screen.findByText('Personal schedule')).toBeInTheDocument();
-    expect(window.location.pathname).toBe('/my-schedule');
+    expect(await screen.findByText('Existing application: example-user')).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/planner');
   });
 
   it('opens /my-schedule for any linked employee', async () => {
@@ -86,8 +86,8 @@ describe('Routing foundation with real session provider and ErrorBoundary', () =
     expect(await screen.findByRole('heading', { name: '404 — Страница не найдена' })).toBeInTheDocument();
     expect(screen.queryByText('Existing application: example-user')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('link', { name: 'Вернуться в приложение' }));
-    expect(await screen.findByText('Existing application: example-user')).toBeInTheDocument();
-    expect(window.location.pathname).toBe('/planner');
+    expect(await screen.findByText('Personal schedule')).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/my-schedule');
   });
 
   it.each(['/planner', '/my-schedule', '/login', '/onboarding', '/unknown'])('routes guests to login from %s', async path => {
@@ -155,8 +155,8 @@ describe('Routing foundation with real session provider and ErrorBoundary', () =
     expect(await screen.findByText('Запрос ожидает подтверждения администратора')).toBeInTheDocument();
     expect(screen.queryByText('Existing application: example-user')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Проверить статус' }));
-    expect(await screen.findByText('Existing application: example-user')).toBeInTheDocument();
-    expect(window.location.pathname).toBe('/planner');
+    expect(await screen.findByText('Personal schedule')).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/my-schedule');
   });
 
   it('cancels a pending request and returns to profile selection', async () => {
@@ -178,8 +178,8 @@ describe('Routing foundation with real session provider and ErrorBoundary', () =
     expect(screen.queryByRole('heading')).not.toBeInTheDocument();
     expect(window.location.pathname).toBe('/planner');
     await act(async () => { resolveSession(user); });
-    expect(await screen.findByText('Existing application: example-user')).toBeInTheDocument();
-    expect(window.location.pathname).toBe('/planner');
+    expect(await screen.findByText('Personal schedule')).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/my-schedule');
   });
 
   it('preserves the session error and retry without redirecting to login', async () => {
