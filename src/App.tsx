@@ -1606,15 +1606,16 @@ function App() {
   const runServerBulkChanges = async (
     changes: ScheduleCellChange[],
     errorPrefix: string,
-  ) => {
+  ): Promise<boolean> => {
     if (changes.length === 0) {
-      return;
+      return true;
     }
 
     try {
       setIsBulkWriting(true);
       await applyManageableScheduleChanges(year, month + 1, changes);
       await refreshServerPlanner();
+      return true;
     } catch (error) {
       console.error('Server bulk schedule write failed', error);
       alert(
@@ -1623,7 +1624,7 @@ function App() {
           : errorPrefix + ' на сервере.'
       );
       await refreshServerPlanner();
-      throw error;
+      return false;
     } finally {
       setIsBulkWriting(false);
     }
@@ -1853,17 +1854,16 @@ function App() {
       );
     });
 
-    try {
-      await runServerBulkChanges(
-        Array.from(changesByCell.values()),
-        'Не удалось применить Excel-импорт',
-      );
-      setExcelImportPreview(null);
-      setOverwriteExcelCells(false);
-      alert(details.join('\n'));
-    } catch {
-      // Ошибка уже показана в runServerBulkChanges; preview оставляем открытым.
-    }
+    const applied = await runServerBulkChanges(
+      Array.from(changesByCell.values()),
+      'Не удалось применить Excel-импорт',
+    );
+
+    if (!applied) return;
+
+    setExcelImportPreview(null);
+    setOverwriteExcelCells(false);
+    alert(details.join('\n'));
   };
 
   const selectedWishEmployee =
