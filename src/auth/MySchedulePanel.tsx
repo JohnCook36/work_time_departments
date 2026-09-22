@@ -249,7 +249,7 @@ export function MySchedulePanel({
                   background: theme.colors.surfaceElevated,
                   color: theme.colors.text,
                   borderLeft: '1px solid ' + theme.colors.border,
-                  boxShadow: '-18px 0 50px rgba(15,23,42,.18)',
+                  boxShadow: theme.shadows.drawer,
                 }}
               >
                 <div
