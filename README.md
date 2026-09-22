@@ -16,7 +16,7 @@ npm run dev
 
 Frontend обращается к `VITE_API_URL` (по умолчанию `http://localhost:3000`) с существующей cookie session. Для локального OTP используйте конфигурацию backend; production SMS provider пока не подключён.
 
-Существующие режимы planner выбираются переменными `VITE_SERVER_PLANNER_READ` и `VITE_SERVER_PLANNER_WRITE`. Write подразумевает read; при выключенных флагах сохраняется legacy local mode. В server mode источником данных служит backend, без fallback на planner localStorage.
+Для обычного локального запуска `.env.example` включает server-backed planner: `VITE_SERVER_PLANNER_READ=1` и `VITE_SERVER_PLANNER_WRITE=1`. Write подразумевает read. Legacy local mode остаётся только для отладки/миграционных проверок при явном выставлении обоих флагов в `0`. В server mode источником данных служит backend, без fallback на planner localStorage.
 
 ## Структура
 
