@@ -345,26 +345,34 @@ function App() {
     initialNow.getFullYear(),
     initialNow.getMonth()
   );
-  const stored = useMemo(() => loadFromStorage(initialPeriodKey), [initialPeriodKey]);
+  const stored = useMemo(
+    () =>
+      serverPlannerReadEnabled
+        ? null
+        : loadFromStorage(initialPeriodKey),
+    [initialPeriodKey, serverPlannerReadEnabled]
+  );
 
   const [year, setYear] = useState(initialNow.getFullYear());
   const [month, setMonth] = useState(initialNow.getMonth());
   const [themeMode, setThemeMode] = useState<ThemeMode>(loadThemeMode);
 
   const [departments, setDepartments] = useState<Department[]>(
-    stored?.departments || DEFAULT_DEPARTMENTS
+    serverPlannerReadEnabled
+      ? []
+      : stored?.departments || DEFAULT_DEPARTMENTS
   );
   const [employees, setEmployees] = useState<Employee[]>(
-    stored?.employees || DEFAULT_EMPLOYEES
+    serverPlannerReadEnabled ? [] : stored?.employees || DEFAULT_EMPLOYEES
   );
   const [schedules, setSchedules] = useState<SchedulePeriodsData>(
-    stored?.schedules || {}
+    serverPlannerReadEnabled ? {} : stored?.schedules || {}
   );
   const [wishes, setWishes] = useState<EmployeeWishesData>(
-    stored?.wishes || {}
+    serverPlannerReadEnabled ? {} : stored?.wishes || {}
   );
   const [collapsedDepartments, setCollapsedDepartments] = useState<string[]>(
-    stored?.collapsedDepartments || []
+    serverPlannerReadEnabled ? [] : stored?.collapsedDepartments || []
   );
 
   const [newEmployeeName, setNewEmployeeName] = useState('');
@@ -375,7 +383,9 @@ function App() {
   const [newEmployeeFixedEndTime, setNewEmployeeFixedEndTime] =
     useState('');
   const [newEmployeeDepartmentId, setNewEmployeeDepartmentId] = useState(
-    (stored?.departments || DEFAULT_DEPARTMENTS)[0].id
+    serverPlannerReadEnabled
+      ? ''
+      : (stored?.departments || DEFAULT_DEPARTMENTS)[0].id
   );
   const [newDepartmentName, setNewDepartmentName] = useState('');
   const [newDepartmentKind, setNewDepartmentKind] =
@@ -503,6 +513,8 @@ function App() {
   );
 
   useEffect(() => {
+    if (serverPlannerReadEnabled) return;
+
     saveToStorage(
       employees,
       departments,
@@ -510,7 +522,14 @@ function App() {
       wishes,
       collapsedDepartments
     );
-  }, [employees, departments, schedules, wishes, collapsedDepartments]);
+  }, [
+    serverPlannerReadEnabled,
+    employees,
+    departments,
+    schedules,
+    wishes,
+    collapsedDepartments,
+  ]);
 
   const refreshServerPlanner = useCallback(async () => {
     const loadVersion = ++serverPlannerLoadVersion.current;

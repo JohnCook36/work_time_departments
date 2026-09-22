@@ -148,6 +148,51 @@ describe('App regression flows', () => {
     expect(screen.getByText('08-17')).toBeInTheDocument();
   });
 
+  it('ignores and does not overwrite planner localStorage in server read mode', async () => {
+    const legacyRaw = JSON.stringify({
+      departments: [
+        { id: 'legacy-department', name: 'Старый локальный отдел', kind: 'general' },
+      ],
+      employees: [
+        {
+          id: 'legacy-employee',
+          name: 'Старый локальный сотрудник',
+          departmentId: 'legacy-department',
+          employmentRate: 1,
+        },
+      ],
+      schedules: {
+        [currentPeriodKey()]: {
+          'legacy-employee': {
+            1: {
+              type: 'shift',
+              shift: { start: '10:00', end: '19:00' },
+            },
+          },
+        },
+      },
+      wishes: {},
+      collapsedDepartments: [],
+    });
+    localStorage.setItem(STORAGE_KEY, legacyRaw);
+
+    vi.stubEnv('VITE_SERVER_PLANNER_READ', '1');
+    vi.spyOn(plannerApi, 'loadPlannerServerSnapshot').mockResolvedValue(
+      serverPlannerSnapshot(),
+    );
+
+    renderApp();
+
+    expect(
+      screen.queryByText('Старый локальный сотрудник'),
+    ).not.toBeInTheDocument();
+    expect(await screen.findByText('Серверный сотрудник')).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(localStorage.getItem(STORAGE_KEY)).toBe(legacyRaw);
+    });
+  });
+
   it('preloads adjacent server periods before full-month print', async () => {
     const user = userEvent.setup();
     const current = serverPlannerSnapshot();
