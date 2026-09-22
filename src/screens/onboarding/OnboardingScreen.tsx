@@ -6,8 +6,34 @@ import { EmployeeCandidate, OnboardingDepartment, OnboardingRequest,
 } from '../../api/auth';
 import { useAuthUser } from '../../auth/AuthContext';
 import { useAuthSession } from '../../auth/AuthSessionProvider';
-import { authPalette } from '../../theme/palette';
-import { pageStyle, cardStyle, inputStyle, buttonStyle, secondaryButtonStyle, ErrorText } from '../../theme/authPageUi';
+import {
+  AuthButton,
+  AuthCard,
+  AuthInput,
+  AuthPage,
+  AuthSecondaryButton,
+  AuthSelect,
+  ErrorText,
+} from '../../theme/authPageUi';
+import {
+  AccountText,
+  CandidateButton,
+  CandidateList,
+  FullWidthAuthButton,
+  LogoutButton,
+  NewProfileDescription,
+  NewProfileSection,
+  NewProfileTitle,
+  OnboardingButtonRow,
+  OnboardingDescription,
+  OnboardingField,
+  OnboardingIntro,
+  OnboardingTitle,
+  PendingDescription,
+  PendingHeader,
+  PendingPanel,
+  SearchRow,
+} from './OnboardingScreen.styles';
 
 function PendingRequest({
   request,
@@ -21,36 +47,20 @@ function PendingRequest({
   const [busy, setBusy] = useState(false);
 
   return (
-    <div
-      style={{
-        marginTop: 16,
-        padding: 14,
-        borderRadius: 12,
-        border: '1px solid ' + authPalette.warningBorder,
-        background: authPalette.warningBackground,
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          fontWeight: 800,
-        }}
-      >
+    <PendingPanel>
+      <PendingHeader>
         <Clock3 size={17} />
         Запрос ожидает подтверждения администратора
-      </div>
-      <p style={{ margin: '8px 0 0', color: authPalette.supportText, fontSize: 13 }}>
+      </PendingHeader>
+      <PendingDescription>
         До подтверждения профиль сотрудника не привязывается к аккаунту.
-      </p>
-      <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-        <button type="button" style={secondaryButtonStyle} onClick={onRefresh}>
+      </PendingDescription>
+      <OnboardingButtonRow>
+        <AuthSecondaryButton type="button" onClick={onRefresh}>
           Проверить статус
-        </button>
-        <button
+        </AuthSecondaryButton>
+        <AuthSecondaryButton
           type="button"
-          style={secondaryButtonStyle}
           disabled={busy}
           onClick={async () => {
             setBusy(true);
@@ -63,9 +73,9 @@ function PendingRequest({
           }}
         >
           Отменить запрос
-        </button>
-      </div>
-    </div>
+        </AuthSecondaryButton>
+      </OnboardingButtonRow>
+    </PendingPanel>
   );
 }
 
@@ -111,14 +121,12 @@ export function OnboardingScreen() {
 
   if (status?.status === 'PENDING') {
     return (
-      <div style={pageStyle}>
-        <div style={cardStyle}>
-          <h1 style={{ margin: '0 0 6px', fontSize: 24 }}>
-            Привязка профиля
-          </h1>
-          <p style={{ margin: 0, color: authPalette.textMuted }}>
+      <AuthPage>
+        <AuthCard>
+          <OnboardingTitle>Привязка профиля</OnboardingTitle>
+          <OnboardingIntro>
             Телефон подтверждён. Осталось подтвердить профиль сотрудника.
-          </p>
+          </OnboardingIntro>
           <PendingRequest
             request={status}
             onCanceled={() => {
@@ -127,9 +135,8 @@ export function OnboardingScreen() {
             }}
             onRefresh={onSessionChanged}
           />
-          <button
+          <LogoutButton
             type="button"
-            style={{ ...secondaryButtonStyle, marginTop: 14 }}
             onClick={async () => {
               await logout();
               onSessionChanged();
@@ -137,27 +144,24 @@ export function OnboardingScreen() {
           >
             <LogOut size={16} />
             Выйти
-          </button>
-        </div>
-      </div>
+          </LogoutButton>
+        </AuthCard>
+      </AuthPage>
     );
   }
 
   return (
-    <div style={pageStyle}>
-      <div style={cardStyle}>
-        <h1 style={{ margin: '0 0 6px', fontSize: 24 }}>
-          Найдите свой профиль
-        </h1>
-        <p style={{ margin: '0 0 18px', color: authPalette.textMuted, lineHeight: 1.5 }}>
+    <AuthPage>
+      <AuthCard>
+        <OnboardingTitle>Найдите свой профиль</OnboardingTitle>
+        <OnboardingDescription>
           Для защиты от чужой привязки выбор профиля создаёт запрос. Сам профиль
           будет связан с аккаунтом только после подтверждения администратора.
-        </p>
+        </OnboardingDescription>
 
-        <label style={{ display: 'grid', gap: 7, fontSize: 13 }}>
+        <OnboardingField>
           Отдел
-          <select
-            style={inputStyle}
+          <AuthSelect
             value={departmentId}
             onChange={(event) => {
               setDepartmentId(event.target.value);
@@ -170,26 +174,17 @@ export function OnboardingScreen() {
                 {department.name}
               </option>
             ))}
-          </select>
-        </label>
+          </AuthSelect>
+        </OnboardingField>
 
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr auto',
-            gap: 8,
-            marginTop: 12,
-          }}
-        >
-          <input
-            style={inputStyle}
+        <SearchRow>
+          <AuthInput
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Начните вводить имя"
           />
-          <button
+          <AuthButton
             type="button"
-            style={buttonStyle}
             disabled={busy || !departmentId || query.trim().length < 3}
             onClick={async () => {
               setBusy(true);
@@ -211,20 +206,15 @@ export function OnboardingScreen() {
           >
             <Search size={16} />
             Найти
-          </button>
-        </div>
+          </AuthButton>
+        </SearchRow>
 
         {candidates.length > 0 && (
-          <div style={{ display: 'grid', gap: 8, marginTop: 12 }}>
+          <CandidateList>
             {candidates.map((candidate) => (
-              <button
+              <CandidateButton
                 key={candidate.id}
                 type="button"
-                style={{
-                  ...secondaryButtonStyle,
-                  justifyContent: 'space-between',
-                  textAlign: 'left',
-                }}
                 onClick={async () => {
                   setBusy(true);
                   setError(null);
@@ -245,32 +235,24 @@ export function OnboardingScreen() {
               >
                 <span>{candidate.displayName}</span>
                 <UserPlus size={16} />
-              </button>
+              </CandidateButton>
             ))}
-          </div>
+          </CandidateList>
         )}
 
-        <div
-          style={{
-            marginTop: 20,
-            paddingTop: 16,
-            borderTop: '1px solid ' + authPalette.divider,
-          }}
-        >
-          <div style={{ fontWeight: 800 }}>Нет профиля в графике?</div>
-          <p style={{ margin: '5px 0 10px', color: authPalette.textMuted, fontSize: 13 }}>
+        <NewProfileSection>
+          <NewProfileTitle>Нет профиля в графике?</NewProfileTitle>
+          <NewProfileDescription>
             Отправьте администратору запрос на создание нового профиля в
             выбранном отделе.
-          </p>
-          <input
-            style={inputStyle}
+          </NewProfileDescription>
+          <AuthInput
             value={registrationName}
             onChange={(event) => setRegistrationName(event.target.value)}
             placeholder="Имя и фамилия"
           />
-          <button
+          <FullWidthAuthButton
             type="button"
-            style={{ ...buttonStyle, width: '100%', marginTop: 8 }}
             disabled={
               busy ||
               !departmentId ||
@@ -299,14 +281,13 @@ export function OnboardingScreen() {
           >
             <UserPlus size={16} />
             Запросить создание профиля
-          </button>
-        </div>
+          </FullWidthAuthButton>
+        </NewProfileSection>
 
         <ErrorText message={error} />
 
-        <button
+        <LogoutButton
           type="button"
-          style={{ ...secondaryButtonStyle, marginTop: 14 }}
           onClick={async () => {
             await logout();
             onSessionChanged();
@@ -314,12 +295,10 @@ export function OnboardingScreen() {
         >
           <LogOut size={16} />
           Выйти
-        </button>
+        </LogoutButton>
 
-        <div style={{ marginTop: 12, color: authPalette.subtleText, fontSize: 11 }}>
-          Аккаунт: {user.phoneE164}
-        </div>
-      </div>
-    </div>
+        <AccountText>Аккаунт: {user.phoneE164}</AccountText>
+      </AuthCard>
+    </AuthPage>
   );
 }
