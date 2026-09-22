@@ -38,7 +38,8 @@ import {
 import {
   ErrorPanelList,
   ErrorPanelTitle,
-  FixedScheduleBadge,
+  EmployeeIdentity,
+  EmployeeScheduleMeta,
   HourLine,
   HoursShiftDisplay,
   HourTotal,
@@ -291,15 +292,18 @@ function SortableEmployeeRow({
             <GripVertical size={16} />
           </DragHandle>
 
-          <EmployeeNameText>{employee.name}</EmployeeNameText>
-
-          {employee.scheduleMode === 'fixed-weekdays' &&
-            employee.fixedStartTime &&
-            employee.fixedEndTime && (
-              <FixedScheduleBadge title="Автоматический базовый график 5/2">
-                5/2 {employee.fixedStartTime}-{employee.fixedEndTime}
-              </FixedScheduleBadge>
-            )}
+          <EmployeeIdentity>
+            <EmployeeNameText title={employee.name}>
+              {employee.name}
+            </EmployeeNameText>
+            {employee.scheduleMode === 'fixed-weekdays' &&
+              employee.fixedStartTime &&
+              employee.fixedEndTime && (
+                <EmployeeScheduleMeta title="Автоматический базовый график 5/2">
+                  5/2 · {employee.fixedStartTime}–{employee.fixedEndTime}
+                </EmployeeScheduleMeta>
+              )}
+          </EmployeeIdentity>
 
           <RowIconButton
             type="button"
