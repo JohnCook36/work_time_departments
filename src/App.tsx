@@ -89,8 +89,10 @@ import {
   buildScheduleCellChange,
   createPlannerDepartment,
   createPlannerEmployee,
+  createPlannerWish,
   deactivatePlannerDepartment,
   deactivatePlannerEmployee,
+  deletePlannerWish,
   loadPlannerServerSnapshot,
   PlannerCellMetadataMap,
   PlannerDepartmentMetadataMap,
@@ -382,6 +384,7 @@ function App() {
   const [showHelp, setShowHelp] = useState(false);
   const [showDepartments, setShowDepartments] = useState(false);
   const [wishEmployeeId, setWishEmployeeId] = useState<string | null>(null);
+  const [mutatingWishId, setMutatingWishId] = useState<string | null>(null);
   const [editingEmployeeId, setEditingEmployeeId] = useState<string | null>(
     null
   );
@@ -427,6 +430,12 @@ function App() {
         serverPlannerStatus === 'ready' &&
         mutatingEmployeeId === null));
   const canCreateEmployee = canManageEmployeeProfiles;
+  const canEditWishes =
+    canManagePlanner &&
+    (!serverPlannerReadEnabled ||
+      (serverPlannerWriteEnabled &&
+        serverPlannerStatus === 'ready' &&
+        mutatingWishId === null));
   const canEditEmployeeRate =
     canManagePlanner &&
     (!serverPlannerReadEnabled ||
@@ -502,6 +511,17 @@ function App() {
         ...prev,
         [periodKey]: snapshot.schedule,
       }));
+      setWishes((prev) => {
+        const next = { ...prev };
+        snapshot.employees.forEach((employee) => {
+          next[employee.id] = {
+            ...(next[employee.id] || {}),
+            [periodKey]:
+              snapshot.wishes[employee.id]?.[periodKey] || [],
+          };
+        });
+        return next;
+      });
       setServerCellMetadata(snapshot.cellMetadata);
       setServerEmployeeMetadata(snapshot.employeeMetadata);
       setServerDepartmentMetadata(snapshot.departmentMetadata);
@@ -530,6 +550,7 @@ function App() {
       setUpdatingEmployeeRateId(null);
       setMutatingEmployeeId(null);
       setEditingEmployeeId(null);
+      setMutatingWishId(null);
       setMovingEmployeeId(null);
       setMovingDepartmentId(null);
       setMutatingDepartmentId(null);
@@ -1457,28 +1478,82 @@ function App() {
   };
 
   const addWish = (employeeId: string, wish: Omit<EmployeeWish, 'id'>) => {
-    setWishes((prev) => ({
-      ...prev,
-      [employeeId]: {
-        ...(prev[employeeId] || {}),
-        [periodKey]: [
-          ...(prev[employeeId]?.[periodKey] || []),
-          { ...wish, id: generateId() },
-        ],
-      },
-    }));
+    if (!serverPlannerWriteEnabled) {
+      setWishes((prev) => ({
+        ...prev,
+        [employeeId]: {
+          ...(prev[employeeId] || {}),
+          [periodKey]: [
+            ...(prev[employeeId]?.[periodKey] || []),
+            { ...wish, id: generateId() },
+          ],
+        },
+      }));
+      return;
+    }
+
+    if (serverPlannerStatus !== 'ready' || mutatingWishId !== null) {
+      alert('График ещё не готов к изменению пожеланий.');
+      return;
+    }
+
+    setMutatingWishId('create:' + employeeId);
+    void createPlannerWish({
+      employeeId,
+      year,
+      month: month + 1,
+      day: wish.day,
+      text: wish.text,
+    })
+      .then(() => refreshServerPlanner())
+      .catch((error) => {
+        console.error('Server wish create failed', error);
+        alert(
+          error instanceof Error
+            ? 'Не удалось добавить пожелание: ' + error.message
+            : 'Не удалось добавить пожелание на сервере.'
+        );
+        void refreshServerPlanner();
+      })
+      .finally(() => {
+        setMutatingWishId(null);
+      });
   };
 
   const removeWish = (employeeId: string, wishId: string) => {
-    setWishes((prev) => ({
-      ...prev,
-      [employeeId]: {
-        ...(prev[employeeId] || {}),
-        [periodKey]: (prev[employeeId]?.[periodKey] || []).filter(
-          (wish) => wish.id !== wishId
-        ),
-      },
-    }));
+    if (!serverPlannerWriteEnabled) {
+      setWishes((prev) => ({
+        ...prev,
+        [employeeId]: {
+          ...(prev[employeeId] || {}),
+          [periodKey]: (prev[employeeId]?.[periodKey] || []).filter(
+            (wish) => wish.id !== wishId
+          ),
+        },
+      }));
+      return;
+    }
+
+    if (serverPlannerStatus !== 'ready' || mutatingWishId !== null) {
+      alert('График ещё не готов к изменению пожеланий.');
+      return;
+    }
+
+    setMutatingWishId(wishId);
+    void deletePlannerWish(wishId)
+      .then(() => refreshServerPlanner())
+      .catch((error) => {
+        console.error('Server wish delete failed', error);
+        alert(
+          error instanceof Error
+            ? 'Не удалось удалить пожелание: ' + error.message
+            : 'Не удалось удалить пожелание на сервере.'
+        );
+        void refreshServerPlanner();
+      })
+      .finally(() => {
+        setMutatingWishId(null);
+      });
   };
 
   const prevMonth = () => {
@@ -2185,7 +2260,7 @@ function App() {
                           }
                           onOpenWishes={setWishEmployeeId}
                           scheduleView={scheduleView}
-                          editable={canEditPlanner}
+                          wishEditable={canEditWishes}
                           employeeProfileEditable={canManageEmployeeProfiles}
                           scheduleEditable={canEditScheduleCells}
                           employeeDraggable={canMoveEmployees}
@@ -2428,7 +2503,7 @@ function App() {
         />
       )}
 
-      {canEditPlanner && selectedWishEmployee && (
+      {canEditWishes && selectedWishEmployee && (
         <EmployeeWishDrawer
           key={selectedWishEmployee.id + periodKey}
           employee={selectedWishEmployee}
@@ -2436,6 +2511,7 @@ function App() {
           month={month}
           daysInMonth={daysInMonth}
           wishes={wishes[selectedWishEmployee.id]?.[periodKey] || []}
+          busy={mutatingWishId !== null}
           onAdd={(wish) => addWish(selectedWishEmployee.id, wish)}
           onRemove={(wishId) =>
             removeWish(selectedWishEmployee.id, wishId)
@@ -2468,7 +2544,7 @@ interface DepartmentSectionProps {
   getWishSummary: (employeeId: string) => string;
   onOpenWishes: (employeeId: string) => void;
   scheduleView: ScheduleView;
-  editable: boolean;
+  wishEditable: boolean;
   employeeProfileEditable: boolean;
   scheduleEditable: boolean;
   employeeDraggable: boolean;
@@ -2494,7 +2570,7 @@ function DepartmentSection({
   getWishSummary,
   onOpenWishes,
   scheduleView,
-  editable,
+  wishEditable,
   employeeProfileEditable,
   scheduleEditable,
   employeeDraggable,
@@ -2593,7 +2669,7 @@ function DepartmentSection({
               wishSummary={getWishSummary(employee.id)}
               onOpenWishes={onOpenWishes}
               scheduleView={scheduleView}
-              editable={editable}
+              wishEditable={wishEditable}
               employeeProfileEditable={employeeProfileEditable}
               scheduleEditable={scheduleEditable}
               draggable={employeeDraggable}
@@ -2620,7 +2696,7 @@ interface SortableEmployeeRowProps {
   wishSummary: string;
   onOpenWishes: (employeeId: string) => void;
   scheduleView: ScheduleView;
-  editable: boolean;
+  wishEditable: boolean;
   employeeProfileEditable: boolean;
   scheduleEditable: boolean;
   draggable: boolean;
@@ -2641,7 +2717,7 @@ function SortableEmployeeRow({
   wishSummary,
   onOpenWishes,
   scheduleView,
-  editable,
+  wishEditable,
   employeeProfileEditable,
   scheduleEditable,
   draggable,
@@ -2709,7 +2785,7 @@ function SortableEmployeeRow({
           <RowIconButton
             type="button"
             $active={wishCount > 0}
-            disabled={!editable}
+            disabled={!wishEditable}
             onClick={() => onOpenWishes(employee.id)}
             title={
               wishSummary
