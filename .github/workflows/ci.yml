@@ -21,6 +21,9 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Design token guard
+        run: npm run check:design-tokens
+
       - name: Tests (if present)
         run: npm test --if-present
 
