@@ -2,7 +2,6 @@ import {
   Department,
   DepartmentKind,
   Employee,
-  EmployeeScheduleMode,
 } from '../../domain/models';
 import {
   EmployeeCreateFormValues,
