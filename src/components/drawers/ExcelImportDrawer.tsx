@@ -1,6 +1,5 @@
 import { AlertTriangle, CheckCircle2, FileSpreadsheet, X } from 'lucide-react';
 import { ExcelImportPreview } from '../../services/excel/importExcel';
-import { statusPalette } from '../../theme/palette';
 import {
   ActionButton,
   Drawer,
@@ -11,6 +10,27 @@ import {
   IconButton,
   TinyText,
 } from '../../theme/styles';
+import {
+  ApplyImportButton,
+  ImportAlertTitle,
+  ImportBox,
+  ImportContent,
+  ImportHint,
+  ImportStatsGrid,
+  ImportTitleRow,
+  InvalidDetail,
+  InvalidItem,
+  InvalidList,
+  InvalidValue,
+  NameTag,
+  NameTags,
+  OverwriteCheckbox,
+  OverwriteHelp,
+  OverwriteLabel,
+  SuccessBox,
+  SuccessIconSlot,
+  WarningItem,
+} from './ExcelImportDrawer.styles';
 
 interface ExcelImportDrawerProps {
   preview: ExcelImportPreview;
@@ -50,33 +70,14 @@ export function ExcelImportDrawer({
           </IconButton>
         </DrawerHeader>
 
-        <div
-          style={{
-            display: 'grid',
-            gap: 10,
-            marginTop: 12,
-          }}
-        >
-          <div
-            style={{
-              padding: 12,
-              borderRadius: 12,
-              border: '1px solid ' + statusPalette.neutralBorder,
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <ImportContent>
+          <ImportBox>
+            <ImportTitleRow>
               <FileSpreadsheet size={18} />
               <strong>Предпросмотр импорта</strong>
-            </div>
+            </ImportTitleRow>
 
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: 8,
-                marginTop: 12,
-              }}
-            >
+            <ImportStatsGrid>
               <TinyText>Совпало сотрудников</TinyText>
               <strong>{preview.matchedEmployees.length}</strong>
 
@@ -97,232 +98,116 @@ export function ExcelImportDrawer({
 
               <TinyText>Конфликтов с текущим графиком</TinyText>
               <strong>{conflictCount}</strong>
-            </div>
-          </div>
+            </ImportStatsGrid>
+          </ImportBox>
 
           {preview.unknownEmployees.length > 0 && (
-            <div
-              style={{
-                padding: 12,
-                borderRadius: 12,
-                border: '1px solid ' + statusPalette.warningBorder,
-                background: statusPalette.warningBackground,
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 7,
-                  fontWeight: 800,
-                }}
-              >
+            <ImportBox $tone="warning">
+              <ImportAlertTitle>
                 <AlertTriangle size={17} />
                 Не найдены в текущем графике
-              </div>
+              </ImportAlertTitle>
 
-              <TinyText style={{ marginTop: 7 }}>
+              <ImportHint>
                 Эти строки будут пропущены. Сотрудники автоматически не создаются.
-              </TinyText>
+              </ImportHint>
 
-              <div
-                style={{
-                  marginTop: 8,
-                  display: 'flex',
-                  flexWrap: 'wrap',
-                  gap: 6,
-                }}
-              >
+              <NameTags>
                 {preview.unknownEmployees.map((name) => (
-                  <span
-                    key={name}
-                    style={{
-                      padding: '4px 7px',
-                      borderRadius: 8,
-                      background: statusPalette.neutralSoft,
-                      fontSize: 11,
-                    }}
-                  >
+                  <NameTag key={name}>
                     {name}
-                  </span>
+                  </NameTag>
                 ))}
-              </div>
-            </div>
+              </NameTags>
+            </ImportBox>
           )}
 
           {preview.ambiguousEmployees.length > 0 && (
-            <div
-              style={{
-                padding: 12,
-                borderRadius: 12,
-                border: '1px solid ' + statusPalette.warningBorder,
-                background: statusPalette.warningBackground,
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 7,
-                  fontWeight: 800,
-                }}
-              >
+            <ImportBox $tone="warning">
+              <ImportAlertTitle>
                 <AlertTriangle size={17} />
                 Неоднозначное совпадение сотрудников
-              </div>
+              </ImportAlertTitle>
 
-              <TinyText style={{ marginTop: 7 }}>
+              <ImportHint>
                 В текущем графике найдено несколько сотрудников с одинаковым именем.
                 Такие строки будут пропущены до ручного уточнения.
-              </TinyText>
+              </ImportHint>
 
-              <div
-                style={{
-                  marginTop: 8,
-                  display: 'flex',
-                  flexWrap: 'wrap',
-                  gap: 6,
-                }}
-              >
+              <NameTags>
                 {preview.ambiguousEmployees.map((name) => (
-                  <span
-                    key={name}
-                    style={{
-                      padding: '4px 7px',
-                      borderRadius: 8,
-                      background: statusPalette.neutralSoft,
-                      fontSize: 11,
-                    }}
-                  >
+                  <NameTag key={name}>
                     {name}
-                  </span>
+                  </NameTag>
                 ))}
-              </div>
-            </div>
+              </NameTags>
+            </ImportBox>
           )}
 
           {preview.invalidCells.length > 0 && (
-            <div
-              style={{
-                padding: 12,
-                borderRadius: 12,
-                border: '1px solid ' + statusPalette.dangerBorder,
-                background: statusPalette.dangerBackground,
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 7,
-                  fontWeight: 800,
-                }}
-              >
+            <ImportBox $tone="danger">
+              <ImportAlertTitle>
                 <AlertTriangle size={17} />
                 Некорректные смены
-              </div>
+              </ImportAlertTitle>
 
-              <TinyText style={{ marginTop: 7 }}>
+              <ImportHint>
                 Эти ячейки не будут импортированы. Показаны первые 12 ошибок.
-              </TinyText>
+              </ImportHint>
 
-              <div
-                style={{
-                  marginTop: 8,
-                  display: 'grid',
-                  gap: 6,
-                  maxHeight: 210,
-                  overflowY: 'auto',
-                }}
-              >
+              <InvalidList>
                 {preview.invalidCells.slice(0, 12).map((item, index) => (
-                  <div
-                    key={item.employeeName + '-' + item.day + '-' + index}
-                    style={{
-                      padding: '7px 8px',
-                      borderRadius: 8,
-                      background: statusPalette.subtleBackground,
-                      fontSize: 11,
-                    }}
-                  >
+                  <InvalidItem key={item.employeeName + '-' + item.day + '-' + index}>
                     <strong>{item.employeeName}</strong> · день {item.day}
-                    <div style={{ marginTop: 3, opacity: 0.8 }}>
+                    <InvalidValue>
                       Значение: {item.scheduleValue || item.actualTimeValue || 'пусто'}
-                    </div>
-                    <div style={{ marginTop: 3 }}>{item.reason}</div>
-                  </div>
+                    </InvalidValue>
+                    <InvalidDetail>{item.reason}</InvalidDetail>
+                  </InvalidItem>
                 ))}
-              </div>
-            </div>
+              </InvalidList>
+            </ImportBox>
           )}
 
           {preview.warnings.map((warning) => (
-            <div
-              key={warning}
-              style={{
-                padding: 10,
-                borderRadius: 10,
-                border: '1px solid ' + statusPalette.warningBorder,
-                fontSize: 12,
-              }}
-            >
+            <WarningItem key={warning}>
               {warning}
-            </div>
+            </WarningItem>
           ))}
 
-          <label
-            style={{
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: 10,
-              padding: 12,
-              borderRadius: 12,
-              border: '1px solid ' + statusPalette.neutralBorder,
-              cursor: 'pointer',
-            }}
+          <OverwriteLabel
           >
-            <input
+            <OverwriteCheckbox
               type="checkbox"
               checked={overwriteExisting}
               disabled={busy}
               onChange={(event) => onOverwriteChange(event.target.checked)}
-              style={{ marginTop: 2 }}
             />
             <span>
               <strong>Перезаписывать заполненные ячейки</strong>
-              <TinyText style={{ display: 'block', marginTop: 4 }}>
+              <OverwriteHelp>
                 По умолчанию существующие смены защищены и импорт заполняет только
                 пустые ячейки.
-              </TinyText>
+              </OverwriteHelp>
             </span>
-          </label>
+          </OverwriteLabel>
 
-          <div
-            style={{
-              padding: 12,
-              borderRadius: 12,
-              border: '1px solid ' + statusPalette.successBorder,
-              background: statusPalette.successBackground,
-              display: 'flex',
-              gap: 8,
-            }}
-          >
-            <CheckCircle2 size={17} style={{ flex: '0 0 auto' }} />
+          <SuccessBox $tone="success">
+            <SuccessIconSlot><CheckCircle2 size={17} /></SuccessIconSlot>
             <TinyText>
               Импорт будет применён к месяцу, который сейчас открыт в приложении.
             </TinyText>
-          </div>
-        </div>
+          </SuccessBox>
+        </ImportContent>
 
-        <ActionButton
+        <ApplyImportButton
           type="button"
           $variant="primary"
           onClick={onApply}
           disabled={matchedEntries === 0 || busy}
-          style={{ width: '100%', marginTop: 18 }}
         >
           {busy ? 'Применяю…' : 'Применить импорт'}
-        </ActionButton>
+        </ApplyImportButton>
       </Drawer>
     </DrawerOverlay>
   );
