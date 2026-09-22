@@ -31,6 +31,21 @@ describe('EmployeesService', () => {
       create: jest.fn(),
       updateMany: jest.fn(),
     },
+    onboardingRequest: {
+      count: jest.fn(),
+    },
+    shiftChangeRequest: {
+      count: jest.fn(),
+    },
+    user: {
+      updateMany: jest.fn(),
+    },
+    membership: {
+      updateMany: jest.fn(),
+    },
+    authSession: {
+      updateMany: jest.fn(),
+    },
     $transaction: jest.fn(),
   };
 
@@ -47,11 +62,32 @@ describe('EmployeesService', () => {
     jest.clearAllMocks();
     prisma.department.findFirst.mockResolvedValue({ id: 'department-a' });
     prisma.employee.updateMany.mockResolvedValue({ count: 1 });
+    prisma.onboardingRequest.count.mockResolvedValue(0);
+    prisma.shiftChangeRequest.count.mockResolvedValue(0);
+    prisma.user.updateMany.mockResolvedValue({ count: 1 });
+    prisma.membership.updateMany.mockResolvedValue({ count: 1 });
+    prisma.authSession.updateMany.mockResolvedValue({ count: 1 });
     prisma.$transaction.mockImplementation(async (callback) =>
       callback({
         employee: {
           findMany: prisma.employee.findMany,
+          findUnique: prisma.employee.findUnique,
           updateMany: prisma.employee.updateMany,
+        },
+        onboardingRequest: {
+          count: prisma.onboardingRequest.count,
+        },
+        shiftChangeRequest: {
+          count: prisma.shiftChangeRequest.count,
+        },
+        user: {
+          updateMany: prisma.user.updateMany,
+        },
+        membership: {
+          updateMany: prisma.membership.updateMany,
+        },
+        authSession: {
+          updateMany: prisma.authSession.updateMany,
         },
       }),
     );
@@ -104,6 +140,20 @@ describe('EmployeesService', () => {
         departmentId: 'department-a',
         scheduleMode: EmployeeScheduleMode.FIXED_WEEKDAYS,
         fixedStartTime: '08:00',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(prisma.employee.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects equal fixed weekday start and end times', async () => {
+    await expect(
+      service.createEmployee(admin(), {
+        displayName: 'Employee',
+        departmentId: 'department-a',
+        scheduleMode: EmployeeScheduleMode.FIXED_WEEKDAYS,
+        fixedStartTime: '08:00',
+        fixedEndTime: '08:00',
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
 
@@ -464,6 +514,182 @@ describe('EmployeesService', () => {
       }),
     ).rejects.toBeInstanceOf(ConflictException);
   });
+
+  it('soft-deactivates an unlinked Employee with optimistic locking', async () => {
+    const updatedAt = new Date('2026-09-22T08:00:00.000Z');
+    prisma.employee.findUnique.mockResolvedValue({
+      id: 'employee-a',
+      departmentId: 'department-a',
+      isActive: true,
+      userId: null,
+      updatedAt,
+      user: null,
+    });
+
+    const result = await service.deactivateEmployee(
+      admin(),
+      'employee-a',
+      { expectedUpdatedAt: updatedAt.toISOString() },
+    );
+
+    expect(prisma.employee.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'employee-a',
+        isActive: true,
+        updatedAt,
+      },
+      data: {
+        isActive: false,
+      },
+    });
+    expect(prisma.user.updateMany).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      status: 'ok',
+      employeeId: 'employee-a',
+    });
+  });
+
+  it('deactivates a linked User, memberships, and sessions together with Employee', async () => {
+    const updatedAt = new Date('2026-09-22T08:00:00.000Z');
+    prisma.employee.findUnique.mockResolvedValue({
+      id: 'employee-a',
+      departmentId: 'department-a',
+      isActive: true,
+      userId: 'employee-user',
+      updatedAt,
+      user: {
+        memberships: [
+          {
+            role: RoleType.EMPLOYEE,
+            departmentId: 'department-a',
+          },
+        ],
+      },
+    });
+
+    await service.deactivateEmployee(
+      admin(),
+      'employee-a',
+      { expectedUpdatedAt: updatedAt.toISOString() },
+    );
+
+    expect(prisma.user.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'employee-user',
+        isActive: true,
+      },
+      data: {
+        isActive: false,
+      },
+    });
+    expect(prisma.membership.updateMany).toHaveBeenCalledWith({
+      where: {
+        userId: 'employee-user',
+        isActive: true,
+      },
+      data: {
+        isActive: false,
+      },
+    });
+    expect(prisma.authSession.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          userId: 'employee-user',
+          revokedAt: null,
+        },
+        data: {
+          revokedAt: expect.any(Date),
+        },
+      }),
+    );
+  });
+
+  it('rejects Employee self-deactivation', async () => {
+    const updatedAt = new Date('2026-09-22T08:00:00.000Z');
+    prisma.employee.findUnique.mockResolvedValue({
+      id: 'employee-a',
+      departmentId: 'department-a',
+      isActive: true,
+      userId: 'admin-user',
+      updatedAt,
+      user: {
+        memberships: [
+          {
+            role: RoleType.DEPARTMENT_ADMIN,
+            departmentId: 'department-a',
+          },
+        ],
+      },
+    });
+
+    await expect(
+      service.deactivateEmployee(
+        admin(),
+        'employee-a',
+        { expectedUpdatedAt: updatedAt.toISOString() },
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(prisma.employee.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('requires Super Admin to deactivate a linked management account', async () => {
+    const updatedAt = new Date('2026-09-22T08:00:00.000Z');
+    prisma.employee.findUnique.mockResolvedValue({
+      id: 'employee-a',
+      departmentId: 'department-a',
+      isActive: true,
+      userId: 'manager-user',
+      updatedAt,
+      user: {
+        memberships: [
+          {
+            role: RoleType.DEPARTMENT_ADMIN,
+            departmentId: 'department-a',
+          },
+        ],
+      },
+    });
+
+    await expect(
+      service.deactivateEmployee(
+        admin(),
+        'employee-a',
+        { expectedUpdatedAt: updatedAt.toISOString() },
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(prisma.employee.updateMany).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['pending onboarding', 'onboardingRequest'],
+    ['active shift-change request', 'shiftChangeRequest'],
+  ] as const)(
+    'blocks Employee deactivation while %s remains',
+    async (_label, blocker) => {
+      const updatedAt = new Date('2026-09-22T08:00:00.000Z');
+      prisma.employee.findUnique.mockResolvedValue({
+        id: 'employee-a',
+        departmentId: 'department-a',
+        isActive: true,
+        userId: null,
+        updatedAt,
+        user: null,
+      });
+      prisma[blocker].count.mockResolvedValue(1);
+
+      await expect(
+        service.deactivateEmployee(
+          admin(),
+          'employee-a',
+          { expectedUpdatedAt: updatedAt.toISOString() },
+        ),
+      ).rejects.toBeInstanceOf(ConflictException);
+
+      expect(prisma.employee.updateMany).not.toHaveBeenCalled();
+    },
+  );
 
   it('lists only active employees in the requested department', async () => {
     prisma.employee.findMany.mockResolvedValue([]);
