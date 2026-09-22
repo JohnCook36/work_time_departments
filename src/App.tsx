@@ -83,13 +83,16 @@ import {
   buildEmployeeMoveInput,
   buildEmployeeReorderInput,
   buildScheduleCellChange,
+  createPlannerDepartment,
   createPlannerEmployee,
+  deactivatePlannerDepartment,
   loadPlannerServerSnapshot,
   PlannerCellMetadataMap,
   PlannerDepartmentMetadataMap,
   PlannerEmployeeMetadataMap,
   reorderPlannerDepartments,
   reorderPlannerEmployees,
+  updatePlannerDepartment,
   updatePlannerEmployee,
 } from './plannerApi';
 import {
@@ -403,6 +406,8 @@ function App() {
     useState<string | null>(null);
   const [movingDepartmentId, setMovingDepartmentId] =
     useState<string | null>(null);
+  const [mutatingDepartmentId, setMutatingDepartmentId] =
+    useState<string | null>(null);
   const serverPlannerLoadVersion = useRef(0);
 
   const canCreateEmployee =
@@ -426,6 +431,12 @@ function App() {
         isSuperAdmin &&
         serverPlannerStatus === 'ready' &&
         movingDepartmentId === null));
+  const canManageDepartments =
+    canManagePlanner &&
+    (!serverPlannerReadEnabled ||
+      (serverPlannerWriteEnabled &&
+        isSuperAdmin &&
+        serverPlannerStatus === 'ready'));
   const theme = useMemo(() => getTheme(themeMode), [themeMode]);
   const periodKey = getPeriodKey(year, month);
   const rawSchedule = schedules[periodKey] || {};
@@ -506,6 +517,7 @@ function App() {
       setUpdatingEmployeeRateId(null);
       setMovingEmployeeId(null);
       setMovingDepartmentId(null);
+      setMutatingDepartmentId(null);
       return;
     }
 
@@ -809,42 +821,148 @@ function App() {
     if (wishEmployeeId === id) setWishEmployeeId(null);
   };
 
-  const addDepartment = () => {
+  const addDepartment = async () => {
     const name = newDepartmentName.trim();
-    if (!name) return;
+    if (!name || mutatingDepartmentId !== null) return;
 
-    const department: Department = {
-      id: generateId(),
-      name,
-      kind: newDepartmentKind,
-    };
+    if (!serverPlannerWriteEnabled) {
+      const department: Department = {
+        id: generateId(),
+        name,
+        kind: newDepartmentKind,
+      };
 
-    setDepartments((prev) => [...prev, department]);
-    setNewEmployeeDepartmentId(department.id);
-    setNewDepartmentName('');
-    setNewDepartmentKind('general');
+      setDepartments((prev) => [...prev, department]);
+      setNewEmployeeDepartmentId(department.id);
+      setNewDepartmentName('');
+      setNewDepartmentKind('general');
+      return;
+    }
+
+    if (!canManageDepartments) {
+      alert('Управление отделами сейчас недоступно.');
+      return;
+    }
+
+    try {
+      setMutatingDepartmentId('create');
+      const created = await createPlannerDepartment({
+        name,
+        kind: newDepartmentKind,
+      });
+      setNewEmployeeDepartmentId(created.id);
+      setNewDepartmentName('');
+      setNewDepartmentKind('general');
+      await refreshServerPlanner();
+    } catch (error) {
+      console.error('Server department create failed', error);
+      alert(
+        error instanceof Error
+          ? 'Не удалось создать отдел: ' + error.message
+          : 'Не удалось создать отдел на сервере.'
+      );
+      await refreshServerPlanner();
+    } finally {
+      setMutatingDepartmentId(null);
+    }
   };
 
   const renameDepartment = (department: Department) => {
     const nextName = prompt('Новое название отдела', department.name)?.trim();
-    if (!nextName || nextName === department.name) return;
+    if (
+      !nextName ||
+      nextName === department.name ||
+      mutatingDepartmentId !== null
+    ) {
+      return;
+    }
 
-    setDepartments((prev) =>
-      prev.map((item) =>
-        item.id === department.id ? { ...item, name: nextName } : item
-      )
-    );
+    if (!serverPlannerWriteEnabled) {
+      setDepartments((prev) =>
+        prev.map((item) =>
+          item.id === department.id ? { ...item, name: nextName } : item
+        )
+      );
+      return;
+    }
+
+    if (!canManageDepartments) {
+      alert('Управление отделами сейчас недоступно.');
+      return;
+    }
+
+    const metadata = serverDepartmentMetadata[department.id];
+    if (!metadata) {
+      alert('Не удалось определить версию отдела. Обновляю данные.');
+      void refreshServerPlanner();
+      return;
+    }
+
+    setMutatingDepartmentId(department.id);
+    void updatePlannerDepartment(department.id, {
+      name: nextName,
+      expectedUpdatedAt: metadata.updatedAt,
+    })
+      .then(() => refreshServerPlanner())
+      .catch((error) => {
+        console.error('Server department rename failed', error);
+        alert(
+          error instanceof Error
+            ? 'Не удалось переименовать отдел: ' + error.message
+            : 'Не удалось переименовать отдел на сервере.'
+        );
+        void refreshServerPlanner();
+      })
+      .finally(() => {
+        setMutatingDepartmentId(null);
+      });
   };
 
   const changeDepartmentKind = (
     departmentId: string,
     kind: DepartmentKind
   ) => {
-    setDepartments((prev) =>
-      prev.map((department) =>
-        department.id === departmentId ? { ...department, kind } : department
-      )
-    );
+    if (mutatingDepartmentId !== null) return;
+
+    if (!serverPlannerWriteEnabled) {
+      setDepartments((prev) =>
+        prev.map((department) =>
+          department.id === departmentId ? { ...department, kind } : department
+        )
+      );
+      return;
+    }
+
+    if (!canManageDepartments) {
+      alert('Управление отделами сейчас недоступно.');
+      return;
+    }
+
+    const metadata = serverDepartmentMetadata[departmentId];
+    if (!metadata) {
+      alert('Не удалось определить версию отдела. Обновляю данные.');
+      void refreshServerPlanner();
+      return;
+    }
+
+    setMutatingDepartmentId(departmentId);
+    void updatePlannerDepartment(departmentId, {
+      kind,
+      expectedUpdatedAt: metadata.updatedAt,
+    })
+      .then(() => refreshServerPlanner())
+      .catch((error) => {
+        console.error('Server department kind update failed', error);
+        alert(
+          error instanceof Error
+            ? 'Не удалось изменить тип отдела: ' + error.message
+            : 'Не удалось изменить тип отдела на сервере.'
+        );
+        void refreshServerPlanner();
+      })
+      .finally(() => {
+        setMutatingDepartmentId(null);
+      });
   };
 
   const removeDepartment = (departmentId: string) => {
@@ -858,14 +976,50 @@ function App() {
       return;
     }
 
-    if (!confirm('Удалить пустой отдел?')) return;
+    if (!confirm('Деактивировать пустой отдел?')) return;
 
-    setDepartments((prev) =>
-      prev.filter((department) => department.id !== departmentId)
-    );
-    setCollapsedDepartments((prev) =>
-      prev.filter((id) => id !== departmentId)
-    );
+    if (!serverPlannerWriteEnabled) {
+      setDepartments((prev) =>
+        prev.filter((department) => department.id !== departmentId)
+      );
+      setCollapsedDepartments((prev) =>
+        prev.filter((id) => id !== departmentId)
+      );
+      return;
+    }
+
+    if (!canManageDepartments || mutatingDepartmentId !== null) {
+      alert('Управление отделами сейчас недоступно.');
+      return;
+    }
+
+    const metadata = serverDepartmentMetadata[departmentId];
+    if (!metadata) {
+      alert('Не удалось определить версию отдела. Обновляю данные.');
+      void refreshServerPlanner();
+      return;
+    }
+
+    setMutatingDepartmentId(departmentId);
+    void deactivatePlannerDepartment(departmentId, metadata.updatedAt)
+      .then(async () => {
+        setCollapsedDepartments((prev) =>
+          prev.filter((id) => id !== departmentId)
+        );
+        await refreshServerPlanner();
+      })
+      .catch((error) => {
+        console.error('Server department deactivate failed', error);
+        alert(
+          error instanceof Error
+            ? 'Не удалось деактивировать отдел: ' + error.message
+            : 'Не удалось деактивировать отдел на сервере.'
+        );
+        void refreshServerPlanner();
+      })
+      .finally(() => {
+        setMutatingDepartmentId(null);
+      });
   };
 
   const toggleDepartmentCollapsed = (departmentId: string) => {
@@ -1482,7 +1636,7 @@ function App() {
                     ? 'Не удалось обновить данные с backend. Показан локальный кэш, редактирование заблокировано: ' +
                       (serverPlannerError || 'неизвестная ошибка')
                     : serverPlannerWriteEnabled
-                      ? 'Данные текущего месяца загружены с backend. Запись включена для смен и Employee; SUPER_ADMIN также может менять порядок отделов. Создание/редактирование/удаление Department пока заблокировано.'
+                      ? 'Данные текущего месяца загружены с backend. Запись включена для смен и Employee; SUPER_ADMIN также может создавать, редактировать, деактивировать и менять порядок отделов.'
                       : 'Данные текущего месяца загружены с backend. Это контролируемый read-only этап миграции; локальные изменения отключены.'}
               </Muted>
             </Card>
@@ -1602,7 +1756,7 @@ function App() {
                 type="button"
                 $variant="accent"
                 onClick={() => setShowDepartments((value) => !value)}
-                disabled={!canEditPlanner}
+                disabled={!canManageDepartments}
               >
                 <Layers3 size={16} />
                 Отделы
@@ -1707,7 +1861,7 @@ function App() {
           </ControlsCard>
           )}
 
-          {canEditPlanner && showDepartments && (
+          {canManageDepartments && showDepartments && (
             <DepartmentPanel>
               <PanelTitleRow>
                 <div>
@@ -1723,7 +1877,7 @@ function App() {
                     value={newDepartmentName}
                     onChange={(event) => setNewDepartmentName(event.target.value)}
                     onKeyDown={(event) =>
-                      event.key === 'Enter' && addDepartment()
+                      event.key === 'Enter' && void addDepartment()
                     }
                     placeholder="Название отдела"
                     style={{ flex: '0 1 220px' }}
@@ -1745,10 +1899,11 @@ function App() {
                   <ActionButton
                     type="button"
                     $variant="accent"
-                    onClick={addDepartment}
+                    onClick={() => void addDepartment()}
+                    disabled={mutatingDepartmentId !== null}
                   >
                     <Plus size={15} />
-                    Отдел
+                    {mutatingDepartmentId === 'create' ? 'Добавляю…' : 'Отдел'}
                   </ActionButton>
                 </ControlsRow>
               </PanelTitleRow>
@@ -1768,6 +1923,7 @@ function App() {
 
                       <Select
                         value={department.kind}
+                        disabled={mutatingDepartmentId !== null}
                         onChange={(event) =>
                           changeDepartmentKind(
                             department.id,
@@ -1783,6 +1939,7 @@ function App() {
 
                       <RowIconButton
                         type="button"
+                        disabled={mutatingDepartmentId !== null}
                         onClick={() => renameDepartment(department)}
                         title="Переименовать"
                       >
@@ -1791,8 +1948,9 @@ function App() {
 
                       <RowIconButton
                         type="button"
+                        disabled={mutatingDepartmentId !== null}
                         onClick={() => removeDepartment(department.id)}
-                        title="Удалить пустой отдел"
+                        title="Деактивировать пустой отдел"
                       >
                         <Trash2 size={14} />
                       </RowIconButton>
