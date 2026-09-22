@@ -1,31 +1,36 @@
 import React from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuthSession } from '../auth/AuthSessionProvider';
-import { pageStyle, cardStyle, buttonStyle } from '../theme/authPageUi';
-import { authPalette } from '../theme/palette';
+import { AuthCard, AuthPage } from '../theme/authPageUi';
+import {
+  SessionErrorText,
+  SessionErrorTitle,
+  SessionMuted,
+  SessionRetryButton,
+} from './SessionRoutes.styles';
 
 // Keep the URL unchanged until session resolution; never redirect on network errors.
 export function SessionRoutes() {
   const { status: state, error, refresh } = useAuthSession();
   if (state === 'loading') {
     return (
-      <div style={pageStyle}>
-        <div style={{ color: authPalette.textMuted }}>Проверяем сессию…</div>
-      </div>
+      <AuthPage>
+        <SessionMuted>Проверяем сессию…</SessionMuted>
+      </AuthPage>
     );
   }
 
   if (state === 'error') {
     return (
-      <div style={pageStyle}>
-        <div style={cardStyle}>
-          <h1 style={{ marginTop: 0 }}>Backend недоступен</h1>
-          <p style={{ color: authPalette.textMuted }}>{error}</p>
-          <button type="button" style={buttonStyle} onClick={refresh}>
+      <AuthPage>
+        <AuthCard>
+          <SessionErrorTitle>Backend недоступен</SessionErrorTitle>
+          <SessionErrorText>{error}</SessionErrorText>
+          <SessionRetryButton type="button" onClick={refresh}>
             Повторить
-          </button>
-        </div>
-      </div>
+          </SessionRetryButton>
+        </AuthCard>
+      </AuthPage>
     );
   }
 
