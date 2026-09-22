@@ -1,6 +1,8 @@
 import React from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuthSession } from '../auth/AuthSessionProvider';
+import { hasManagementAccess } from '../auth/AuthContext';
+import { AuthUser } from '../api/auth';
 import { AuthCard, AuthPage } from '../theme/authPageUi';
 import {
   SessionErrorText,
@@ -37,23 +39,49 @@ export function SessionRoutes() {
   return <Outlet />;
 }
 
+function authenticatedHomePath(user: AuthUser): '/planner' | '/my-schedule' {
+  return hasManagementAccess(user) ? '/planner' : '/my-schedule';
+}
+
 export function ProtectedRoute() {
   const { user } = useAuthSession();
   if (!user) return <Navigate to="/login" replace />;
   if (!user.employee) return <Navigate to="/onboarding" replace />;
-  // All linked employees retain planner access until /my-schedule exists.
   return <Outlet />;
+}
+
+export function AuthenticatedHomeRoute() {
+  const { user } = useAuthSession();
+  if (!user) return <Navigate to="/login" replace />;
+  if (!user.employee) return <Navigate to="/onboarding" replace />;
+  return <Navigate to={authenticatedHomePath(user)} replace />;
+}
+
+export function ManagementRoute() {
+  const { user } = useAuthSession();
+  if (!user) return <Navigate to="/login" replace />;
+  if (!user.employee) return <Navigate to="/onboarding" replace />;
+  return hasManagementAccess(user)
+    ? <Outlet />
+    : <Navigate to="/my-schedule" replace />;
 }
 
 export function LoginRoute() {
   const { user } = useAuthSession();
   return user
-    ? <Navigate to={user.employee ? '/planner' : '/onboarding'} replace />
+    ? (
+        <Navigate
+          to={user.employee ? authenticatedHomePath(user) : '/onboarding'}
+          replace
+        />
+      )
     : <Outlet />;
 }
 
 export function OnboardingRoute() {
   const { user } = useAuthSession();
   if (!user) return <Navigate to="/login" replace />;
-  return user.employee ? <Navigate to="/planner" replace /> : <Outlet />;
+  return user.employee
+    ? <Navigate to={authenticatedHomePath(user)} replace />
+    : <Outlet />;
 }

@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import App from '../../../src/screens/planner/PlannerScreen';
@@ -34,9 +35,11 @@ const managementUser: AuthUser = {
 
 function renderApp() {
   return render(
-    <AuthUserContext.Provider value={managementUser}>
-      <App />
-    </AuthUserContext.Provider>,
+    <MemoryRouter>
+      <AuthUserContext.Provider value={managementUser}>
+        <App />
+      </AuthUserContext.Provider>
+    </MemoryRouter>,
   );
 }
 
@@ -306,9 +309,11 @@ describe('App regression flows', () => {
     };
 
     render(
-      <AuthUserContext.Provider value={departmentAdmin}>
-        <App />
-      </AuthUserContext.Provider>,
+      <MemoryRouter>
+        <AuthUserContext.Provider value={departmentAdmin}>
+          <App />
+        </AuthUserContext.Provider>
+      </MemoryRouter>,
     );
 
     await screen.findByText('Серверный сотрудник');
