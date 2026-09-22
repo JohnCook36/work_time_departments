@@ -187,6 +187,119 @@ describe('App regression flows', () => {
     ).toBeDisabled();
   });
 
+  it('creates a Department through the backend for Super Admin', async () => {
+    const user = userEvent.setup();
+    const snapshot = serverPlannerSnapshot();
+    vi.stubEnv('VITE_SERVER_PLANNER_WRITE', '1');
+    vi.spyOn(plannerApi, 'loadPlannerServerSnapshot').mockResolvedValue(snapshot);
+    const createDepartmentSpy = vi
+      .spyOn(plannerApi, 'createPlannerDepartment')
+      .mockResolvedValue({
+        id: 'new-department',
+        name: 'Новый отдел',
+        kind: 'GENERAL',
+        position: 1,
+        updatedAt: '2026-09-22T08:00:00.000Z',
+        isActive: true,
+        createdAt: '2026-09-22T08:00:00.000Z',
+      });
+
+    renderApp();
+
+    await screen.findByText('Серверный сотрудник');
+    await user.click(screen.getByRole('button', { name: 'Отделы' }));
+    await user.type(
+      screen.getByPlaceholderText('Название отдела'),
+      'Новый отдел',
+    );
+    await user.click(screen.getByRole('button', { name: 'Отдел' }));
+
+    await waitFor(() => {
+      expect(createDepartmentSpy).toHaveBeenCalledWith({
+        name: 'Новый отдел',
+        kind: 'general',
+      });
+    });
+    expect(plannerApi.loadPlannerServerSnapshot).toHaveBeenCalledTimes(2);
+  });
+
+  it('renames a Department through the backend with optimistic metadata', async () => {
+    const user = userEvent.setup();
+    const snapshot = serverPlannerSnapshot();
+    vi.stubEnv('VITE_SERVER_PLANNER_WRITE', '1');
+    vi.spyOn(plannerApi, 'loadPlannerServerSnapshot').mockResolvedValue(snapshot);
+    vi.spyOn(window, 'prompt').mockReturnValue('Новый Front Office');
+    const updateDepartmentSpy = vi
+      .spyOn(plannerApi, 'updatePlannerDepartment')
+      .mockResolvedValue({
+        id: 'server-department',
+        name: 'Новый Front Office',
+        kind: 'FO',
+        position: 0,
+        updatedAt: '2026-09-22T08:01:00.000Z',
+        isActive: true,
+        createdAt: '2026-09-20T08:00:00.000Z',
+      });
+
+    renderApp();
+
+    await screen.findByText('Серверный сотрудник');
+    await user.click(screen.getByRole('button', { name: 'Отделы' }));
+    await user.click(screen.getByRole('button', { name: 'Переименовать' }));
+
+    await waitFor(() => {
+      expect(updateDepartmentSpy).toHaveBeenCalledWith(
+        'server-department',
+        {
+          name: 'Новый Front Office',
+          expectedUpdatedAt:
+            snapshot.departmentMetadata['server-department'].updatedAt,
+        },
+      );
+    });
+    expect(plannerApi.loadPlannerServerSnapshot).toHaveBeenCalledTimes(2);
+  });
+
+  it('deactivates an empty Department through the backend without deleting history locally', async () => {
+    const user = userEvent.setup();
+    const snapshot = serverPlannerSnapshot();
+    snapshot.departments.push({
+      id: 'empty-department',
+      name: 'Пустой отдел',
+      kind: 'general',
+    });
+    snapshot.departmentMetadata['empty-department'] = {
+      updatedAt: '2026-09-22T07:00:00.000Z',
+    };
+
+    vi.stubEnv('VITE_SERVER_PLANNER_WRITE', '1');
+    vi.spyOn(plannerApi, 'loadPlannerServerSnapshot').mockResolvedValue(snapshot);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const deactivateSpy = vi
+      .spyOn(plannerApi, 'deactivatePlannerDepartment')
+      .mockResolvedValue({
+        status: 'ok',
+        departmentId: 'empty-department',
+      });
+
+    renderApp();
+
+    await screen.findByText('Серверный сотрудник');
+    await user.click(screen.getByRole('button', { name: 'Отделы' }));
+    const deactivateButtons = screen.getAllByRole('button', {
+      name: 'Деактивировать пустой отдел',
+    });
+    await user.click(deactivateButtons[1]);
+
+    await waitFor(() => {
+      expect(deactivateSpy).toHaveBeenCalledWith(
+        'empty-department',
+        '2026-09-22T07:00:00.000Z',
+      );
+    });
+    expect(plannerApi.loadPlannerServerSnapshot).toHaveBeenCalledTimes(2);
+  });
+
   it('writes one server-backed schedule cell with optimistic metadata in write pilot mode', async () => {
     const user = userEvent.setup();
     const snapshot = serverPlannerSnapshot();
@@ -207,7 +320,7 @@ describe('App regression flows', () => {
 
     await user.click(await screen.findByText('08-17'));
     expect(screen.getByText('Смена сотрудника')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Отделы' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Отделы' })).toBeEnabled();
 
     await user.click(screen.getByRole('button', { name: 'Сохранить смену' }));
 
@@ -257,7 +370,7 @@ describe('App regression flows', () => {
     renderApp();
 
     await screen.findByText('Серверный сотрудник');
-    expect(screen.getByRole('button', { name: 'Отделы' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Отделы' })).toBeEnabled();
 
     const nameInput = screen.getByPlaceholderText('ФИО нового сотрудника...');
     expect(nameInput).toBeEnabled();

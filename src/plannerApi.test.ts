@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  buildDepartmentMutationInput,
   buildDepartmentReorderInput,
   buildEmployeeMoveInput,
   buildEmployeeReorderInput,
@@ -166,6 +167,40 @@ describe('mapDepartmentScheduleResponses', () => {
   });
 });
 
+
+describe('department mutation contract', () => {
+  it('maps frontend Department kind to the backend enum', () => {
+    expect(
+      buildDepartmentMutationInput({
+        name: 'Front Office',
+        kind: 'fo',
+      }),
+    ).toEqual({
+      name: 'Front Office',
+      kind: 'FO',
+    });
+
+    expect(
+      buildDepartmentMutationInput({
+        kind: 'night',
+        expectedUpdatedAt: '2026-09-22T08:00:00.000Z',
+      }),
+    ).toEqual({
+      kind: 'NIGHT',
+      expectedUpdatedAt: '2026-09-22T08:00:00.000Z',
+    });
+  });
+
+  it('does not emit absent Department fields', () => {
+    expect(
+      buildDepartmentMutationInput({
+        expectedUpdatedAt: '2026-09-22T08:00:00.000Z',
+      }),
+    ).toEqual({
+      expectedUpdatedAt: '2026-09-22T08:00:00.000Z',
+    });
+  });
+});
 
 describe('department reorder contract', () => {
   it('preserves Department updatedAt metadata from manageable departments', () => {

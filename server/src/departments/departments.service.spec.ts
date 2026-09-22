@@ -3,7 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
 } from '@nestjs/common';
-import { RoleType } from '@prisma/client';
+import { DepartmentKind, RoleType } from '@prisma/client';
 
 import { AuthUserContext } from '../auth/auth.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -31,7 +31,22 @@ describe('DepartmentsService', () => {
   const prisma = {
     department: {
       findMany: jest.fn(),
+      findFirst: jest.fn(),
+      create: jest.fn(),
       updateMany: jest.fn(),
+      count: jest.fn(),
+    },
+    employee: {
+      count: jest.fn(),
+    },
+    membership: {
+      count: jest.fn(),
+    },
+    onboardingRequest: {
+      count: jest.fn(),
+    },
+    shiftChangeRequest: {
+      count: jest.fn(),
     },
     $transaction: jest.fn(),
   };
@@ -40,12 +55,42 @@ describe('DepartmentsService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     prisma.department.findMany.mockResolvedValue([]);
+    prisma.department.findFirst.mockResolvedValue(null);
+    prisma.department.create.mockResolvedValue({
+      id: 'department-created',
+      name: 'Новый отдел',
+      kind: DepartmentKind.GENERAL,
+      position: 0,
+      isActive: true,
+      createdAt: new Date('2026-09-22T08:00:00.000Z'),
+      updatedAt: new Date('2026-09-22T08:00:00.000Z'),
+    });
     prisma.department.updateMany.mockResolvedValue({ count: 1 });
+    prisma.department.count.mockResolvedValue(2);
+    prisma.employee.count.mockResolvedValue(0);
+    prisma.membership.count.mockResolvedValue(0);
+    prisma.onboardingRequest.count.mockResolvedValue(0);
+    prisma.shiftChangeRequest.count.mockResolvedValue(0);
     prisma.$transaction.mockImplementation(async (callback) =>
       callback({
         department: {
           findMany: prisma.department.findMany,
+          findFirst: prisma.department.findFirst,
+          create: prisma.department.create,
           updateMany: prisma.department.updateMany,
+          count: prisma.department.count,
+        },
+        employee: {
+          count: prisma.employee.count,
+        },
+        membership: {
+          count: prisma.membership.count,
+        },
+        onboardingRequest: {
+          count: prisma.onboardingRequest.count,
+        },
+        shiftChangeRequest: {
+          count: prisma.shiftChangeRequest.count,
         },
       }),
     );
@@ -101,6 +146,209 @@ describe('DepartmentsService', () => {
     },
   );
 
+  it('creates a Department after the last active position for Super Admin', async () => {
+    prisma.department.findFirst.mockResolvedValue({ position: 4 });
+
+    await service.createDepartment(
+      userWith(RoleType.SUPER_ADMIN, null),
+      {
+        name: ' Новый отдел ',
+        kind: DepartmentKind.FO,
+      },
+    );
+
+    expect(prisma.department.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: {
+          name: 'Новый отдел',
+          kind: DepartmentKind.FO,
+          position: 5,
+        },
+      }),
+    );
+  });
+
+  it('forbids Department Admin from creating global Department structure', async () => {
+    await expect(
+      service.createDepartment(
+        userWith(RoleType.DEPARTMENT_ADMIN, 'department-a'),
+        {
+          name: 'Новый отдел',
+          kind: DepartmentKind.GENERAL,
+        },
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('updates Department fields with optimistic locking', async () => {
+    const updatedAt = new Date('2026-09-22T08:00:00.000Z');
+    prisma.department.findFirst
+      .mockResolvedValueOnce({
+        id: 'department-a',
+        updatedAt,
+      })
+      .mockResolvedValueOnce({
+        id: 'department-a',
+        name: 'Front Office',
+        kind: DepartmentKind.FO,
+        position: 0,
+        isActive: true,
+        createdAt: new Date('2026-09-20T08:00:00.000Z'),
+        updatedAt: new Date('2026-09-22T08:01:00.000Z'),
+      });
+
+    await service.updateDepartment(
+      userWith(RoleType.SUPER_ADMIN, null),
+      'department-a',
+      {
+        name: 'Front Office',
+        kind: DepartmentKind.FO,
+        expectedUpdatedAt: updatedAt.toISOString(),
+      },
+    );
+
+    expect(prisma.department.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'department-a',
+        isActive: true,
+        updatedAt,
+      },
+      data: {
+        name: 'Front Office',
+        kind: DepartmentKind.FO,
+      },
+    });
+  });
+
+  it('rejects a stale Department edit', async () => {
+    prisma.department.findFirst.mockResolvedValue({
+      id: 'department-a',
+      updatedAt: new Date('2026-09-22T09:00:00.000Z'),
+    });
+
+    await expect(
+      service.updateDepartment(
+        userWith(RoleType.SUPER_ADMIN, null),
+        'department-a',
+        {
+          name: 'Новое имя',
+          expectedUpdatedAt: '2026-09-22T08:00:00.000Z',
+        },
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(prisma.department.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('requires at least one mutable Department field for edit', async () => {
+    await expect(
+      service.updateDepartment(
+        userWith(RoleType.SUPER_ADMIN, null),
+        'department-a',
+        {
+          expectedUpdatedAt: '2026-09-22T08:00:00.000Z',
+        },
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('soft-deactivates an empty Department and keeps historical rows intact', async () => {
+    const updatedAt = new Date('2026-09-22T08:00:00.000Z');
+    prisma.department.findFirst.mockResolvedValue({
+      id: 'department-a',
+      updatedAt,
+    });
+
+    const result = await service.deactivateDepartment(
+      userWith(RoleType.SUPER_ADMIN, null),
+      'department-a',
+      {
+        expectedUpdatedAt: updatedAt.toISOString(),
+      },
+    );
+
+    expect(prisma.department.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'department-a',
+        isActive: true,
+        updatedAt,
+      },
+      data: {
+        isActive: false,
+      },
+    });
+    expect(result).toEqual({
+      status: 'ok',
+      departmentId: 'department-a',
+    });
+  });
+
+  it('blocks Department deactivation while active Employees remain', async () => {
+    prisma.department.findFirst.mockResolvedValue({
+      id: 'department-a',
+      updatedAt: new Date('2026-09-22T08:00:00.000Z'),
+    });
+    prisma.employee.count.mockResolvedValue(1);
+
+    await expect(
+      service.deactivateDepartment(
+        userWith(RoleType.SUPER_ADMIN, null),
+        'department-a',
+        {
+          expectedUpdatedAt: '2026-09-22T08:00:00.000Z',
+        },
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(prisma.department.updateMany).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['active Membership', 'membership'],
+    ['pending onboarding request', 'onboardingRequest'],
+    ['active shift-change request', 'shiftChangeRequest'],
+  ] as const)(
+    'blocks Department deactivation while %s remains',
+    async (_label, blocker) => {
+      prisma.department.findFirst.mockResolvedValue({
+        id: 'department-a',
+        updatedAt: new Date('2026-09-22T08:00:00.000Z'),
+      });
+      prisma[blocker].count.mockResolvedValue(1);
+
+      await expect(
+        service.deactivateDepartment(
+          userWith(RoleType.SUPER_ADMIN, null),
+          'department-a',
+          {
+            expectedUpdatedAt: '2026-09-22T08:00:00.000Z',
+          },
+        ),
+      ).rejects.toBeInstanceOf(ConflictException);
+
+      expect(prisma.department.updateMany).not.toHaveBeenCalled();
+    },
+  );
+
+  it('blocks deactivation of the final active Department', async () => {
+    prisma.department.findFirst.mockResolvedValue({
+      id: 'department-a',
+      updatedAt: new Date('2026-09-22T08:00:00.000Z'),
+    });
+    prisma.department.count.mockResolvedValue(1);
+
+    await expect(
+      service.deactivateDepartment(
+        userWith(RoleType.SUPER_ADMIN, null),
+        'department-a',
+        {
+          expectedUpdatedAt: '2026-09-22T08:00:00.000Z',
+        },
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
 
   it('atomically reorders all active departments for Super Admin', async () => {
     const firstUpdatedAt = new Date('2026-09-19T09:00:00.000Z');
@@ -187,7 +435,7 @@ describe('DepartmentsService', () => {
     expect(prisma.department.updateMany).not.toHaveBeenCalled();
   });
 
-  it('rejects stale Department optimistic metadata', async () => {
+  it('rejects stale Department optimistic metadata for reorder', async () => {
     prisma.department.findMany.mockResolvedValue([
       {
         id: 'department-a',

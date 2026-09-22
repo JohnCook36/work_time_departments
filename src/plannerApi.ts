@@ -123,6 +123,17 @@ export interface EmployeeMutationInput {
   expectedUpdatedAt?: string;
 }
 
+export interface PlannerDepartmentMutationInput {
+  name?: string;
+  kind?: DepartmentKind;
+  expectedUpdatedAt?: string;
+}
+
+export interface DepartmentMutationResponse extends ManageableDepartmentResponse {
+  isActive: boolean;
+  createdAt: string;
+}
+
 const SHIFT_CODES = new Set<ShiftCode>(['E', 'IN', 'INN', 'L', 'N']);
 
 function mapDepartmentKind(
@@ -131,6 +142,28 @@ function mapDepartmentKind(
   if (kind === 'FO') return 'fo';
   if (kind === 'NIGHT') return 'night';
   return 'general';
+}
+
+function mapDepartmentKindToServer(
+  kind: DepartmentKind,
+): ManageableDepartmentResponse['kind'] {
+  if (kind === 'fo') return 'FO';
+  if (kind === 'night') return 'NIGHT';
+  return 'GENERAL';
+}
+
+export function buildDepartmentMutationInput(
+  input: PlannerDepartmentMutationInput,
+) {
+  return {
+    ...(input.name !== undefined ? { name: input.name } : {}),
+    ...(input.kind !== undefined
+      ? { kind: mapDepartmentKindToServer(input.kind) }
+      : {}),
+    ...(input.expectedUpdatedAt !== undefined
+      ? { expectedUpdatedAt: input.expectedUpdatedAt }
+      : {}),
+  };
 }
 
 function mapEmploymentRate(value: number): EmploymentRate {
@@ -333,6 +366,41 @@ export function buildDepartmentReorderInput(
     orderedDepartmentIds,
     expectedUpdatedAtByDepartmentId,
   };
+}
+
+export function createPlannerDepartment(
+  input: PlannerDepartmentMutationInput,
+) {
+  return apiRequest<DepartmentMutationResponse>('/departments', {
+    method: 'POST',
+    body: JSON.stringify(buildDepartmentMutationInput(input)),
+  });
+}
+
+export function updatePlannerDepartment(
+  departmentId: string,
+  input: PlannerDepartmentMutationInput,
+) {
+  return apiRequest<DepartmentMutationResponse>(
+    '/departments/' + encodeURIComponent(departmentId),
+    {
+      method: 'PATCH',
+      body: JSON.stringify(buildDepartmentMutationInput(input)),
+    },
+  );
+}
+
+export function deactivatePlannerDepartment(
+  departmentId: string,
+  expectedUpdatedAt: string,
+) {
+  return apiRequest<{ status: 'ok'; departmentId: string }>(
+    '/departments/' + encodeURIComponent(departmentId) + '/deactivate',
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ expectedUpdatedAt }),
+    },
+  );
 }
 
 export function getManageableDepartments() {
