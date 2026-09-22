@@ -320,7 +320,7 @@ describe('App regression flows', () => {
 
     await user.click(await screen.findByText('08-17'));
     expect(screen.getByText('Смена сотрудника')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Отделы' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Отделы' })).toBeEnabled();
 
     await user.click(screen.getByRole('button', { name: 'Сохранить смену' }));
 
@@ -370,7 +370,7 @@ describe('App regression flows', () => {
     renderApp();
 
     await screen.findByText('Серверный сотрудник');
-    expect(screen.getByRole('button', { name: 'Отделы' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Отделы' })).toBeEnabled();
 
     const nameInput = screen.getByPlaceholderText('ФИО нового сотрудника...');
     expect(nameInput).toBeEnabled();
