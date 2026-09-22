@@ -29,6 +29,7 @@ interface EmployeeWishDrawerProps {
   month: number;
   daysInMonth: number;
   wishes: EmployeeWish[];
+  busy?: boolean;
   onAdd: (wish: Omit<EmployeeWish, 'id'>) => void;
   onRemove: (wishId: string) => void;
   onClose: () => void;
@@ -48,6 +49,7 @@ export function EmployeeWishDrawer({
   month,
   daysInMonth,
   wishes,
+  busy = false,
   onAdd,
   onRemove,
   onClose,
@@ -96,6 +98,7 @@ export function EmployeeWishDrawer({
           <FormLabel>К какому дню относится пожелание</FormLabel>
           <Select
             value={selectedDay}
+            disabled={busy}
             onChange={(event) => setSelectedDay(event.target.value)}
             style={{ width: '100%' }}
           >
@@ -114,6 +117,7 @@ export function EmployeeWishDrawer({
           <FormLabel>Пожелание</FormLabel>
           <TextArea
             value={text}
+            disabled={busy}
             onChange={(event) => setText(event.target.value)}
             placeholder="Например: выходной 22-го; 27-го только первая половина дня; во вторник могу с 18:00..."
           />
@@ -122,6 +126,7 @@ export function EmployeeWishDrawer({
               <QuickChip
                 key={template}
                 type="button"
+                disabled={busy}
                 onClick={() => setText(template)}
               >
                 {template}
@@ -134,7 +139,7 @@ export function EmployeeWishDrawer({
           type="button"
           $variant="primary"
           onClick={addWish}
-          disabled={!text.trim()}
+          disabled={busy || !text.trim()}
           style={{ width: '100%' }}
         >
           <Plus size={16} />
@@ -157,6 +162,7 @@ export function EmployeeWishDrawer({
                 <WishText>{wish.text}</WishText>
                 <IconButton
                   type="button"
+                  disabled={busy}
                   onClick={() => onRemove(wish.id)}
                   title="Удалить пожелание"
                   style={{ width: 30, height: 30 }}
