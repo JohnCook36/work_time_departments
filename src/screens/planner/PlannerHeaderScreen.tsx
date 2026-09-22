@@ -3,8 +3,10 @@ import {
   ChevronRight,
   Info,
   CalendarDays,
+  ClipboardList,
   Moon,
   Sun,
+  UserRound,
 } from 'lucide-react';
 
 import { AdminOnboardingPanel } from '../onboarding/AdminOnboardingPanel';
@@ -29,7 +31,7 @@ import {
 import { MONTH_NAMES } from '../../utils/calendar';
 import { PlannerServerStatus } from '../../hooks/usePlannerServerSync';
 import {
-  PersonalScheduleLink,
+  HeaderRouteLink,
   ServerModeCard,
   ServerModeDescription,
 } from './PlannerHeaderScreen.styles';
@@ -113,9 +115,15 @@ export function PlannerHeaderScreen({
               <ChevronRight size={19} />
             </IconButton>
 
-            <PersonalScheduleLink to="/my-schedule" title="Мои смены">
+            <HeaderRouteLink to="/my-schedule" title="Мои смены">
               <CalendarDays size={18} />
-            </PersonalScheduleLink>
+            </HeaderRouteLink>
+            <HeaderRouteLink to="/tasks" title="Задачи">
+              <ClipboardList size={18} />
+            </HeaderRouteLink>
+            <HeaderRouteLink to="/profile" title="Профиль">
+              <UserRound size={18} />
+            </HeaderRouteLink>
             {canManagePlanner && <AdminOnboardingPanel />}
 
             {canManagePlanner && (
