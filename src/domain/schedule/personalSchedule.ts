@@ -1,6 +1,7 @@
 import type { MyScheduleResponse, MyScheduleShift } from '../../api/auth';
 import { ShiftCode, ShiftEntry } from '../models';
 import { getDaysInMonth } from '../../utils/calendar';
+import { isRussiaFiveDayWorkingDay } from './productionCalendar';
 
 const SUPPORTED_CODES = new Set<ShiftCode>(['E', 'IN', 'INN', 'L', 'N']);
 
@@ -46,11 +47,6 @@ export function buildVisibleShifts(
   const visible: Array<MyScheduleShift & { inherited?: boolean }> = [];
 
   for (let day = 1; day <= days; day++) {
-    const date = new Date(
-      data.period.year,
-      data.period.month - 1,
-      day,
-    );
     const dateKey =
       data.period.year +
       '-' +
@@ -64,8 +60,13 @@ export function buildVisibleShifts(
       continue;
     }
 
-    const dayOfWeek = date.getDay();
-    if (dayOfWeek === 0 || dayOfWeek === 6) {
+    if (
+      !isRussiaFiveDayWorkingDay(
+        data.period.year,
+        data.period.month - 1,
+        day,
+      )
+    ) {
       continue;
     }
 
