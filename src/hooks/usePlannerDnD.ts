@@ -418,5 +418,6 @@ export function usePlannerDnD({
     handleDragStart,
     handleDragOver,
     handleDragEnd,
+    clearDragState,
   };
 }
