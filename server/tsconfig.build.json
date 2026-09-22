@@ -9,7 +9,8 @@
     "rootDir": "./src",
     "types": [
       "node"
-    ]
+    ],
+    "tsBuildInfoFile": "./dist/tsconfig.build.tsbuildinfo"
   },
   "include": [
     "src/**/*.ts"
