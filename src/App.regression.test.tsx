@@ -690,6 +690,82 @@ describe('App regression flows', () => {
     });
   });
 
+  it('applies Excel import through the atomic server planner endpoint in write mode', async () => {
+    const user = userEvent.setup();
+    const snapshot = serverPlannerSnapshot();
+    const now = new Date();
+    const preview: excelImport.ExcelImportPreview = {
+      fileName: 'server-import.xlsx',
+      sheetName: 'График',
+      detectedDays: [2],
+      entries: [
+        {
+          employeeName: 'Серверный сотрудник',
+          employeeId: 'server-employee',
+          day: 2,
+          value: '15:00-23:00',
+        },
+      ],
+      matchedEmployees: ['Серверный сотрудник'],
+      unknownEmployees: [],
+      ambiguousEmployees: [],
+      invalidCells: [],
+      warnings: [],
+    };
+
+    vi.stubEnv('VITE_SERVER_PLANNER_WRITE', '1');
+    vi.spyOn(plannerApi, 'loadPlannerServerSnapshot').mockResolvedValue(snapshot);
+    vi.spyOn(excelImport, 'parseScheduleExcel').mockResolvedValue(preview);
+    const applySpy = vi
+      .spyOn(plannerApi, 'applyPlannerScheduleChanges')
+      .mockResolvedValue({
+        status: 'ok',
+        applied: 1,
+        schedule: {
+          id: 'schedule-current',
+          updatedAt: '2026-09-22T10:00:00.000Z',
+        },
+      });
+
+    const { container } = renderApp();
+
+    await screen.findByText('Серверный сотрудник');
+    const importButton = screen.getByRole('button', { name: 'Импорт Excel' });
+    expect(importButton).toBeEnabled();
+
+    const fileInput =
+      container.querySelector<HTMLInputElement>('input[type="file"]')!;
+    fireEvent.change(fileInput, {
+      target: {
+        files: [new File(['content'], 'server-import.xlsx')],
+      },
+    });
+
+    expect(await screen.findByText('Предпросмотр импорта')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Применить импорт' }));
+
+    await waitFor(() => {
+      expect(applySpy).toHaveBeenCalledWith(
+        now.getFullYear(),
+        now.getMonth() + 1,
+        [
+          {
+            employeeId: 'server-employee',
+            day: 2,
+            type: 'shift',
+            startTime: '15:00',
+            endTime: '23:00',
+            code: null,
+            expectedUpdatedAt: null,
+          },
+        ],
+      );
+    });
+
+    expect(plannerApi.loadPlannerServerSnapshot).toHaveBeenCalledTimes(2);
+    expect(window.alert).toHaveBeenLastCalledWith('Импортировано смен: 1');
+  });
+
   it('protects a filled cell by default and overwrites only after confirmation', async () => {
     const user = userEvent.setup();
     seedCurrentSchedule('08:00-17:00');

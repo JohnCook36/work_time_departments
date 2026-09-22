@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { applyExcelImportEntries, ExcelImportEntry } from './importExcel';
+import {
+  applyExcelImportEntries,
+  ExcelImportEntry,
+  resolveApplicableExcelImportEntries,
+} from './importExcel';
 import { ScheduleData } from './types';
 
 const entry = (
@@ -75,6 +79,34 @@ describe('applyExcelImportEntries', () => {
     expect(result.applied).toBe(0);
     expect(result.skippedProtected).toBe(1);
     expect(result.schedule).toEqual({});
+  });
+
+  it('returns only entries that may be sent to the server', () => {
+    const protectedSchedule: ScheduleData = {
+      employee: {
+        1: {
+          type: 'shift',
+          shift: { start: '08:00', end: '17:00' },
+        },
+      },
+    };
+
+    const result = resolveApplicableExcelImportEntries({
+      currentSchedule: {},
+      protectedSchedule,
+      entries: [
+        entry(1, '15:00-23:00'),
+        entry(2, '09:00-18:00'),
+        entry(32, '10:00-19:00'),
+        entry(3, '08:00-17:00', null),
+      ],
+      daysInMonth: 30,
+      overwriteExisting: false,
+    });
+
+    expect(result.entries).toEqual([entry(2, '09:00-18:00')]);
+    expect(result.skippedProtected).toBe(1);
+    expect(result.skippedOutsideMonth).toBe(1);
   });
 
   it('overwrites an existing cell only when explicitly enabled', () => {

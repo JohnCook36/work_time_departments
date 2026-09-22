@@ -44,15 +44,25 @@ export interface ApplyExcelImportOptions {
   overwriteExisting: boolean;
 }
 
-export function applyExcelImportEntries({
+export interface ResolvedExcelImportEntries {
+  entries: ExcelImportEntry[];
+  skippedProtected: number;
+  skippedOutsideMonth: number;
+}
+
+interface ResolvedExcelImportApplication extends ResolvedExcelImportEntries {
+  schedule: ScheduleData;
+}
+
+function resolveExcelImportApplication({
   currentSchedule,
   protectedSchedule = currentSchedule,
   entries,
   daysInMonth,
   overwriteExisting,
-}: ApplyExcelImportOptions): ApplyExcelImportResult {
+}: ApplyExcelImportOptions): ResolvedExcelImportApplication {
   const next: ScheduleData = { ...currentSchedule };
-  let applied = 0;
+  const appliedEntries: ExcelImportEntry[] = [];
   let skippedProtected = 0;
   let skippedOutsideMonth = 0;
 
@@ -75,14 +85,39 @@ export function applyExcelImportEntries({
 
     employeeSchedule[item.day] = validateShiftInput(item.value);
     next[item.employeeId] = employeeSchedule;
-    applied++;
+    appliedEntries.push(item);
   });
 
   return {
     schedule: next,
-    applied,
+    entries: appliedEntries,
     skippedProtected,
     skippedOutsideMonth,
+  };
+}
+
+export function resolveApplicableExcelImportEntries(
+  options: ApplyExcelImportOptions,
+): ResolvedExcelImportEntries {
+  const result = resolveExcelImportApplication(options);
+
+  return {
+    entries: result.entries,
+    skippedProtected: result.skippedProtected,
+    skippedOutsideMonth: result.skippedOutsideMonth,
+  };
+}
+
+export function applyExcelImportEntries(
+  options: ApplyExcelImportOptions,
+): ApplyExcelImportResult {
+  const result = resolveExcelImportApplication(options);
+
+  return {
+    schedule: result.schedule,
+    applied: result.entries.length,
+    skippedProtected: result.skippedProtected,
+    skippedOutsideMonth: result.skippedOutsideMonth,
   };
 }
 
