@@ -8,7 +8,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "check:design-tokens": "node scripts/check-design-tokens.mjs"
+    "check:design-tokens": "node scripts/check-design-tokens.mjs",
+    "check:inline-styles": "node scripts/check-inline-styles.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",
