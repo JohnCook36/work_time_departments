@@ -97,7 +97,7 @@ test('department + employee + 15:00-23:00 produces D 6 / N 1 / total 7', async (
   await page.getByRole('combobox').first().selectOption({
     label: 'E2E Отдел',
   });
-  await page.getByRole('button', { name: 'Сотрудник', exact: true }).click();
+  await page.getByRole('button', { name: 'Добавить сотрудника', exact: true }).click();
 
   const row = employeeRow(page, 'Новый E2E');
   await row.locator('td').nth(1).click();
@@ -167,6 +167,29 @@ test('employee drag to another department survives reload', async ({ page }) => 
       STORAGE_KEY,
     ),
   ).toBe('department-2');
+});
+
+test('night shift shows working time instead of internal N code', async ({ page }) => {
+  await seed(
+    page,
+    state({
+      schedule: {
+        'employee-1': {
+          1: {
+            type: 'shift',
+            shift: { start: '20:00', end: '08:00', code: 'N' },
+          },
+        },
+      },
+    }),
+  );
+  await page.goto('/');
+
+  const row = employeeRow(page);
+  const nightCell = row.locator('td').nth(1);
+
+  await expect(nightCell).toContainText('20:00–08:00');
+  await expect(nightCell).not.toContainText(/^N$/);
 });
 
 test('shift editor saves the 08:00-17:00 preset into the cell', async ({ page }) => {
