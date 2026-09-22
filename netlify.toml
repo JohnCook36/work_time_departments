@@ -4,3 +4,9 @@
 
 [build.environment]
   NODE_VERSION = "22"
+
+# BrowserRouter deep links must load the SPA entry point; existing assets win.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
