@@ -370,7 +370,7 @@ export const DepartmentRowCell = styled('td')<{ $over: boolean }>(({ theme, $ove
   transition: 'background 120ms ease',
 }));
 
-export const DepartmentRowInner = styled('div')({
+export const DepartmentRowInner = styled('div')(({ theme }) => ({
   position: 'sticky',
   left: 0,
   zIndex: 14,
@@ -383,7 +383,7 @@ export const DepartmentRowInner = styled('div')({
   paddingRight: 10,
   background: 'inherit',
   boxShadow: theme.shadows.stickyStrong,
-});
+}));
 
 export const DepartmentBadge = styled('span')<{ $kind: 'general' | 'fo' | 'night' }>(({ theme, $kind }) => ({
   borderRadius: 999,
