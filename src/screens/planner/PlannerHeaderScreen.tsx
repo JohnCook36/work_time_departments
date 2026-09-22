@@ -28,6 +28,10 @@ import {
 } from '../../theme/styles';
 import { MONTH_NAMES } from '../../utils/calendar';
 import { PlannerServerStatus } from '../../hooks/usePlannerServerSync';
+import {
+  ServerModeCard,
+  ServerModeDescription,
+} from './PlannerHeaderScreen.styles';
 
 interface PlannerHeaderScreenProps {
   themeMode: 'light' | 'dark';
@@ -125,9 +129,9 @@ export function PlannerHeaderScreen({
       </HeaderCard>
 
       {serverPlannerReadEnabled && (
-        <Card style={{ marginTop: 14, padding: 16 }}>
+        <ServerModeCard>
           <PanelTitle>Серверный режим графика</PanelTitle>
-          <Muted style={{ marginTop: 4 }}>
+          <ServerModeDescription>
             {serverPlannerStatus === 'loading'
               ? 'Загружаю отделы, сотрудников и сохранённые смены с backend. Редактирование временно отключено.'
               : serverPlannerStatus === 'error'
@@ -136,8 +140,8 @@ export function PlannerHeaderScreen({
                 : serverPlannerWriteEnabled
                   ? 'Данные текущего месяца загружены с backend. Запись включена для смен и Employee; SUPER_ADMIN также может создавать, редактировать, деактивировать и менять порядок отделов.'
                   : 'Данные текущего месяца загружены с backend. Это контролируемый read-only этап миграции; локальные изменения отключены.'}
-          </Muted>
-        </Card>
+          </ServerModeDescription>
+        </ServerModeCard>
       )}
 
       {canManagePlanner && showHelp && (
