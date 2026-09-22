@@ -50,6 +50,7 @@ export interface SemanticThemeShadows {
   total: string;
   drawer: string;
   drawerMobile: string;
+  dragOverlay: string;
 }
 
 export const palette = {
@@ -235,6 +236,7 @@ export const lightThemeTokens: {
     total: '0 -3px 10px ' + alphaPalette.slate95010,
     drawer: '-20px 0 50px ' + alphaPalette.black18,
     drawerMobile: '0 -18px 42px ' + alphaPalette.black24,
+    dragOverlay: '0 18px 45px ' + alphaPalette.slate95028,
   },
 };
 
@@ -249,10 +251,11 @@ export const darkThemeTokens: {
     surfaceElevated: palette.slate[900],
     text: '#e5e7eb',
     textMuted: palette.slate[400],
+  supportText: palette.slate[300],
     border: '#273449',
     primary: palette.blue[400],
     primaryHover: palette.blue[300],
-    onPrimary: palette.white,
+    onPrimary: palette.slate[990],
     accent: palette.violet[400],
     accentSoft: palette.violet[900],
     accentBorder: palette.violet[800],
@@ -293,6 +296,7 @@ export const darkThemeTokens: {
     total: '0 -3px 10px ' + alphaPalette.slate95010,
     drawer: '-20px 0 50px ' + alphaPalette.black18,
     drawerMobile: '0 -18px 42px ' + alphaPalette.black24,
+    dragOverlay: '0 18px 45px ' + alphaPalette.slate95028,
   },
 };
 
