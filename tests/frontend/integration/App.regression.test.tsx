@@ -584,7 +584,7 @@ describe('App regression flows', () => {
     expect(plannerApi.loadPlannerServerSnapshot).toHaveBeenCalledTimes(2);
   });
 
-  it('explains why Employee creation is blocked when name is empty', async () => {
+  it('shows inline validation when Employee name is empty', async () => {
     const user = userEvent.setup();
     const snapshot = serverPlannerSnapshot();
     vi.stubEnv('VITE_SERVER_PLANNER_WRITE', '1');
@@ -598,9 +598,12 @@ describe('App regression flows', () => {
       screen.getByRole('button', { name: 'Добавить сотрудника' }),
     );
 
-    expect(window.alert).toHaveBeenCalledWith(
-      'Введите ФИО нового сотрудника.',
-    );
+    expect(
+      await screen.findByText('Введите ФИО нового сотрудника'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText('ФИО нового сотрудника...'),
+    ).toHaveAttribute('aria-invalid', 'true');
     expect(createSpy).not.toHaveBeenCalled();
   });
 
