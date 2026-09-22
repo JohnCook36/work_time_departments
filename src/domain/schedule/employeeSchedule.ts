@@ -4,7 +4,8 @@ import {
   SchedulePeriodsData,
   ShiftEntry,
 } from '../models';
-import { getDayOfWeek, getDaysInMonth } from '../../utils/calendar';
+import { getDaysInMonth } from '../../utils/calendar';
+import { isRussiaFiveDayWorkingDay } from './productionCalendar';
 
 function getPeriodKey(year: number, month: number): string {
   return year + '-' + String(month + 1).padStart(2, '0');
@@ -24,9 +25,7 @@ export function getEmployeeDefaultEntry(
     return { type: 'empty' };
   }
 
-  const dayOfWeek = getDayOfWeek(year, month, day);
-
-  if (dayOfWeek === 0 || dayOfWeek === 6) {
+  if (!isRussiaFiveDayWorkingDay(year, month, day)) {
     return { type: 'off' };
   }
 
