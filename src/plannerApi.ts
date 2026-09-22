@@ -474,6 +474,19 @@ export function updatePlannerEmployee(
   });
 }
 
+export function deactivatePlannerEmployee(
+  employeeId: string,
+  expectedUpdatedAt: string,
+) {
+  return apiRequest<{ status: 'ok'; employeeId: string }>(
+    '/employees/' + encodeURIComponent(employeeId) + '/deactivate',
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ expectedUpdatedAt }),
+    },
+  );
+}
+
 export function reorderPlannerEmployees(input: EmployeeReorderInput) {
   return apiRequest<{ status: 'ok'; reordered: number }>('/employees/reorder', {
     method: 'PATCH',
