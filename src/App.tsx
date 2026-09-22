@@ -69,6 +69,7 @@ import {
   applyExcelImportEntries,
   ExcelImportPreview,
   parseScheduleExcel,
+  resolveApplicableExcelImportEntries,
 } from './importExcel';
 import { exportScheduleToExcel } from './exportExcel';
 import {
@@ -83,6 +84,7 @@ import { MySchedulePanel } from './auth/MySchedulePanel';
 import { hasManagementAccess, useAuthUser } from './auth/AuthContext';
 import {
   applyDepartmentScheduleChanges,
+  applyPlannerScheduleChanges,
   buildDepartmentReorderInput,
   buildEmployeeMoveInput,
   buildEmployeeReorderInput,
@@ -391,6 +393,7 @@ function App() {
   const [scheduleView, setScheduleView] = useState<ScheduleView>('schedule');
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [isImportingExcel, setIsImportingExcel] = useState(false);
+  const [isApplyingExcelImport, setIsApplyingExcelImport] = useState(false);
   const [isCreatingEmployee, setIsCreatingEmployee] = useState(false);
   const [excelImportPreview, setExcelImportPreview] =
     useState<ExcelImportPreview | null>(null);
@@ -440,6 +443,12 @@ function App() {
     canManagePlanner &&
     (!serverPlannerReadEnabled ||
       (serverPlannerWriteEnabled && serverPlannerStatus === 'ready'));
+  const canImportExcel =
+    canManagePlanner &&
+    (!serverPlannerReadEnabled ||
+      (serverPlannerWriteEnabled &&
+        serverPlannerStatus === 'ready' &&
+        !isApplyingExcelImport));
   const canMoveEmployees =
     canManagePlanner &&
     (!serverPlannerReadEnabled ||
@@ -1690,21 +1699,18 @@ function App() {
     }, 0);
   }, [excelImportPreview, schedule, daysInMonth]);
 
-  const applyExcelImport = () => {
-    if (!excelImportPreview) return;
+  const applyExcelImport = async () => {
+    if (!excelImportPreview || isApplyingExcelImport) return;
 
-    const result = applyExcelImportEntries({
+    const options = {
       currentSchedule: rawSchedule,
       protectedSchedule: schedule,
       entries: excelImportPreview.entries,
       daysInMonth,
       overwriteExisting: overwriteExcelCells,
-    });
+    };
 
-    updateCurrentSchedule(() => result.schedule);
-
-    setExcelImportPreview(null);
-    setOverwriteExcelCells(false);
+    const result = applyExcelImportEntries(options);
 
     const details = [
       'Импортировано смен: ' + result.applied,
@@ -1716,7 +1722,76 @@ function App() {
         : null,
     ].filter(Boolean);
 
-    alert(details.join('\n'));
+    if (!serverPlannerWriteEnabled) {
+      updateCurrentSchedule(() => result.schedule);
+      setExcelImportPreview(null);
+      setOverwriteExcelCells(false);
+      alert(details.join('\n'));
+      return;
+    }
+
+    const resolved = resolveApplicableExcelImportEntries(options);
+
+    if (resolved.entries.length === 0) {
+      setExcelImportPreview(null);
+      setOverwriteExcelCells(false);
+      alert(details.join('\n'));
+      return;
+    }
+
+    let changes;
+    try {
+      changes = resolved.entries.map((item) => {
+        if (!item.employeeId) {
+          throw new Error('Excel import contains an unresolved Employee');
+        }
+
+        const entry = validateShiftInput(item.value);
+        if (entry.type !== 'shift' && entry.type !== 'off') {
+          throw new Error(
+            'Excel import contains a schedule value that cannot be persisted'
+          );
+        }
+
+        return buildScheduleCellChange(
+          item.employeeId,
+          item.day,
+          entry,
+          serverCellMetadata[item.employeeId]?.[item.day]
+        );
+      });
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? 'Не удалось подготовить импорт: ' + error.message
+          : 'Не удалось подготовить импорт для сервера.'
+      );
+      await refreshServerPlanner();
+      return;
+    }
+
+    try {
+      setIsApplyingExcelImport(true);
+      await applyPlannerScheduleChanges(
+        year,
+        month + 1,
+        changes
+      );
+      setExcelImportPreview(null);
+      setOverwriteExcelCells(false);
+      await refreshServerPlanner();
+      alert(details.join('\n'));
+    } catch (error) {
+      console.error('Server Excel import failed', error);
+      alert(
+        error instanceof Error
+          ? 'Не удалось применить импорт: ' + error.message
+          : 'Не удалось применить импорт на сервере.'
+      );
+      await refreshServerPlanner();
+    } finally {
+      setIsApplyingExcelImport(false);
+    }
   };
 
   const selectedWishEmployee =
@@ -2006,7 +2081,7 @@ function App() {
               <ActionButton
                 type="button"
                 onClick={() => excelFileInputRef.current?.click()}
-                disabled={!canEditPlanner || isImportingExcel}
+                disabled={!canImportExcel || isImportingExcel}
                 title="Загрузить график из Excel с предпросмотром"
               >
                 <FileUp size={16} />
@@ -2451,13 +2526,14 @@ function App() {
         </Container>
       </Page>
 
-      {canEditPlanner && excelImportPreview && (
+      {canImportExcel && excelImportPreview && (
         <ExcelImportDrawer
           preview={excelImportPreview}
           conflictCount={excelImportConflictCount}
           overwriteExisting={overwriteExcelCells}
           onOverwriteChange={setOverwriteExcelCells}
-          onApply={applyExcelImport}
+          onApply={() => void applyExcelImport()}
+          busy={isApplyingExcelImport}
           onClose={() => {
             setExcelImportPreview(null);
             setOverwriteExcelCells(false);
