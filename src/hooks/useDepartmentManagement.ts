@@ -81,6 +81,7 @@ export function useDepartmentManagement({
       mutatingDepartmentId,
       refreshServerPlanner,
       serverPlannerWriteEnabled,
+      setCollapsedDepartments,
       setDepartments,
     ]
   );
