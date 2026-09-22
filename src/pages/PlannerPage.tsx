@@ -1,7 +1,6 @@
 import React from 'react';
-import App from '../App';
+import { PlannerScreen } from '../screens/PlannerScreen';
 
-// Keep the existing application intact while page-level routing is introduced.
 export function PlannerPage() {
-  return <App />;
+  return <PlannerScreen />;
 }
