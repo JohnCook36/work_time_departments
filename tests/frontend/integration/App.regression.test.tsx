@@ -9,6 +9,7 @@ import * as plannerApi from '../../../src/api/planner';
 import * as printScheduleModule from '../../../src/services/print/printSchedule';
 import { AuthUserContext } from '../../../src/auth/AuthContext';
 import type { AuthUser } from '../../../src/api/auth';
+import { AppThemeProvider } from '../../../src/theme/AppThemeProvider';
 
 const STORAGE_KEY = 'hotel-shift-planner';
 
@@ -35,11 +36,13 @@ const managementUser: AuthUser = {
 
 function renderApp() {
   return render(
-    <MemoryRouter>
-      <AuthUserContext.Provider value={managementUser}>
-        <App />
-      </AuthUserContext.Provider>
-    </MemoryRouter>,
+    <AppThemeProvider>
+      <MemoryRouter>
+        <AuthUserContext.Provider value={managementUser}>
+          <App />
+        </AuthUserContext.Provider>
+      </MemoryRouter>
+    </AppThemeProvider>,
   );
 }
 
@@ -309,11 +312,13 @@ describe('App regression flows', () => {
     };
 
     render(
-      <MemoryRouter>
-        <AuthUserContext.Provider value={departmentAdmin}>
-          <App />
-        </AuthUserContext.Provider>
-      </MemoryRouter>,
+      <AppThemeProvider>
+        <MemoryRouter>
+          <AuthUserContext.Provider value={departmentAdmin}>
+            <App />
+          </AuthUserContext.Provider>
+        </MemoryRouter>
+      </AppThemeProvider>,
     );
 
     await screen.findByText('Серверный сотрудник');
