@@ -1,3 +1,7 @@
+import { ApiTags, ApiOperation, ApiResponse, ApiBadRequestResponse, ApiUnauthorizedResponse, ApiForbiddenResponse, ApiSecurity, ApiBody } from '@nestjs/swagger';
+import { codeSentResponse, currentUserResponse, okResponse, verifyCodeResponse } from '../openapi.responses';
+import { RequestCodeDto, VerifyCodeDto } from './auth.dto';
+
 import {
   BadRequestException,
   Body,
@@ -41,15 +45,30 @@ function requiredSessionToken(headers: {
   return token;
 }
 
+@ApiTags('auth')
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  @ApiOperation({ summary: 'Request a phone verification code' })
+  @ApiBody({ type: RequestCodeDto })
+  @ApiResponse({ status: 201, schema: codeSentResponse })
+  @ApiBadRequestResponse({ description: 'Invalid phone or verification code format.' })
+  @ApiResponse({ status: 429, description: 'Request cooldown or verification attempt limit.' })
+  @ApiResponse({ status: 503, description: 'OTP delivery/configuration unavailable; production SMS is not connected yet.' })
   @Post('request-code')
   requestCode(@Body() body: { phone?: unknown }) {
     return this.authService.requestCode(requiredString(body?.phone, 'phone'));
   }
 
+  @ApiOperation({ summary: 'Verify code and set the HttpOnly session cookie' })
+  @ApiBody({ type: VerifyCodeDto })
+  @ApiResponse({ status: 201, schema: verifyCodeResponse })
+  @ApiBadRequestResponse({ description: 'Invalid phone or verification code format.' })
+  @ApiResponse({ status: 429, description: 'Request cooldown or verification attempt limit.' })
+  @ApiResponse({ status: 503, description: 'OTP delivery/configuration unavailable; production SMS is not connected yet.' })
+  @ApiUnauthorizedResponse({ description: 'Invalid/expired code or missing/invalid session.' })
+  @ApiForbiddenResponse({ description: 'Account is inactive.' })
   @Post('verify-code')
   async verifyCode(
     @Body() body: { phone?: unknown; code?: unknown },
@@ -80,6 +99,11 @@ export class AuthController {
     };
   }
 
+  @ApiOperation({ summary: 'Read the authenticated user and memberships' })
+  @ApiResponse({ status: 200, schema: currentUserResponse })
+  @ApiSecurity('session')
+  @ApiSecurity('sessionBearer')
+  @ApiUnauthorizedResponse({ description: 'Invalid/expired code or missing/invalid session.' })
   @Get('me')
   getCurrentUser(
     @Headers('authorization') authorization?: string,
@@ -90,6 +114,11 @@ export class AuthController {
     );
   }
 
+  @ApiOperation({ summary: 'Revoke the session and clear its cookie' })
+  @ApiResponse({ status: 201, schema: okResponse })
+  @ApiSecurity('session')
+  @ApiSecurity('sessionBearer')
+  @ApiUnauthorizedResponse({ description: 'Invalid/expired code or missing/invalid session.' })
   @Post('logout')
   async logout(
     @Headers('authorization') authorization: string | undefined,
