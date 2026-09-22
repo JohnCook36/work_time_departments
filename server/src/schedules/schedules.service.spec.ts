@@ -216,7 +216,8 @@ describe('SchedulesService', () => {
     expect(
       authorization.assertCanAdministerDepartments,
     ).not.toHaveBeenCalled();
-    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(transaction.shift.upsert).not.toHaveBeenCalled();
   });
 
   it('writes a shift only for an active employee in the administered department', async () => {
@@ -358,7 +359,8 @@ describe('SchedulesService', () => {
       'one or more employees do not belong to this department',
     );
 
-    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(transaction.shift.upsert).not.toHaveBeenCalled();
   });
 
   it('rejects stale optimistic writes', async () => {
