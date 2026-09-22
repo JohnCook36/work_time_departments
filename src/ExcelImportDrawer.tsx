@@ -139,7 +139,7 @@ export function ExcelImportDrawer({
                     style={{
                       padding: '4px 7px',
                       borderRadius: 8,
-                      background: statusPalette.subtleBackground,
+                      background: statusPalette.neutralSoft,
                       fontSize: 11,
                     }}
                   >
@@ -190,7 +190,7 @@ export function ExcelImportDrawer({
                     style={{
                       padding: '4px 7px',
                       borderRadius: 8,
-                      background: statusPalette.subtleBackground,
+                      background: statusPalette.neutralSoft,
                       fontSize: 11,
                     }}
                   >
