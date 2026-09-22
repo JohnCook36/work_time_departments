@@ -64,3 +64,21 @@ export const ErrorPanelList = styled('div')({
 });
 
 export const StyledErrorCard = styled(ErrorCard)({});
+
+
+export const EmployeeIdentity = styled('div')({
+  display: 'grid',
+  gap: 2,
+  minWidth: 0,
+  flex: '1 1 auto',
+});
+
+export const EmployeeScheduleMeta = styled('div')(({ theme }) => ({
+  minWidth: 0,
+  color: theme.colors.textMuted,
+  fontSize: 10,
+  lineHeight: 1.25,
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+}));
