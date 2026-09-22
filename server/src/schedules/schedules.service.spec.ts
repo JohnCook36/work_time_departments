@@ -37,6 +37,9 @@ describe('SchedulesService', () => {
       deleteMany: jest.fn(),
       upsert: jest.fn(),
     },
+    employee: {
+      findMany: jest.fn(),
+    },
   };
 
   const prisma = {
@@ -61,6 +64,7 @@ describe('SchedulesService', () => {
 
   const authorization = {
     assertCanAdministerDepartment: jest.fn(),
+    assertCanAdministerDepartments: jest.fn(),
   };
 
   const service = new SchedulesService(
@@ -71,6 +75,7 @@ describe('SchedulesService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     transaction.shift.findMany.mockResolvedValue([]);
+    transaction.employee.findMany.mockResolvedValue([]);
     transaction.shift.deleteMany.mockResolvedValue({ count: 0 });
     transaction.shift.upsert.mockResolvedValue({});
     transaction.schedule.update.mockResolvedValue({
@@ -191,6 +196,100 @@ describe('SchedulesService', () => {
         applied: 1,
       }),
     );
+  });
+
+  it('atomically applies planner changes across multiple departments', async () => {
+    transaction.employee.findMany.mockResolvedValue([
+      { id: 'employee-1', departmentId: 'department-a' },
+      { id: 'employee-2', departmentId: 'department-b' },
+    ]);
+    transaction.schedule.findUnique.mockResolvedValue({
+      id: 'schedule-1',
+      updatedAt: new Date('2026-09-01T10:00:00.000Z'),
+    });
+
+    const currentUser = user({
+      memberships: [
+        {
+          id: 'super-admin',
+          role: RoleType.SUPER_ADMIN,
+          departmentId: null,
+        },
+      ],
+    });
+
+    const result = await service.applyPlannerScheduleChanges(
+      currentUser,
+      2026,
+      9,
+      [
+        {
+          employeeId: 'employee-1',
+          day: 7,
+          type: 'shift',
+          startTime: '08:00',
+          endTime: '17:00',
+          expectedUpdatedAt: null,
+        },
+        {
+          employeeId: 'employee-2',
+          day: 8,
+          type: 'off',
+          expectedUpdatedAt: null,
+        },
+      ],
+    );
+
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(
+      authorization.assertCanAdministerDepartments,
+    ).toHaveBeenCalledWith(currentUser, [
+      'department-a',
+      'department-b',
+    ]);
+    expect(transaction.shift.upsert).toHaveBeenCalledTimes(2);
+    expect(result).toEqual(
+      expect.objectContaining({
+        status: 'ok',
+        applied: 2,
+      }),
+    );
+  });
+
+  it('rejects planner batch before schedule writes when an Employee is missing', async () => {
+    transaction.employee.findMany.mockResolvedValue([
+      { id: 'employee-1', departmentId: 'department-a' },
+    ]);
+
+    await expect(
+      service.applyPlannerScheduleChanges(
+        user(),
+        2026,
+        9,
+        [
+          {
+            employeeId: 'employee-1',
+            day: 7,
+            type: 'off',
+            expectedUpdatedAt: null,
+          },
+          {
+            employeeId: 'employee-missing',
+            day: 8,
+            type: 'off',
+            expectedUpdatedAt: null,
+          },
+        ],
+      ),
+    ).rejects.toThrow(
+      'one or more employees are not active planner employees',
+    );
+
+    expect(
+      authorization.assertCanAdministerDepartments,
+    ).not.toHaveBeenCalled();
+    expect(transaction.shift.upsert).not.toHaveBeenCalled();
+    expect(transaction.shift.deleteMany).not.toHaveBeenCalled();
   });
 
   it('rejects a zero-duration shift before accessing schedule storage', async () => {
