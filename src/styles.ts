@@ -323,9 +323,12 @@ export const ScheduleTable = styled('table')(({ theme }) => ({
 }));
 
 export const TableHeadRow = styled('tr')(({ theme }) => ({
-  background: theme.mode === 'dark'
-    ? 'linear-gradient(90deg, #111827, #1f2937)'
-    : 'linear-gradient(90deg, #1f2937, #374151)',
+  background:
+    'linear-gradient(90deg, ' +
+    theme.colors.tableHeaderStart +
+    ', ' +
+    theme.colors.tableHeaderEnd +
+    ')',
   color: theme.colors.onPrimary,
 }));
 
