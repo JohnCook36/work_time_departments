@@ -150,7 +150,7 @@ describe('App regression flows', () => {
 
     expect(await screen.findByText('Серверный сотрудник')).toBeInTheDocument();
     expect(screen.getByText(/контролируемый read-only этап/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Сотрудник' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Добавить сотрудника' })).toBeDisabled();
     expect(screen.getByText('08-17')).toBeInTheDocument();
   });
 
@@ -584,6 +584,26 @@ describe('App regression flows', () => {
     expect(plannerApi.loadPlannerServerSnapshot).toHaveBeenCalledTimes(2);
   });
 
+  it('explains why Employee creation is blocked when name is empty', async () => {
+    const user = userEvent.setup();
+    const snapshot = serverPlannerSnapshot();
+    vi.stubEnv('VITE_SERVER_PLANNER_WRITE', '1');
+    vi.spyOn(plannerApi, 'loadPlannerServerSnapshot').mockResolvedValue(snapshot);
+    const createSpy = vi.spyOn(plannerApi, 'createPlannerEmployee');
+
+    renderApp();
+
+    await screen.findByText('Серверный сотрудник');
+    await user.click(
+      screen.getByRole('button', { name: 'Добавить сотрудника' }),
+    );
+
+    expect(window.alert).toHaveBeenCalledWith(
+      'Введите ФИО нового сотрудника.',
+    );
+    expect(createSpy).not.toHaveBeenCalled();
+  });
+
   it('creates an Employee through the backend in server write mode', async () => {
     const user = userEvent.setup();
     const snapshot = serverPlannerSnapshot();
@@ -614,7 +634,7 @@ describe('App regression flows', () => {
     expect(nameInput).toBeEnabled();
     await user.clear(nameInput);
     await user.type(nameInput, 'Новый сотрудник');
-    await user.click(screen.getByRole('button', { name: 'Сотрудник' }));
+    await user.click(screen.getByRole('button', { name: 'Добавить сотрудника' }));
 
     await waitFor(() => {
       expect(createSpy).toHaveBeenCalledWith({
