@@ -103,13 +103,13 @@ import { usePlannerServerSync } from '../../hooks/usePlannerServerSync';
 import { usePlannerStorage } from '../../hooks/usePlannerStorage';
 import { useScheduleMutations } from '../../hooks/useScheduleMutations';
 import { useThemeMode } from '../../hooks/useThemeMode';
-import { PlannerHeaderScreen } from '../../PlannerHeaderScreen';
-import { PlannerManagementScreen } from '../../PlannerManagementScreen';
+import { PlannerHeaderScreen } from './PlannerHeaderScreen';
+import { PlannerManagementScreen } from './PlannerManagementScreen';
 import {
   DepartmentSection,
   ErrorPanel,
   ScheduleView,
-} from '../../PlannerScheduleTable';
+} from './PlannerScheduleTable';
 import {
   ActionButton,
   BrandBlock,
