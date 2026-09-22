@@ -77,12 +77,21 @@ export interface PlannerEmployeeMetadataMap {
   [employeeId: string]: PlannerEmployeeMetadata;
 }
 
+export interface PlannerDepartmentMetadata {
+  updatedAt: string;
+}
+
+export interface PlannerDepartmentMetadataMap {
+  [departmentId: string]: PlannerDepartmentMetadata;
+}
+
 export interface PlannerServerSnapshot {
   departments: Department[];
   employees: Employee[];
   schedule: ScheduleData;
   cellMetadata: PlannerCellMetadataMap;
   employeeMetadata: PlannerEmployeeMetadataMap;
+  departmentMetadata: PlannerDepartmentMetadataMap;
 }
 
 export interface ScheduleCellChange {
@@ -153,12 +162,20 @@ export function mapEmployeeResponse(
 
 export function mapDepartmentScheduleResponses(
   responses: DepartmentScheduleResponse[],
+  manageableDepartments: ManageableDepartmentResponse[] = [],
 ): PlannerServerSnapshot {
   const departments: Department[] = [];
   const employees: Employee[] = [];
   const schedule: ScheduleData = {};
   const cellMetadata: PlannerCellMetadataMap = {};
   const employeeMetadata: PlannerEmployeeMetadataMap = {};
+  const departmentMetadata: PlannerDepartmentMetadataMap = {};
+
+  manageableDepartments.forEach((department) => {
+    departmentMetadata[department.id] = {
+      updatedAt: department.updatedAt,
+    };
+  });
 
   responses.forEach((response) => {
     departments.push({
@@ -217,6 +234,7 @@ export function mapDepartmentScheduleResponses(
     schedule,
     cellMetadata,
     employeeMetadata,
+    departmentMetadata,
   };
 }
 
@@ -291,6 +309,32 @@ export function buildEmployeeReorderInput(
   };
 }
 
+export interface DepartmentReorderInput {
+  orderedDepartmentIds: string[];
+  expectedUpdatedAtByDepartmentId: Record<string, string>;
+}
+
+export function buildDepartmentReorderInput(
+  orderedDepartmentIds: string[],
+  metadata: PlannerDepartmentMetadataMap,
+): DepartmentReorderInput {
+  const expectedUpdatedAtByDepartmentId: Record<string, string> = {};
+
+  orderedDepartmentIds.forEach((departmentId) => {
+    const departmentMetadata = metadata[departmentId];
+    if (!departmentMetadata) {
+      throw new Error('Missing Department optimistic metadata for reorder');
+    }
+    expectedUpdatedAtByDepartmentId[departmentId] =
+      departmentMetadata.updatedAt;
+  });
+
+  return {
+    orderedDepartmentIds,
+    expectedUpdatedAtByDepartmentId,
+  };
+}
+
 export function getManageableDepartments() {
   return apiRequest<ManageableDepartmentResponse[]>('/departments/manageable');
 }
@@ -322,7 +366,7 @@ export async function loadPlannerServerSnapshot(
     ),
   );
 
-  return mapDepartmentScheduleResponses(responses);
+  return mapDepartmentScheduleResponses(responses, departments);
 }
 
 export function applyDepartmentScheduleChanges(
@@ -364,6 +408,13 @@ export function updatePlannerEmployee(
 
 export function reorderPlannerEmployees(input: EmployeeReorderInput) {
   return apiRequest<{ status: 'ok'; reordered: number }>('/employees/reorder', {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  });
+}
+
+export function reorderPlannerDepartments(input: DepartmentReorderInput) {
+  return apiRequest<{ status: 'ok'; reordered: number }>('/departments/reorder', {
     method: 'PATCH',
     body: JSON.stringify(input),
   });
