@@ -311,6 +311,7 @@ function App() {
     handleDragStart,
     handleDragOver,
     handleDragEnd,
+    clearDragState,
   } = usePlannerDnD({
     employees,
     departments,
