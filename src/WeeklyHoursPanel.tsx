@@ -138,9 +138,7 @@ export function WeeklyHoursPanel({
                   style={{
                     background:
                       index % 2 === 1
-                        ? theme.mode === 'dark'
-                          ? '#0f1726'
-                          : '#fafafa'
+                        ? theme.colors.rowOdd
                         : theme.colors.surfaceElevated,
                   }}
                 >
@@ -215,12 +213,8 @@ export function WeeklyHoursPanel({
                     const deltaColor = isBalanced
                       ? theme.colors.textMuted
                       : delta > 0
-                        ? theme.mode === 'dark'
-                          ? '#6ee7b7'
-                          : '#047857'
-                        : theme.mode === 'dark'
-                          ? '#fbbf24'
-                          : '#b45309';
+                        ? theme.colors.success
+                        : theme.colors.warning;
 
                     return (
                       <td
