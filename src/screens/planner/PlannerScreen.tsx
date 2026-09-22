@@ -12,13 +12,12 @@ import {
   DepartmentKind,
   Employee,
   EmploymentRate,
-  EmployeeScheduleMode,
   EmployeeWishesData,
   ScheduleData,
   SchedulePeriodsData,
   ShiftEntry,
 } from '../../domain/models';
-import { calculateShiftHours, validateShiftInput } from '../../domain/schedule/shiftHours';
+import { calculateShiftHours } from '../../domain/schedule/shiftHours';
 import { getDaysInMonth } from '../../utils/calendar';
 import { EmployeeEditValues } from '../../components/drawers/EmployeeEditDrawer';
 import {
@@ -39,6 +38,7 @@ import { useScheduleMutations } from '../../hooks/useScheduleMutations';
 import { useAppTheme } from '../../theme/AppThemeProvider';
 import { PlannerHeaderScreen } from './PlannerHeaderScreen';
 import { PlannerManagementScreen } from './PlannerManagementScreen';
+import type { EmployeeCreateFormValues } from './PlannerControlsToolbar';
 import { PlannerOverlays } from './PlannerOverlays';
 import { PlannerScheduleWorkspace } from './PlannerScheduleWorkspace';
 import { ScheduleView } from './PlannerScheduleTable';
@@ -127,18 +127,6 @@ export function PlannerScreen() {
     serverPlannerReadEnabled ? [] : stored?.collapsedDepartments || []
   );
 
-  const [newEmployeeName, setNewEmployeeName] = useState('');
-  const [newEmployeeScheduleMode, setNewEmployeeScheduleMode] =
-    useState<EmployeeScheduleMode>('flexible');
-  const [newEmployeeFixedStartTime, setNewEmployeeFixedStartTime] =
-    useState('');
-  const [newEmployeeFixedEndTime, setNewEmployeeFixedEndTime] =
-    useState('');
-  const [newEmployeeDepartmentId, setNewEmployeeDepartmentId] = useState(
-    serverPlannerReadEnabled
-      ? ''
-      : (stored?.departments || DEFAULT_DEPARTMENTS)[0].id
-  );
   const [newDepartmentName, setNewDepartmentName] = useState('');
   const [newDepartmentKind, setNewDepartmentKind] =
     useState<DepartmentKind>('general');
@@ -341,12 +329,6 @@ export function PlannerScreen() {
     setWishEmployeeId(null);
   }, [serverPlannerReadEnabled]);
 
-  useEffect(() => {
-    if (!departments.some((department) => department.id === newEmployeeDepartmentId)) {
-      setNewEmployeeDepartmentId(departments[0]?.id || '');
-    }
-  }, [departments, newEmployeeDepartmentId]);
-
   const updateCurrentSchedule = useCallback(
     (updater: (current: ScheduleData) => ScheduleData) => {
       setSchedules((prev) => ({
@@ -450,56 +432,23 @@ export function PlannerScreen() {
     [daysInMonth, getEntry]
   );
 
-  const resetNewEmployeeForm = () => {
-    setNewEmployeeName('');
-    setNewEmployeeScheduleMode('flexible');
-    setNewEmployeeFixedStartTime('');
-    setNewEmployeeFixedEndTime('');
-  };
-
-  const addEmployee = async () => {
-    const name = newEmployeeName.trim();
-
-    if (isCreatingEmployee) return;
-
-    if (!name) {
-      alert('Введите ФИО нового сотрудника.');
-      return;
-    }
-
-    if (!newEmployeeDepartmentId) {
-      alert('Выберите отдел для нового сотрудника.');
-      return;
-    }
-
-    if (newEmployeeScheduleMode === 'fixed-weekdays') {
-      const fixedEntry = validateShiftInput(
-        newEmployeeFixedStartTime + '-' + newEmployeeFixedEndTime
-      );
-
-      if (fixedEntry.type !== 'shift') {
-        alert('Для фиксированного графика укажите корректное время начала и окончания.');
-        return;
-      }
-    }
-
-    const created = await createEmployee({
-      displayName: name,
-      departmentId: newEmployeeDepartmentId,
+  const addEmployee = async (
+    values: EmployeeCreateFormValues
+  ): Promise<boolean> =>
+    createEmployee({
+      displayName: values.displayName,
+      departmentId: values.departmentId,
       employmentRate: 1,
-      scheduleMode: newEmployeeScheduleMode,
+      scheduleMode: values.scheduleMode,
       fixedStartTime:
-        newEmployeeScheduleMode === 'fixed-weekdays'
-          ? newEmployeeFixedStartTime
+        values.scheduleMode === 'fixed-weekdays'
+          ? values.fixedStartTime
           : null,
       fixedEndTime:
-        newEmployeeScheduleMode === 'fixed-weekdays'
-          ? newEmployeeFixedEndTime
+        values.scheduleMode === 'fixed-weekdays'
+          ? values.fixedEndTime
           : null,
     });
-
-    if (created) resetNewEmployeeForm();
-  };
 
   const saveEmployeeEdit = (values: EmployeeEditValues) => {
     if (!editingEmployeeId || mutatingEmployeeId !== null) return;
@@ -691,21 +640,11 @@ export function PlannerScreen() {
 
           {canManagePlanner && (
             <PlannerManagementScreen
-              newEmployeeName={newEmployeeName}
-              onNewEmployeeNameChange={setNewEmployeeName}
-              newEmployeeDepartmentId={newEmployeeDepartmentId}
-              onNewEmployeeDepartmentChange={setNewEmployeeDepartmentId}
-              newEmployeeScheduleMode={newEmployeeScheduleMode}
-              onNewEmployeeScheduleModeChange={setNewEmployeeScheduleMode}
-              newEmployeeFixedStartTime={newEmployeeFixedStartTime}
-              onNewEmployeeFixedStartTimeChange={setNewEmployeeFixedStartTime}
-              newEmployeeFixedEndTime={newEmployeeFixedEndTime}
-              onNewEmployeeFixedEndTimeChange={setNewEmployeeFixedEndTime}
               departments={departments}
               employees={employees}
               canCreateEmployee={canCreateEmployee}
               isCreatingEmployee={isCreatingEmployee}
-              onAddEmployee={() => void addEmployee()}
+              onAddEmployee={addEmployee}
               canManageDepartments={canManageDepartments}
               showDepartments={showDepartments}
               onToggleDepartments={() =>
