@@ -49,6 +49,7 @@ interface PlannerControlsToolbarProps {
   isCreatingEmployee: boolean;
   onAddEmployee: (values: EmployeeCreateFormValues) => Promise<boolean>;
   canManageDepartments: boolean;
+  canViewDepartments: boolean;
   onToggleDepartments: () => void;
   scheduleView: ScheduleView;
   onScheduleViewChange: (view: ScheduleView) => void;
@@ -75,6 +76,7 @@ export function PlannerControlsToolbar({
   isCreatingEmployee,
   onAddEmployee,
   canManageDepartments,
+  canViewDepartments,
   onToggleDepartments,
   scheduleView,
   onScheduleViewChange,
@@ -257,7 +259,12 @@ export function PlannerControlsToolbar({
           type="button"
           $variant="accent"
           onClick={onToggleDepartments}
-          disabled={!canManageDepartments}
+          disabled={!canViewDepartments}
+          title={
+            canManageDepartments
+              ? 'Управление отделами'
+              : 'Просмотр отделов. Изменение структуры доступно только SUPER_ADMIN'
+          }
         >
           <Layers3 size={16} />
           Отделы
