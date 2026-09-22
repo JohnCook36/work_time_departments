@@ -2,12 +2,12 @@ import {
   ChevronLeft,
   ChevronRight,
   Info,
+  CalendarDays,
   Moon,
   Sun,
 } from 'lucide-react';
 
 import { AdminOnboardingPanel } from '../onboarding/AdminOnboardingPanel';
-import { MySchedulePanel } from '../my-schedule/MySchedulePanel';
 import {
   BrandBlock,
   BrandTitle,
@@ -29,6 +29,7 @@ import {
 import { MONTH_NAMES } from '../../utils/calendar';
 import { PlannerServerStatus } from '../../hooks/usePlannerServerSync';
 import {
+  PersonalScheduleLink,
   ServerModeCard,
   ServerModeDescription,
 } from './PlannerHeaderScreen.styles';
@@ -112,7 +113,9 @@ export function PlannerHeaderScreen({
               <ChevronRight size={19} />
             </IconButton>
 
-            <MySchedulePanel year={year} monthIndex={month} />
+            <PersonalScheduleLink to="/my-schedule" title="Мои смены">
+              <CalendarDays size={18} />
+            </PersonalScheduleLink>
             {canManagePlanner && <AdminOnboardingPanel />}
 
             {canManagePlanner && (
