@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Global, ThemeProvider } from '@emotion/react';
 import {
   DndContext,
   PointerSensor,
@@ -29,7 +28,6 @@ import {
 import { hasManagementAccess, useAuthUser } from '../../auth/AuthContext';
 import { PlannerServerSnapshot } from '../../api/planner';
 import { buildEffectiveSchedule } from '../../domain/schedule/employeeSchedule';
-import { getTheme } from '../../theme/theme';
 import { useDepartmentManagement } from '../../hooks/useDepartmentManagement';
 import { useEmployeeManagement } from '../../hooks/useEmployeeManagement';
 import { usePlannerDnD } from '../../hooks/usePlannerDnD';
@@ -38,7 +36,7 @@ import { usePlannerServerSync } from '../../hooks/usePlannerServerSync';
 import { usePlannerStorage } from '../../hooks/usePlannerStorage';
 import { usePlannerWishes } from '../../hooks/usePlannerWishes';
 import { useScheduleMutations } from '../../hooks/useScheduleMutations';
-import { useThemeMode } from '../../hooks/useThemeMode';
+import { useAppTheme } from '../../theme/AppThemeProvider';
 import { PlannerHeaderScreen } from './PlannerHeaderScreen';
 import { PlannerManagementScreen } from './PlannerManagementScreen';
 import { PlannerOverlays } from './PlannerOverlays';
@@ -109,7 +107,7 @@ export function PlannerScreen() {
 
   const [year, setYear] = useState(initialNow.getFullYear());
   const [month, setMonth] = useState(initialNow.getMonth());
-  const [themeMode, setThemeMode] = useThemeMode();
+  const { themeMode, toggleTheme } = useAppTheme();
 
   const [departments, setDepartments] = useState<Department[]>(
     serverPlannerReadEnabled
@@ -294,7 +292,6 @@ export function PlannerScreen() {
     refreshServerPlanner,
   });
 
-  const theme = useMemo(() => getTheme(themeMode), [themeMode]);
   const periodKey = getPeriodKey(year, month);
   const rawSchedule = schedules[periodKey] || {};
   const schedule = useMemo(
@@ -661,33 +658,12 @@ export function PlannerScreen() {
   const columnCount = daysInMonth + 5;
 
   return (
-    <ThemeProvider theme={theme}>
-      <Global
-        styles={(activeTheme) => ({
-          '*': { boxSizing: 'border-box' },
-          html: { colorScheme: activeTheme.mode },
-          body: {
-            margin: 0,
-            minWidth: 320,
-            fontFamily:
-              'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-            background: activeTheme.colors.background,
-            color: activeTheme.colors.text,
-          },
-          button: { fontFamily: 'inherit' },
-          input: { fontFamily: 'inherit' },
-          select: { fontFamily: 'inherit' },
-          textarea: { fontFamily: 'inherit' },
-        })}
-      />
-
+    <>
       <Page>
         <Container>
           <PlannerHeaderScreen
             themeMode={themeMode}
-            onToggleTheme={() =>
-              setThemeMode((value) => (value === 'light' ? 'dark' : 'light'))
-            }
+            onToggleTheme={toggleTheme}
             year={year}
             month={month}
             onPrevMonth={prevMonth}
@@ -867,7 +843,7 @@ export function PlannerScreen() {
         onRemoveWish={(employeeId, wishId) => removeWish(employeeId, wishId)}
         onCloseWishes={() => setWishEmployeeId(null)}
       />
-    </ThemeProvider>
+    </>
   );
 }
 
