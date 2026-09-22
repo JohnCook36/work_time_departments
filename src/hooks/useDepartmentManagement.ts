@@ -18,6 +18,7 @@ interface UseDepartmentManagementOptions {
   canManageDepartments: boolean;
   serverDepartmentMetadata: PlannerDepartmentMetadataMap;
   setDepartments: Dispatch<SetStateAction<Department[]>>;
+  setCollapsedDepartments: Dispatch<SetStateAction<string[]>>;
   refreshServerPlanner: () => Promise<void>;
 }
 
@@ -32,6 +33,7 @@ export function useDepartmentManagement({
   canManageDepartments,
   serverDepartmentMetadata,
   setDepartments,
+  setCollapsedDepartments,
   refreshServerPlanner,
 }: UseDepartmentManagementOptions) {
   const [mutatingDepartmentId, setMutatingDepartmentId] =
@@ -209,6 +211,9 @@ export function useDepartmentManagement({
         setDepartments((prev) =>
           prev.filter((department) => department.id !== departmentId)
         );
+        setCollapsedDepartments((prev) =>
+          prev.filter((id) => id !== departmentId)
+        );
         return 'success';
       }
 
@@ -227,6 +232,9 @@ export function useDepartmentManagement({
       try {
         setMutatingDepartmentId(departmentId);
         await deactivatePlannerDepartment(departmentId, metadata.updatedAt);
+        setCollapsedDepartments((prev) =>
+          prev.filter((id) => id !== departmentId)
+        );
         await refreshServerPlanner();
         return 'success';
       } catch (error) {
@@ -248,6 +256,7 @@ export function useDepartmentManagement({
       refreshServerPlanner,
       serverDepartmentMetadata,
       serverPlannerWriteEnabled,
+      setCollapsedDepartments,
       setDepartments,
     ]
   );
