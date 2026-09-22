@@ -101,7 +101,12 @@ export async function apiRequest<T>(
     return undefined as T;
   }
 
-  return (await response.json()) as T;
+  const payload = await response.text();
+  if (payload.trim() === '') {
+    return undefined as T;
+  }
+
+  return JSON.parse(payload) as T;
 }
 
 export function requestOtp(phone: string) {
@@ -152,8 +157,12 @@ export function searchEmployeeCandidates(
   );
 }
 
-export function getOnboardingStatus() {
-  return apiRequest<OnboardingRequest | null>('/onboarding/status');
+export async function getOnboardingStatus() {
+  const status = await apiRequest<OnboardingRequest | null | undefined>(
+    '/onboarding/status',
+  );
+
+  return status ?? null;
 }
 
 export function requestExistingEmployeeLink(employeeId: string) {
