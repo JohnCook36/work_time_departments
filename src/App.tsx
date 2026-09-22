@@ -90,10 +90,8 @@ import {
   buildEmployeeReorderInput,
   buildScheduleCellChange,
   createPlannerDepartment,
-  createPlannerEmployee,
   createPlannerWish,
   deactivatePlannerDepartment,
-  deactivatePlannerEmployee,
   deletePlannerWish,
   loadPlannerServerSnapshot,
   PlannerServerSnapshot,
@@ -107,6 +105,7 @@ import {
   buildEffectiveSchedulePeriods,
 } from './employeeSchedule';
 import { getTheme } from './theme';
+import { useEmployeeManagement } from './hooks/useEmployeeManagement';
 import { usePlannerServerSync } from './hooks/usePlannerServerSync';
 import { usePlannerStorage } from './hooks/usePlannerStorage';
 import { useScheduleMutations } from './hooks/useScheduleMutations';
@@ -281,7 +280,6 @@ function App() {
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [isImportingExcel, setIsImportingExcel] = useState(false);
   const [isApplyingExcelImport, setIsApplyingExcelImport] = useState(false);
-  const [isCreatingEmployee, setIsCreatingEmployee] = useState(false);
   const [excelImportPreview, setExcelImportPreview] =
     useState<ExcelImportPreview | null>(null);
   const [overwriteExcelCells, setOverwriteExcelCells] = useState(false);
@@ -290,10 +288,6 @@ function App() {
   const [isPreparingPrint, setIsPreparingPrint] = useState(false);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [dragTargetDepartmentId, setDragTargetDepartmentId] = useState<string | null>(null);
-  const [updatingEmployeeRateId, setUpdatingEmployeeRateId] =
-    useState<string | null>(null);
-  const [mutatingEmployeeId, setMutatingEmployeeId] =
-    useState<string | null>(null);
   const [movingEmployeeId, setMovingEmployeeId] =
     useState<string | null>(null);
   const [movingDepartmentId, setMovingDepartmentId] =
@@ -326,6 +320,24 @@ function App() {
     year,
     month,
     onSnapshot: applyServerPlannerSnapshot,
+  });
+
+  const {
+    createEmployee,
+    changeEmployeeRate,
+    updateEmployee,
+    deactivateEmployee,
+    isCreatingEmployee,
+    updatingEmployeeRateId,
+    mutatingEmployeeId,
+  } = useEmployeeManagement({
+    serverPlannerWriteEnabled,
+    serverPlannerStatus,
+    serverEmployeeMetadata,
+    setEmployees,
+    setSchedules,
+    setWishes,
+    refreshServerPlanner,
   });
 
   const canManageEmployeeProfiles =
@@ -414,8 +426,6 @@ function App() {
 
   useEffect(() => {
     if (!serverPlannerReadEnabled) {
-      setUpdatingEmployeeRateId(null);
-      setMutatingEmployeeId(null);
       setEditingEmployeeId(null);
       setMutatingWishId(null);
       setMovingEmployeeId(null);
@@ -530,112 +540,22 @@ function App() {
       }
     }
 
-    if (!serverPlannerWriteEnabled) {
-      setEmployees((prev) => [
-        ...prev,
-        {
-          id: generateId(),
-          name,
-          departmentId: newEmployeeDepartmentId,
-          employmentRate: 1,
-          scheduleMode: newEmployeeScheduleMode,
-          ...(newEmployeeScheduleMode === 'fixed-weekdays'
-            ? {
-                fixedStartTime: newEmployeeFixedStartTime,
-                fixedEndTime: newEmployeeFixedEndTime,
-              }
-            : {}),
-        },
-      ]);
-      resetNewEmployeeForm();
-      return;
-    }
+    const created = await createEmployee({
+      displayName: name,
+      departmentId: newEmployeeDepartmentId,
+      employmentRate: 1,
+      scheduleMode: newEmployeeScheduleMode,
+      fixedStartTime:
+        newEmployeeScheduleMode === 'fixed-weekdays'
+          ? newEmployeeFixedStartTime
+          : null,
+      fixedEndTime:
+        newEmployeeScheduleMode === 'fixed-weekdays'
+          ? newEmployeeFixedEndTime
+          : null,
+    });
 
-    if (serverPlannerStatus !== 'ready') {
-      alert('График ещё не синхронизирован с сервером.');
-      return;
-    }
-
-    try {
-      setIsCreatingEmployee(true);
-      await createPlannerEmployee({
-        displayName: name,
-        departmentId: newEmployeeDepartmentId,
-        employmentRate: 1,
-        scheduleMode:
-          newEmployeeScheduleMode === 'fixed-weekdays'
-            ? 'FIXED_WEEKDAYS'
-            : 'FLEXIBLE',
-        ...(newEmployeeScheduleMode === 'fixed-weekdays'
-          ? {
-              fixedStartTime: newEmployeeFixedStartTime,
-              fixedEndTime: newEmployeeFixedEndTime,
-            }
-          : {
-              fixedStartTime: null,
-              fixedEndTime: null,
-            }),
-      });
-      resetNewEmployeeForm();
-      await refreshServerPlanner();
-    } catch (error) {
-      console.error('Server employee create failed', error);
-      alert(
-        error instanceof Error
-          ? 'Не удалось добавить сотрудника: ' + error.message
-          : 'Не удалось добавить сотрудника на сервере.'
-      );
-      await refreshServerPlanner();
-    } finally {
-      setIsCreatingEmployee(false);
-    }
-  };
-
-  const changeEmployeeRate = (
-    employeeId: string,
-    employmentRate: EmploymentRate
-  ) => {
-    if (!serverPlannerWriteEnabled) {
-      setEmployees((prev) =>
-        prev.map((employee) =>
-          employee.id === employeeId
-            ? { ...employee, employmentRate }
-            : employee
-        )
-      );
-      return;
-    }
-
-    if (serverPlannerStatus !== 'ready' || updatingEmployeeRateId !== null) {
-      alert('График ещё не готов к изменению ставки.');
-      return;
-    }
-
-    const metadata = serverEmployeeMetadata[employeeId];
-    if (!metadata) {
-      alert('Не удалось определить версию сотрудника. Обновляю данные.');
-      void refreshServerPlanner();
-      return;
-    }
-
-    setUpdatingEmployeeRateId(employeeId);
-    void updatePlannerEmployee(employeeId, {
-      employmentRate,
-      expectedUpdatedAt: metadata.updatedAt,
-    })
-      .then(() => refreshServerPlanner())
-      .catch((error) => {
-        console.error('Server employee rate update failed', error);
-        alert(
-          error instanceof Error
-            ? 'Не удалось изменить ставку: ' + error.message
-            : 'Не удалось изменить ставку сотрудника на сервере.'
-        );
-        void refreshServerPlanner();
-      })
-      .finally(() => {
-        setUpdatingEmployeeRateId(null);
-      });
+    if (created) resetNewEmployeeForm();
   };
 
   const saveEmployeeEdit = (values: EmployeeEditValues) => {
@@ -643,76 +563,18 @@ function App() {
 
     const employeeId = editingEmployeeId;
 
-    if (!serverPlannerWriteEnabled) {
-      setEmployees((prev) =>
-        prev.map((employee) =>
-          employee.id === employeeId
-            ? {
-                ...employee,
-                name: values.displayName,
-                departmentId: values.departmentId,
-                employmentRate: values.employmentRate,
-                scheduleMode: values.scheduleMode,
-                ...(values.scheduleMode === 'fixed-weekdays'
-                  ? {
-                      fixedStartTime: values.fixedStartTime || undefined,
-                      fixedEndTime: values.fixedEndTime || undefined,
-                    }
-                  : {
-                      fixedStartTime: undefined,
-                      fixedEndTime: undefined,
-                    }),
-              }
-            : employee
-        )
-      );
-      setEditingEmployeeId(null);
-      return;
-    }
-
-    if (serverPlannerStatus !== 'ready') {
-      alert('График ещё не готов к редактированию сотрудника.');
-      return;
-    }
-
-    const metadata = serverEmployeeMetadata[employeeId];
-    if (!metadata) {
-      alert('Не удалось определить версию сотрудника. Обновляю данные.');
-      setEditingEmployeeId(null);
-      void refreshServerPlanner();
-      return;
-    }
-
-    setMutatingEmployeeId(employeeId);
-    void updatePlannerEmployee(employeeId, {
+    void updateEmployee(employeeId, {
       displayName: values.displayName,
       departmentId: values.departmentId,
       employmentRate: values.employmentRate,
-      scheduleMode:
-        values.scheduleMode === 'fixed-weekdays'
-          ? 'FIXED_WEEKDAYS'
-          : 'FLEXIBLE',
+      scheduleMode: values.scheduleMode,
       fixedStartTime: values.fixedStartTime,
       fixedEndTime: values.fixedEndTime,
-      expectedUpdatedAt: metadata.updatedAt,
-    })
-      .then(async () => {
+    }).then((result) => {
+      if (result !== 'blocked') {
         setEditingEmployeeId(null);
-        await refreshServerPlanner();
-      })
-      .catch((error) => {
-        console.error('Server employee edit failed', error);
-        alert(
-          error instanceof Error
-            ? 'Не удалось изменить сотрудника: ' + error.message
-            : 'Не удалось изменить сотрудника на сервере.'
-        );
-        setEditingEmployeeId(null);
-        void refreshServerPlanner();
-      })
-      .finally(() => {
-        setMutatingEmployeeId(null);
-      });
+      }
+    });
   };
 
   const removeEmployee = (id: string) => {
@@ -722,64 +584,11 @@ function App() {
 
     if (!confirm(promptText)) return;
 
-    if (!serverPlannerWriteEnabled) {
-      setEmployees((prev) => prev.filter((employee) => employee.id !== id));
-      setSchedules((prev) => {
-        const next: SchedulePeriodsData = {};
-        Object.entries(prev).forEach(([key, periodSchedule]) => {
-          const periodNext = { ...periodSchedule };
-          delete periodNext[id];
-          next[key] = periodNext;
-        });
-        return next;
-      });
-      setWishes((prev) => {
-        const next = { ...prev };
-        delete next[id];
-        return next;
-      });
-
+    void deactivateEmployee(id).then((result) => {
+      if (result === 'blocked') return;
       if (wishEmployeeId === id) setWishEmployeeId(null);
       if (editingEmployeeId === id) setEditingEmployeeId(null);
-      return;
-    }
-
-    if (
-      serverPlannerStatus !== 'ready' ||
-      mutatingEmployeeId !== null
-    ) {
-      alert('График ещё не готов к деактивации сотрудника.');
-      return;
-    }
-
-    const metadata = serverEmployeeMetadata[id];
-    if (!metadata) {
-      alert('Не удалось определить версию сотрудника. Обновляю данные.');
-      setEditingEmployeeId(null);
-      void refreshServerPlanner();
-      return;
-    }
-
-    setMutatingEmployeeId(id);
-    void deactivatePlannerEmployee(id, metadata.updatedAt)
-      .then(async () => {
-        if (wishEmployeeId === id) setWishEmployeeId(null);
-        if (editingEmployeeId === id) setEditingEmployeeId(null);
-        await refreshServerPlanner();
-      })
-      .catch((error) => {
-        console.error('Server employee deactivate failed', error);
-        alert(
-          error instanceof Error
-            ? 'Не удалось деактивировать сотрудника: ' + error.message
-            : 'Не удалось деактивировать сотрудника на сервере.'
-        );
-        setEditingEmployeeId(null);
-        void refreshServerPlanner();
-      })
-      .finally(() => {
-        setMutatingEmployeeId(null);
-      });
+    });
   };
 
   const addDepartment = async () => {
