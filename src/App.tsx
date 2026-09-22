@@ -104,6 +104,7 @@ import { usePlannerStorage } from './hooks/usePlannerStorage';
 import { useScheduleMutations } from './hooks/useScheduleMutations';
 import { useThemeMode } from './hooks/useThemeMode';
 import { PlannerHeaderScreen } from './screens/planner/PlannerHeaderScreen';
+import { PlannerManagementScreen } from './screens/planner/PlannerManagementScreen';
 import {
   DepartmentSection,
   ErrorPanel,
@@ -274,7 +275,6 @@ function App() {
   const [excelImportPreview, setExcelImportPreview] =
     useState<ExcelImportPreview | null>(null);
   const [overwriteExcelCells, setOverwriteExcelCells] = useState(false);
-  const excelFileInputRef = useRef<HTMLInputElement | null>(null);
   const [printRangeKey, setPrintRangeKey] = useState('month');
   const [isPreparingPrint, setIsPreparingPrint] = useState(false);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
@@ -1175,9 +1175,6 @@ function App() {
       );
     } finally {
       setIsImportingExcel(false);
-      if (excelFileInputRef.current) {
-        excelFileInputRef.current.value = '';
-      }
     }
   };
 
@@ -1356,295 +1353,57 @@ function App() {
           />
 
           {canManagePlanner && (
-          <ControlsCard>
-            <ControlsRow>
-              <TextInput
-                type="text"
-                value={newEmployeeName}
-                disabled={!canCreateEmployee || isCreatingEmployee}
-                onChange={(event) => setNewEmployeeName(event.target.value)}
-                onKeyDown={(event) => event.key === 'Enter' && addEmployee()}
-                placeholder="ФИО нового сотрудника..."
-              />
-
-              <Select
-                value={newEmployeeDepartmentId}
-                disabled={!canCreateEmployee || isCreatingEmployee}
-                onChange={(event) =>
-                  setNewEmployeeDepartmentId(event.target.value)
-                }
-              >
-                {departments.map((department) => (
-                  <option key={department.id} value={department.id}>
-                    {department.name}
-                  </option>
-                ))}
-              </Select>
-
-              <Select
-                value={newEmployeeScheduleMode}
-                disabled={!canCreateEmployee || isCreatingEmployee}
-                onChange={(event) =>
-                  setNewEmployeeScheduleMode(
-                    event.target.value as EmployeeScheduleMode
-                  )
-                }
-                title="Тип рабочего графика сотрудника"
-              >
-                <option value="flexible">Плавающий график</option>
-                <option value="fixed-weekdays">5/2 · фиксированные часы</option>
-              </Select>
-
-              {newEmployeeScheduleMode === 'fixed-weekdays' && (
-                <>
-                  <TextInput
-                    type="time"
-                    value={newEmployeeFixedStartTime}
-                    disabled={!canCreateEmployee || isCreatingEmployee}
-                    onChange={(event) =>
-                      setNewEmployeeFixedStartTime(event.target.value)
-                    }
-                    title="Начало рабочего дня"
-                    aria-label="Начало рабочего дня"
-                    style={{ width: 118 }}
-                  />
-                  <TextInput
-                    type="time"
-                    value={newEmployeeFixedEndTime}
-                    disabled={!canCreateEmployee || isCreatingEmployee}
-                    onChange={(event) =>
-                      setNewEmployeeFixedEndTime(event.target.value)
-                    }
-                    title="Окончание рабочего дня"
-                    aria-label="Окончание рабочего дня"
-                    style={{ width: 118 }}
-                  />
-                </>
-              )}
-
-              <ActionButton
-                type="button"
-                $variant="primary"
-                onClick={() => void addEmployee()}
-                disabled={!canCreateEmployee || isCreatingEmployee}
-              >
-                <Plus size={16} />
-                {isCreatingEmployee ? 'Добавляю…' : 'Сотрудник'}
-              </ActionButton>
-
-              <ActionButton
-                type="button"
-                $variant="accent"
-                onClick={() => setShowDepartments((value) => !value)}
-                disabled={!canManageDepartments}
-              >
-                <Layers3 size={16} />
-                Отделы
-              </ActionButton>
-
-              <ActionButton
-                type="button"
-                $variant={scheduleView === 'schedule' ? 'primary' : 'secondary'}
-                onClick={() => {
-                  setEditingCell(null);
-                  setScheduleView('schedule');
-                }}
-              >
-                График
-              </ActionButton>
-
-              <ActionButton
-                type="button"
-                $variant={scheduleView === 'hours' ? 'primary' : 'secondary'}
-                onClick={() => {
-                  setEditingCell(null);
-                  setScheduleView('hours');
-                }}
-              >
-                День / ночь
-              </ActionButton>
-
-              <Divider />
-
-              <input
-                ref={excelFileInputRef}
-                type="file"
-                accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                style={{ display: 'none' }}
-                onChange={(event) =>
-                  handleExcelFile(event.target.files?.[0] || null)
-                }
-              />
-
-              <ActionButton
-                type="button"
-                onClick={() => excelFileInputRef.current?.click()}
-                disabled={
-                  !canImportExcel ||
-                  isImportingExcel ||
-                  isApplyingExcelImport
-                }
-                title="Загрузить график из Excel с предпросмотром"
-              >
-                <FileUp size={16} />
-                {isImportingExcel ? 'Читаю…' : 'Импорт Excel'}
-              </ActionButton>
-
-              <ActionButton
-                type="button"
-                $variant="accent"
-                onClick={handleExportExcel}
-                disabled={isExportingExcel}
-                title="Сформировать Excel-файл текущего месяца"
-              >
-                <FileSpreadsheet size={16} />
-                {isExportingExcel ? 'Excel…' : 'Экспорт Excel'}
-              </ActionButton>
-
-              <Select
-                value={printRangeKey}
-                disabled={isPreparingPrint}
-                onChange={(event) => setPrintRangeKey(event.target.value)}
-                title="Что печатать"
-                style={{ minWidth: 150 }}
-              >
-                <option value="month">Весь месяц</option>
-                {printCalendarWeekRanges.map((range) => (
-                  <option key={range.key} value={range.key}>
-                    Неделя {range.label}
-                  </option>
-                ))}
-              </Select>
-
-              <ActionButton
-                type="button"
-                onClick={() => void handlePrintSchedule()}
-                disabled={isPreparingPrint}
-                title="Открыть печатную версию A4"
-              >
-                <Printer size={16} />
-                {isPreparingPrint ? 'Готовлю…' : 'Печать'}
-              </ActionButton>
-
-              <ActionButton
-                type="button"
-                onClick={() => void fillOffAll()}
-                disabled={!canBulkEditSchedule}
-              >
-                {isApplyingBulkSchedule ? 'Применяю…' : 'OFF все'}
-              </ActionButton>
-
-              <ActionButton
-                type="button"
-                $variant="danger"
-                onClick={() => void clearAll()}
-                disabled={!canBulkEditSchedule}
-              >
-                <Trash2 size={15} />
-                {isApplyingBulkSchedule ? 'Применяю…' : 'Очистить месяц'}
-              </ActionButton>
-            </ControlsRow>
-          </ControlsCard>
-          )}
-
-          {canManageDepartments && showDepartments && (
-            <DepartmentPanel>
-              <PanelTitleRow>
-                <div>
-                  <PanelTitle>Отделы сотрудников</PanelTitle>
-                  <Muted>
-                    Создавайте отделы и переносите сотрудников между ними прямо
-                    в таблице.
-                  </Muted>
-                </div>
-
-                <ControlsRow>
-                  <TextInput
-                    value={newDepartmentName}
-                    onChange={(event) => setNewDepartmentName(event.target.value)}
-                    onKeyDown={(event) =>
-                      event.key === 'Enter' && void addDepartment()
-                    }
-                    placeholder="Название отдела"
-                    style={{ flex: '0 1 220px' }}
-                  />
-
-                  <Select
-                    value={newDepartmentKind}
-                    onChange={(event) =>
-                      setNewDepartmentKind(
-                        event.target.value as DepartmentKind
-                      )
-                    }
-                  >
-                    <option value="general">Обычный</option>
-                    <option value="fo">FO Agents</option>
-                    <option value="night">Night Agents</option>
-                  </Select>
-
-                  <ActionButton
-                    type="button"
-                    $variant="accent"
-                    onClick={() => void addDepartment()}
-                    disabled={mutatingDepartmentId !== null}
-                  >
-                    <Plus size={15} />
-                    {mutatingDepartmentId === 'create' ? 'Добавляю…' : 'Отдел'}
-                  </ActionButton>
-                </ControlsRow>
-              </PanelTitleRow>
-
-              <DepartmentGrid>
-                {departments.map((department) => {
-                  const employeeCount = employees.filter(
-                    (employee) => employee.departmentId === department.id
-                  ).length;
-
-                  return (
-                    <DepartmentCard key={department.id}>
-                      <DepartmentMeta>
-                        <DepartmentName>{department.name}</DepartmentName>
-                        <TinyText>{employeeCount} сотрудников</TinyText>
-                      </DepartmentMeta>
-
-                      <Select
-                        value={department.kind}
-                        disabled={mutatingDepartmentId !== null}
-                        onChange={(event) =>
-                          changeDepartmentKind(
-                            department.id,
-                            event.target.value as DepartmentKind
-                          )
-                        }
-                        style={{ minHeight: 32, padding: '0 8px' }}
-                      >
-                        <option value="general">Отдел</option>
-                        <option value="fo">FO</option>
-                        <option value="night">Night</option>
-                      </Select>
-
-                      <RowIconButton
-                        type="button"
-                        disabled={mutatingDepartmentId !== null}
-                        onClick={() => renameDepartment(department)}
-                        title="Переименовать"
-                      >
-                        <Pencil size={14} />
-                      </RowIconButton>
-
-                      <RowIconButton
-                        type="button"
-                        disabled={mutatingDepartmentId !== null}
-                        onClick={() => removeDepartment(department.id)}
-                        title="Деактивировать пустой отдел"
-                      >
-                        <Trash2 size={14} />
-                      </RowIconButton>
-                    </DepartmentCard>
-                  );
-                })}
-              </DepartmentGrid>
-            </DepartmentPanel>
+            <PlannerManagementScreen
+              newEmployeeName={newEmployeeName}
+              onNewEmployeeNameChange={setNewEmployeeName}
+              newEmployeeDepartmentId={newEmployeeDepartmentId}
+              onNewEmployeeDepartmentChange={setNewEmployeeDepartmentId}
+              newEmployeeScheduleMode={newEmployeeScheduleMode}
+              onNewEmployeeScheduleModeChange={setNewEmployeeScheduleMode}
+              newEmployeeFixedStartTime={newEmployeeFixedStartTime}
+              onNewEmployeeFixedStartTimeChange={setNewEmployeeFixedStartTime}
+              newEmployeeFixedEndTime={newEmployeeFixedEndTime}
+              onNewEmployeeFixedEndTimeChange={setNewEmployeeFixedEndTime}
+              departments={departments}
+              employees={employees}
+              canCreateEmployee={canCreateEmployee}
+              isCreatingEmployee={isCreatingEmployee}
+              onAddEmployee={() => void addEmployee()}
+              canManageDepartments={canManageDepartments}
+              showDepartments={showDepartments}
+              onToggleDepartments={() =>
+                setShowDepartments((value) => !value)
+              }
+              scheduleView={scheduleView}
+              onScheduleViewChange={(view) => {
+                setEditingCell(null);
+                setScheduleView(view);
+              }}
+              canImportExcel={canImportExcel}
+              isImportingExcel={isImportingExcel}
+              isApplyingExcelImport={isApplyingExcelImport}
+              onExcelFile={handleExcelFile}
+              isExportingExcel={isExportingExcel}
+              onExportExcel={() => void handleExportExcel()}
+              printRangeKey={printRangeKey}
+              onPrintRangeChange={setPrintRangeKey}
+              printCalendarWeekRanges={printCalendarWeekRanges}
+              isPreparingPrint={isPreparingPrint}
+              onPrint={() => void handlePrintSchedule()}
+              canBulkEditSchedule={canBulkEditSchedule}
+              isApplyingBulkSchedule={isApplyingBulkSchedule}
+              onFillOffAll={() => void fillOffAll()}
+              onClearAll={() => void clearAll()}
+              newDepartmentName={newDepartmentName}
+              onNewDepartmentNameChange={setNewDepartmentName}
+              newDepartmentKind={newDepartmentKind}
+              onNewDepartmentKindChange={setNewDepartmentKind}
+              mutatingDepartmentId={mutatingDepartmentId}
+              onAddDepartment={() => void addDepartment()}
+              onChangeDepartmentKind={changeDepartmentKind}
+              onRenameDepartment={renameDepartment}
+              onRemoveDepartment={removeDepartment}
+            />
           )}
 
           {canManagePlanner && (
