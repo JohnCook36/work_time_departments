@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { Global, ThemeProvider } from '@emotion/react';
 import {
   DndContext,
   DragEndEvent,
-  DragOverlay,
   DragOverEvent,
   DragStartEvent,
   PointerSensor,
@@ -12,30 +10,8 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
-import {
-  SortableContext,
-  arrayMove,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import {
-  AlertTriangle,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  FileSpreadsheet,
-  FileUp,
-  GripVertical,
-  Heart,
-  Info,
-  Layers3,
-  MessageSquare,
-  Moon,
-  Pencil,
-  Plus,
-  Printer,
-  Sun,
-  Trash2,
-} from 'lucide-react';
+import { arrayMove } from '@dnd-kit/sortable';
+import { Heart } from 'lucide-react';
 import {
   Department,
   DepartmentKind,
@@ -50,10 +26,7 @@ import {
 } from '../../types';
 import {
   calculateShiftHours,
-  DAY_NAMES_SHORT,
-  getDayOfWeek,
   getDaysInMonth,
-  MONTH_NAMES,
   validateShiftInput,
 } from '../../utils';
 import { EmployeeEditValues } from '../../EmployeeEditDrawer';
@@ -70,9 +43,6 @@ import {
   getVisibleMonthWeekRanges,
   printSchedule,
 } from '../../printSchedule';
-import { WeeklyHoursPanel } from '../../WeeklyHoursPanel';
-import { AdminOnboardingPanel } from '../../auth/AdminOnboardingPanel';
-import { MySchedulePanel } from '../../auth/MySchedulePanel';
 import { hasManagementAccess, useAuthUser } from '../../auth/AuthContext';
 import {
   applyPlannerScheduleChanges,
@@ -105,60 +75,12 @@ import { PlannerOverlays } from './PlannerOverlays';
 import { PlannerScheduleWorkspace } from './PlannerScheduleWorkspace';
 import { ScheduleView } from './PlannerScheduleTable';
 import {
-  ActionButton,
-  BrandBlock,
-  BrandTitle,
   Card,
   Container,
-  ControlsCard,
-  ControlsRow,
-  DepartmentBadge,
-  DepartmentCard,
-  DepartmentGrid,
-  DepartmentMeta,
-  DepartmentName,
-  DepartmentPanel,
-  DepartmentRowCell,
-  DepartmentRowInner,
-  Divider,
-  EmployeeCell,
-  EmployeeCellInner,
-  EmployeeNameText,
-  EmployeeRow,
-  ErrorCard,
   Footer,
-  HeaderActions,
-  HeaderCard,
-  HeaderCell,
-  HeaderLeft,
-  HeaderRow,
-  HelpCard,
-  HelpGrid,
-  IconButton,
-  Legend,
-  MetricCell,
-  MonthLabel,
   Muted,
   Page,
   PanelTitle,
-  PanelTitleRow,
-  RowIconButton,
-  ScheduleTable,
-  Select,
-  ShiftCell,
-  ShiftDisplay,
-  StickyHeaderCell,
-  StickyTotalCell,
-  TableHeadRow,
-  TableScroll,
-  TableShell,
-  TextInput,
-  ThemeButton,
-  TinyText,
-  TotalCell,
-  TotalRow,
-  WishCount,
-  DragHandle,
 } from '../../styles';
 
 function generateId(): string {
