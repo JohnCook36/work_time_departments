@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -5,12 +6,11 @@ import { Department, Employee } from '../types';
 import { usePlannerDnD } from './usePlannerDnD';
 
 function useHarness() {
-  const React = require('react') as typeof import('react');
-  const [departments, setDepartments] = React.useState<Department[]>([
+  const [departments, setDepartments] = useState<Department[]>([
     { id: 'a', name: 'A', kind: 'general' },
     { id: 'b', name: 'B', kind: 'general' },
   ]);
-  const [employees, setEmployees] = React.useState<Employee[]>([
+  const [employees, setEmployees] = useState<Employee[]>([
     { id: 'e1', name: 'One', departmentId: 'a' },
     { id: 'e2', name: 'Two', departmentId: 'b' },
   ]);
