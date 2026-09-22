@@ -109,7 +109,9 @@ import {
   buildEffectiveSchedule,
   buildEffectiveSchedulePeriods,
 } from './employeeSchedule';
-import { getTheme, ThemeMode } from './theme';
+import { getTheme } from './theme';
+import { usePlannerStorage } from './hooks/usePlannerStorage';
+import { useThemeMode } from './hooks/useThemeMode';
 import {
   ActionButton,
   BrandBlock,
@@ -190,134 +192,6 @@ const DEFAULT_EMPLOYEES: Employee[] = [
   { id: '4', name: 'Козлов Д.И.', departmentId: DEFAULT_DEPARTMENT_ID },
 ];
 
-const STORAGE_KEY = 'hotel-shift-planner';
-const THEME_KEY = 'hotel-shift-planner-theme';
-
-interface StoredData {
-  employees?: Array<Employee | Omit<Employee, 'departmentId'>>;
-  departments?: Department[];
-  schedule?: ScheduleData;
-  schedules?: SchedulePeriodsData;
-  wishes?: EmployeeWishesData;
-  collapsedDepartments?: string[];
-}
-
-interface LoadedData {
-  employees: Employee[];
-  departments: Department[];
-  schedules: SchedulePeriodsData;
-  wishes: EmployeeWishesData;
-  collapsedDepartments: string[];
-}
-
-function loadFromStorage(initialPeriodKey: string): LoadedData | null {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-
-    const data = JSON.parse(raw) as StoredData;
-    const departments =
-      Array.isArray(data.departments) && data.departments.length > 0
-        ? data.departments
-        : DEFAULT_DEPARTMENTS;
-
-    const fallbackDepartmentId = departments[0].id;
-    const employees = Array.isArray(data.employees)
-      ? data.employees.map((employee) => ({
-          ...employee,
-          departmentId:
-            'departmentId' in employee && employee.departmentId
-              ? employee.departmentId
-              : fallbackDepartmentId,
-          employmentRate:
-            employee.employmentRate === 0.5 ||
-            employee.employmentRate === 0.75 ||
-            employee.employmentRate === 1
-              ? employee.employmentRate
-              : 1,
-          scheduleMode:
-            employee.scheduleMode === 'fixed-weekdays'
-              ? ('fixed-weekdays' as const)
-              : ('flexible' as const),
-          fixedStartTime:
-            employee.scheduleMode === 'fixed-weekdays' &&
-            typeof employee.fixedStartTime === 'string'
-              ? employee.fixedStartTime
-              : undefined,
-          fixedEndTime:
-            employee.scheduleMode === 'fixed-weekdays' &&
-            typeof employee.fixedEndTime === 'string'
-              ? employee.fixedEndTime
-              : undefined,
-        }))
-      : DEFAULT_EMPLOYEES.map((employee) => ({
-          ...employee,
-          employmentRate: employee.employmentRate || 1,
-          scheduleMode: employee.scheduleMode || 'flexible',
-        }));
-
-    const schedules =
-      data.schedules ||
-      (data.schedule ? { [initialPeriodKey]: data.schedule } : {});
-
-    return {
-      employees,
-      departments,
-      schedules,
-      wishes: data.wishes || {},
-      collapsedDepartments: Array.isArray(data.collapsedDepartments)
-        ? data.collapsedDepartments.filter((id) =>
-            departments.some((department) => department.id === id)
-          )
-        : [],
-    };
-  } catch {
-    return null;
-  }
-}
-
-function saveToStorage(
-  employees: Employee[],
-  departments: Department[],
-  schedules: SchedulePeriodsData,
-  wishes: EmployeeWishesData,
-  collapsedDepartments: string[]
-) {
-  try {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({
-        employees,
-        departments,
-        schedules,
-        wishes,
-        collapsedDepartments,
-      })
-    );
-  } catch {
-    // Browser storage may be unavailable.
-  }
-}
-
-function loadThemeMode(): ThemeMode {
-  try {
-    const stored = localStorage.getItem(THEME_KEY);
-    if (stored === 'light' || stored === 'dark') return stored;
-  } catch {
-    // ignore
-  }
-
-  if (
-    typeof window !== 'undefined' &&
-    window.matchMedia &&
-    window.matchMedia('(prefers-color-scheme: dark)').matches
-  ) {
-    return 'dark';
-  }
-
-  return 'light';
-}
-
 function departmentKindLabel(kind: DepartmentKind): string {
   if (kind === 'fo') return 'FO';
   if (kind === 'night') return 'Night';
@@ -345,17 +219,20 @@ function App() {
     initialNow.getFullYear(),
     initialNow.getMonth()
   );
+  const { load: loadPlannerStorage, persist: persistPlannerStorage } =
+    usePlannerStorage(!serverPlannerReadEnabled);
   const stored = useMemo(
     () =>
-      serverPlannerReadEnabled
-        ? null
-        : loadFromStorage(initialPeriodKey),
-    [initialPeriodKey, serverPlannerReadEnabled]
+      loadPlannerStorage(initialPeriodKey, {
+        departments: DEFAULT_DEPARTMENTS,
+        employees: DEFAULT_EMPLOYEES,
+      }),
+    [initialPeriodKey, loadPlannerStorage]
   );
 
   const [year, setYear] = useState(initialNow.getFullYear());
   const [month, setMonth] = useState(initialNow.getMonth());
-  const [themeMode, setThemeMode] = useState<ThemeMode>(loadThemeMode);
+  const [themeMode, setThemeMode] = useThemeMode();
 
   const [departments, setDepartments] = useState<Department[]>(
     serverPlannerReadEnabled
@@ -513,17 +390,15 @@ function App() {
   );
 
   useEffect(() => {
-    if (serverPlannerReadEnabled) return;
-
-    saveToStorage(
+    persistPlannerStorage({
       employees,
       departments,
       schedules,
       wishes,
-      collapsedDepartments
-    );
+      collapsedDepartments,
+    });
   }, [
-    serverPlannerReadEnabled,
+    persistPlannerStorage,
     employees,
     departments,
     schedules,
@@ -590,14 +465,6 @@ function App() {
       serverPlannerLoadVersion.current++;
     };
   }, [serverPlannerReadEnabled, refreshServerPlanner]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(THEME_KEY, themeMode);
-    } catch {
-      // ignore
-    }
-  }, [themeMode]);
 
   useEffect(() => {
     setPrintRangeKey('month');
