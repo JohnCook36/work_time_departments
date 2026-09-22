@@ -82,3 +82,15 @@ export const EmployeeScheduleMeta = styled('div')(({ theme }) => ({
   overflow: 'hidden',
   textOverflow: 'ellipsis',
 }));
+
+
+export const ShiftCodeLine = styled('strong')({
+  fontSize: 10,
+  lineHeight: 1,
+});
+
+export const ShiftTimeLine = styled('span')({
+  fontSize: 9,
+  lineHeight: 1.05,
+  whiteSpace: 'nowrap',
+});
