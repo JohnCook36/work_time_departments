@@ -5,8 +5,8 @@ import {
   deactivatePlannerDepartment,
   PlannerDepartmentMetadataMap,
   updatePlannerDepartment,
-} from '../plannerApi';
-import { Department, DepartmentKind } from '../types';
+} from '../api/planner';
+import { Department, DepartmentKind } from '../domain/models';
 
 interface DepartmentCreateValues {
   name: string;

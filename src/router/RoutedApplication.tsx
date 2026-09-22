@@ -1,7 +1,7 @@
 import React from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import { AuthSessionProvider } from '../auth/AuthSessionProvider';
-import { ErrorBoundary } from '../ErrorBoundary';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 import { AppRouter } from './AppRouter';
 
 export function RoutedApplication() {

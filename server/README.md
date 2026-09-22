@@ -1,11 +1,11 @@
 # Work time departments backend
 
-Изолированная backend-основа на NestJS, PostgreSQL и Prisma. Frontend пока не подключён к backend и продолжает работать самостоятельно.
+Backend на NestJS, PostgreSQL и Prisma. Frontend использует phone OTP/session API, onboarding и server-backed planner endpoints.
 
 ## Локальный запуск
 
 ```bash
-npm install
+npm ci
 cp .env.example .env
 docker compose up -d
 npm run prisma:generate
@@ -66,4 +66,8 @@ Backend содержит OTP/session foundation:
 
 DTO используются только как metadata в `@ApiBody`: runtime validation и optional/nullable semantics остаются в существующих controllers/services. Для Employee/Department update/deactivate обязательна версия `expectedUpdatedAt`. Для Schedule cell: отсутствие поля не задаёт version precondition, `null` требует отсутствия ячейки, строка должна точно совпасть с `Shift.updatedAt`. Одобрение shift-change request переводит его в `MANAGER_APPROVED`, но пока не изменяет Shift.
 
-`src/openapi.spec.ts` поднимает Nest application с подменённым PrismaService, проверяет схемы, HTTP UI/JSON и сохранение защиты API без PostgreSQL.
+`test/integration/openapi.spec.ts` поднимает Nest application с подменённым PrismaService, проверяет схемы, HTTP UI/JSON и сохранение защиты API без PostgreSQL.
+
+## Структура тестов
+
+Production-код находится в `src/`. Jest запускает `test/unit/**/*.spec.ts` и `test/integration/**/*.spec.ts`; Prisma schema invariant test читает канонический `prisma/schema.prisma`. HTTP/OpenAPI tests используют mocks и не заменяют проверку с живой PostgreSQL. `tsconfig.build.json` исключает `test/` из production build; typecheck проверяет оба дерева.

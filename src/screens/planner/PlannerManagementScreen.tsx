@@ -3,7 +3,7 @@ import {
   DepartmentKind,
   Employee,
   EmployeeScheduleMode,
-} from '../../types';
+} from '../../domain/models';
 import { PlannerControlsToolbar } from './PlannerControlsToolbar';
 import { PlannerDepartmentPanel } from './PlannerDepartmentPanel';
 import { ScheduleView } from './PlannerScheduleTable';

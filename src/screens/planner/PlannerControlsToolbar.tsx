@@ -8,7 +8,7 @@ import {
   Trash2,
 } from 'lucide-react';
 
-import { Department, EmployeeScheduleMode } from '../../types';
+import { Department, EmployeeScheduleMode } from '../../domain/models';
 import {
   ActionButton,
   ControlsCard,
@@ -16,7 +16,7 @@ import {
   Divider,
   Select,
   TextInput,
-} from '../../styles';
+} from '../../theme/styles';
 import { ScheduleView } from './PlannerScheduleTable';
 
 interface PrintRange {

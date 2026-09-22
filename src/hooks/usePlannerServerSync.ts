@@ -6,7 +6,7 @@ import {
   PlannerDepartmentMetadataMap,
   PlannerEmployeeMetadataMap,
   PlannerServerSnapshot,
-} from '../plannerApi';
+} from '../api/planner';
 
 export type PlannerServerStatus =
   | 'disabled'

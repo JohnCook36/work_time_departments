@@ -5,31 +5,27 @@ import {
   useState,
 } from 'react';
 
-import {
-  applyExcelImportEntries,
-  ExcelImportPreview,
-  parseScheduleExcel,
-  resolveApplicableExcelImportEntries,
-} from '../importExcel';
-import { exportScheduleToExcel } from '../exportExcel';
+import { ExcelImportPreview, parseScheduleExcel } from '../services/excel/importExcel';
+import { applyExcelImportEntries, resolveApplicableExcelImportEntries } from '../domain/schedule/excelImport';
+import { exportScheduleToExcel } from '../services/excel/exportExcel';
 import {
   getRequiredPrintPeriods,
   printSchedule,
-} from '../printSchedule';
+} from '../services/print/printSchedule';
 import {
   applyPlannerScheduleChanges,
   buildScheduleCellChange,
   loadPlannerServerSnapshot,
   PlannerCellMetadataMap,
-} from '../plannerApi';
-import { buildEffectiveSchedulePeriods } from '../employeeSchedule';
+} from '../api/planner';
+import { buildEffectiveSchedulePeriods } from '../domain/schedule/employeeSchedule';
 import {
   Department,
   Employee,
   ScheduleData,
   SchedulePeriodsData,
-} from '../types';
-import { validateShiftInput } from '../utils';
+} from '../domain/models';
+import { validateShiftInput } from '../domain/schedule/shiftHours';
 
 interface UsePlannerScheduleToolsOptions {
   departments: Department[];

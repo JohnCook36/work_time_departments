@@ -6,8 +6,8 @@ import {
   Sun,
 } from 'lucide-react';
 
-import { AdminOnboardingPanel } from '../../auth/AdminOnboardingPanel';
-import { MySchedulePanel } from '../../auth/MySchedulePanel';
+import { AdminOnboardingPanel } from '../onboarding/AdminOnboardingPanel';
+import { MySchedulePanel } from '../my-schedule/MySchedulePanel';
 import {
   BrandBlock,
   BrandTitle,
@@ -25,8 +25,8 @@ import {
   PanelTitleRow,
   ThemeButton,
   TinyText,
-} from '../../styles';
-import { MONTH_NAMES } from '../../utils';
+} from '../../theme/styles';
+import { MONTH_NAMES } from '../../utils/calendar';
 import { PlannerServerStatus } from '../../hooks/usePlannerServerSync';
 
 interface PlannerHeaderScreenProps {

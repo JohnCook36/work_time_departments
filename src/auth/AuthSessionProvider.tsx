@@ -1,5 +1,5 @@
 import React, { createContext, ReactNode, useCallback, useContext, useEffect, useState } from 'react';
-import { ApiError, AuthUser, getMe } from './api';
+import { ApiError, AuthUser, getMe } from '../api/auth';
 import { AuthUserContext } from './AuthContext';
 
 type SessionStatus = 'loading' | 'guest' | 'ready' | 'error';

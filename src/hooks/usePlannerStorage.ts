@@ -6,7 +6,7 @@ import {
   EmployeeWishesData,
   ScheduleData,
   SchedulePeriodsData,
-} from '../types';
+} from '../domain/models';
 
 const STORAGE_KEY = 'hotel-shift-planner';
 

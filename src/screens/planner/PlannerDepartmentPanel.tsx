@@ -4,7 +4,7 @@ import {
   Department,
   DepartmentKind,
   Employee,
-} from '../../types';
+} from '../../domain/models';
 import {
   ActionButton,
   ControlsRow,
@@ -20,7 +20,7 @@ import {
   Select,
   TextInput,
   TinyText,
-} from '../../styles';
+} from '../../theme/styles';
 
 interface PlannerDepartmentPanelProps {
   departments: Department[];

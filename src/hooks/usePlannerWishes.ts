@@ -8,11 +8,11 @@ import {
 import {
   createPlannerWish,
   deletePlannerWish,
-} from '../plannerApi';
+} from '../api/planner';
 import {
   EmployeeWish,
   EmployeeWishesData,
-} from '../types';
+} from '../domain/models';
 import { PlannerServerStatus } from './usePlannerServerSync';
 
 interface UsePlannerWishesOptions {

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuthSession } from '../auth/AuthSessionProvider';
-import { pageStyle, cardStyle, buttonStyle } from '../auth/authPageUi';
+import { pageStyle, cardStyle, buttonStyle } from '../theme/authPageUi';
 import { authPalette } from '../theme/palette';
 
 // Keep the URL unchanged until session resolution; never redirect on network errors.

@@ -15,8 +15,9 @@ import {
   Trash2,
 } from 'lucide-react';
 
-import { Department, Employee, ScheduleData, ShiftEntry } from '../../types';
-import { calculateShiftHours, getDayOfWeek } from '../../utils';
+import { Department, Employee, ScheduleData, ShiftEntry } from '../../domain/models';
+import { calculateShiftHours } from '../../domain/schedule/shiftHours';
+import { getDayOfWeek } from '../../utils/calendar';
 import {
   DepartmentBadge,
   DepartmentRowCell,
@@ -33,7 +34,7 @@ import {
   ShiftDisplay,
   TinyText,
   WishCount,
-} from '../../styles';
+} from '../../theme/styles';
 
 export type ScheduleView = 'schedule' | 'hours';
 

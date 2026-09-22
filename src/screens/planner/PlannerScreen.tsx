@@ -18,21 +18,18 @@ import {
   ScheduleData,
   SchedulePeriodsData,
   ShiftEntry,
-} from '../../types';
-import {
-  calculateShiftHours,
-  getDaysInMonth,
-  validateShiftInput,
-} from '../../utils';
-import { EmployeeEditValues } from '../../EmployeeEditDrawer';
+} from '../../domain/models';
+import { calculateShiftHours, validateShiftInput } from '../../domain/schedule/shiftHours';
+import { getDaysInMonth } from '../../utils/calendar';
+import { EmployeeEditValues } from '../../components/drawers/EmployeeEditDrawer';
 import {
   getMonthWeekRanges,
   getVisibleMonthWeekRanges,
-} from '../../printSchedule';
+} from '../../services/print/printSchedule';
 import { hasManagementAccess, useAuthUser } from '../../auth/AuthContext';
-import { PlannerServerSnapshot } from '../../plannerApi';
-import { buildEffectiveSchedule } from '../../employeeSchedule';
-import { getTheme } from '../../theme';
+import { PlannerServerSnapshot } from '../../api/planner';
+import { buildEffectiveSchedule } from '../../domain/schedule/employeeSchedule';
+import { getTheme } from '../../theme/theme';
 import { useDepartmentManagement } from '../../hooks/useDepartmentManagement';
 import { useEmployeeManagement } from '../../hooks/useEmployeeManagement';
 import { usePlannerDnD } from '../../hooks/usePlannerDnD';
@@ -54,7 +51,7 @@ import {
   Muted,
   Page,
   PanelTitle,
-} from '../../styles';
+} from '../../theme/styles';
 
 function getPeriodKey(year: number, month: number): string {
   return year + '-' + String(month + 1).padStart(2, '0');
