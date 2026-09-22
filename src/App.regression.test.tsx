@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import App from './App';
+import App from './screens/planner/PlannerScreen';
 import * as excelImport from './importExcel';
 import * as plannerApi from './plannerApi';
 import * as printScheduleModule from './printSchedule';

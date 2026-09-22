@@ -9,17 +9,14 @@ import {
   DragStartEvent,
   PointerSensor,
   closestCenter,
-  useDroppable,
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
 import {
   SortableContext,
   arrayMove,
-  useSortable,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
 import {
   AlertTriangle,
   ChevronDown,
@@ -50,7 +47,7 @@ import {
   ScheduleData,
   SchedulePeriodsData,
   ShiftEntry,
-} from './types';
+} from '../../types';
 import {
   calculateShiftHours,
   DAY_NAMES_SHORT,
@@ -58,31 +55,31 @@ import {
   getDaysInMonth,
   MONTH_NAMES,
   validateShiftInput,
-} from './utils';
-import { EmployeeWishDrawer } from './WishDrawer';
+} from '../../utils';
+import { EmployeeWishDrawer } from '../../WishDrawer';
 import {
   EmployeeEditDrawer,
   EmployeeEditValues,
-} from './EmployeeEditDrawer';
-import { ExcelImportDrawer } from './ExcelImportDrawer';
+} from '../../EmployeeEditDrawer';
+import { ExcelImportDrawer } from '../../ExcelImportDrawer';
 import {
   applyExcelImportEntries,
   ExcelImportPreview,
   parseScheduleExcel,
   resolveApplicableExcelImportEntries,
-} from './importExcel';
-import { exportScheduleToExcel } from './exportExcel';
+} from '../../importExcel';
+import { exportScheduleToExcel } from '../../exportExcel';
 import {
   getMonthWeekRanges,
   getRequiredPrintPeriods,
   getVisibleMonthWeekRanges,
   printSchedule,
-} from './printSchedule';
-import { ShiftEditor } from './ShiftEditor';
-import { WeeklyHoursPanel } from './WeeklyHoursPanel';
-import { AdminOnboardingPanel } from './auth/AdminOnboardingPanel';
-import { MySchedulePanel } from './auth/MySchedulePanel';
-import { hasManagementAccess, useAuthUser } from './auth/AuthContext';
+} from '../../printSchedule';
+import { ShiftEditor } from '../../ShiftEditor';
+import { WeeklyHoursPanel } from '../../WeeklyHoursPanel';
+import { AdminOnboardingPanel } from '../../auth/AdminOnboardingPanel';
+import { MySchedulePanel } from '../../auth/MySchedulePanel';
+import { hasManagementAccess, useAuthUser } from '../../auth/AuthContext';
 import {
   applyPlannerScheduleChanges,
   buildDepartmentReorderInput,
@@ -96,18 +93,25 @@ import {
   reorderPlannerDepartments,
   reorderPlannerEmployees,
   updatePlannerEmployee,
-} from './plannerApi';
+} from '../../plannerApi';
 import {
   buildEffectiveSchedule,
   buildEffectiveSchedulePeriods,
-} from './employeeSchedule';
-import { getTheme } from './theme';
-import { useDepartmentManagement } from './hooks/useDepartmentManagement';
-import { useEmployeeManagement } from './hooks/useEmployeeManagement';
-import { usePlannerServerSync } from './hooks/usePlannerServerSync';
-import { usePlannerStorage } from './hooks/usePlannerStorage';
-import { useScheduleMutations } from './hooks/useScheduleMutations';
-import { useThemeMode } from './hooks/useThemeMode';
+} from '../../employeeSchedule';
+import { getTheme } from '../../theme';
+import { useDepartmentManagement } from '../../hooks/useDepartmentManagement';
+import { useEmployeeManagement } from '../../hooks/useEmployeeManagement';
+import { usePlannerServerSync } from '../../hooks/usePlannerServerSync';
+import { usePlannerStorage } from '../../hooks/usePlannerStorage';
+import { useScheduleMutations } from '../../hooks/useScheduleMutations';
+import { useThemeMode } from '../../hooks/useThemeMode';
+import { PlannerHeaderScreen } from './PlannerHeaderScreen';
+import { PlannerManagementScreen } from './PlannerManagementScreen';
+import {
+  DepartmentSection,
+  ErrorPanel,
+  ScheduleView,
+} from './PlannerScheduleTable';
 import {
   ActionButton,
   BrandBlock,
@@ -163,7 +167,7 @@ import {
   TotalRow,
   WishCount,
   DragHandle,
-} from './styles';
+} from '../../styles';
 
 function generateId(): string {
   return Math.random().toString(36).slice(2, 11);
@@ -172,8 +176,6 @@ function generateId(): string {
 function getPeriodKey(year: number, month: number): string {
   return year + '-' + String(month + 1).padStart(2, '0');
 }
-
-type ScheduleView = 'schedule' | 'hours';
 
 const DEFAULT_DEPARTMENT_ID = 'front-office';
 
@@ -188,13 +190,7 @@ const DEFAULT_EMPLOYEES: Employee[] = [
   { id: '4', name: 'Козлов Д.И.', departmentId: DEFAULT_DEPARTMENT_ID },
 ];
 
-function departmentKindLabel(kind: DepartmentKind): string {
-  if (kind === 'fo') return 'FO';
-  if (kind === 'night') return 'Night';
-  return 'Отдел';
-}
-
-function App() {
+export function PlannerScreen() {
   const authUser = useAuthUser();
   const canManagePlanner = hasManagementAccess(authUser);
   const serverPlannerWriteEnabled =
@@ -281,7 +277,6 @@ function App() {
   const [excelImportPreview, setExcelImportPreview] =
     useState<ExcelImportPreview | null>(null);
   const [overwriteExcelCells, setOverwriteExcelCells] = useState(false);
-  const excelFileInputRef = useRef<HTMLInputElement | null>(null);
   const [printRangeKey, setPrintRangeKey] = useState('month');
   const [isPreparingPrint, setIsPreparingPrint] = useState(false);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
@@ -1182,9 +1177,6 @@ function App() {
       );
     } finally {
       setIsImportingExcel(false);
-      if (excelFileInputRef.current) {
-        excelFileInputRef.current.value = '';
-      }
     }
   };
 
@@ -1343,409 +1335,77 @@ function App() {
 
       <Page>
         <Container>
-          <HeaderCard>
-            <HeaderRow>
-              <HeaderLeft>
-                <ThemeButton
-                  type="button"
-                  onClick={() =>
-                    setThemeMode((value) =>
-                      value === 'light' ? 'dark' : 'light'
-                    )
-                  }
-                  title={
-                    themeMode === 'light'
-                      ? 'Включить тёмную тему'
-                      : 'Включить светлую тему'
-                  }
-                >
-                  {themeMode === 'light' ? <Moon size={19} /> : <Sun size={19} />}
-                </ThemeButton>
-
-                <BrandBlock>
-                  <BrandTitle>🏨 Планировщик смен</BrandTitle>
-                  <Muted>
-                    Расписание сотрудников отеля • Отделы • Drag & Drop • Пожелания
-                  </Muted>
-                </BrandBlock>
-              </HeaderLeft>
-
-              <HeaderActions>
-                <IconButton
-                  type="button"
-                  onClick={prevMonth}
-                  title="Предыдущий месяц"
-                >
-                  <ChevronLeft size={19} />
-                </IconButton>
-
-                <MonthLabel>
-                  {MONTH_NAMES[month]} {year}
-                </MonthLabel>
-
-                <IconButton
-                  type="button"
-                  onClick={nextMonth}
-                  title="Следующий месяц"
-                >
-                  <ChevronRight size={19} />
-                </IconButton>
-
-                <MySchedulePanel year={year} monthIndex={month} />
-                {canManagePlanner && <AdminOnboardingPanel />}
-
-                {canManagePlanner && (
-                  <IconButton
-                    type="button"
-                    onClick={() => setShowHelp((value) => !value)}
-                    title="Справка"
-                  >
-                    <Info size={18} />
-                  </IconButton>
-                )}
-              </HeaderActions>
-            </HeaderRow>
-          </HeaderCard>
-
-          {serverPlannerReadEnabled && (
-            <Card style={{ marginTop: 14, padding: 16 }}>
-              <PanelTitle>Серверный режим графика</PanelTitle>
-              <Muted style={{ marginTop: 4 }}>
-                {serverPlannerStatus === 'loading'
-                  ? 'Загружаю отделы, сотрудников и сохранённые смены с backend. Редактирование временно отключено.'
-                  : serverPlannerStatus === 'error'
-                    ? 'Не удалось обновить данные с backend. Показан локальный кэш, редактирование заблокировано: ' +
-                      (serverPlannerError || 'неизвестная ошибка')
-                    : serverPlannerWriteEnabled
-                      ? 'Данные текущего месяца загружены с backend. Запись включена для смен и Employee; SUPER_ADMIN также может создавать, редактировать, деактивировать и менять порядок отделов.'
-                      : 'Данные текущего месяца загружены с backend. Это контролируемый read-only этап миграции; локальные изменения отключены.'}
-              </Muted>
-            </Card>
-          )}
-
-          {canManagePlanner && showHelp && (
-            <HelpCard>
-              <PanelTitleRow>
-                <div>
-                  <PanelTitle>Как пользоваться</PanelTitle>
-                  <Muted>
-                    Смены сохраняются отдельно для каждого месяца. Пожелания тоже
-                    привязаны к выбранному месяцу.
-                  </Muted>
-                </div>
-                <IconButton type="button" onClick={() => setShowHelp(false)}>
-                  ×
-                </IconButton>
-              </PanelTitleRow>
-
-              <HelpGrid>
-                <div>
-                  <TinyText>Обычная смена: 08:00-17:00</TinyText>
-                  <TinyText>С кодом: E 07:00-16:00</TinyText>
-                  <TinyText>Ночная N: N 20:00-08:00</TinyText>
-                  <TinyText>Выходной: OFF</TinyText>
-                </div>
-                <div>
-                  <TinyText>⋮⋮ — перетащить сотрудника.</TinyText>
-                  <TinyText>⋮⋮ в строке отдела — переместить весь отдел.</TinyText>
-                  <TinyText>▾ / › — свернуть или развернуть отдел.</TinyText>
-                  <TinyText>💬 — открыть пожелания сотрудника.</TinyText>
-                  <TinyText>Можно переносить людей между отделами.</TinyText>
-                </div>
-              </HelpGrid>
-            </HelpCard>
-          )}
+          <PlannerHeaderScreen
+            themeMode={themeMode}
+            onToggleTheme={() =>
+              setThemeMode((value) => (value === 'light' ? 'dark' : 'light'))
+            }
+            year={year}
+            month={month}
+            onPrevMonth={prevMonth}
+            onNextMonth={nextMonth}
+            canManagePlanner={canManagePlanner}
+            showHelp={showHelp}
+            onToggleHelp={() => setShowHelp((value) => !value)}
+            onCloseHelp={() => setShowHelp(false)}
+            serverPlannerReadEnabled={serverPlannerReadEnabled}
+            serverPlannerWriteEnabled={serverPlannerWriteEnabled}
+            serverPlannerStatus={serverPlannerStatus}
+            serverPlannerError={serverPlannerError}
+          />
 
           {canManagePlanner && (
-          <ControlsCard>
-            <ControlsRow>
-              <TextInput
-                type="text"
-                value={newEmployeeName}
-                disabled={!canCreateEmployee || isCreatingEmployee}
-                onChange={(event) => setNewEmployeeName(event.target.value)}
-                onKeyDown={(event) => event.key === 'Enter' && addEmployee()}
-                placeholder="ФИО нового сотрудника..."
-              />
-
-              <Select
-                value={newEmployeeDepartmentId}
-                disabled={!canCreateEmployee || isCreatingEmployee}
-                onChange={(event) =>
-                  setNewEmployeeDepartmentId(event.target.value)
-                }
-              >
-                {departments.map((department) => (
-                  <option key={department.id} value={department.id}>
-                    {department.name}
-                  </option>
-                ))}
-              </Select>
-
-              <Select
-                value={newEmployeeScheduleMode}
-                disabled={!canCreateEmployee || isCreatingEmployee}
-                onChange={(event) =>
-                  setNewEmployeeScheduleMode(
-                    event.target.value as EmployeeScheduleMode
-                  )
-                }
-                title="Тип рабочего графика сотрудника"
-              >
-                <option value="flexible">Плавающий график</option>
-                <option value="fixed-weekdays">5/2 · фиксированные часы</option>
-              </Select>
-
-              {newEmployeeScheduleMode === 'fixed-weekdays' && (
-                <>
-                  <TextInput
-                    type="time"
-                    value={newEmployeeFixedStartTime}
-                    disabled={!canCreateEmployee || isCreatingEmployee}
-                    onChange={(event) =>
-                      setNewEmployeeFixedStartTime(event.target.value)
-                    }
-                    title="Начало рабочего дня"
-                    aria-label="Начало рабочего дня"
-                    style={{ width: 118 }}
-                  />
-                  <TextInput
-                    type="time"
-                    value={newEmployeeFixedEndTime}
-                    disabled={!canCreateEmployee || isCreatingEmployee}
-                    onChange={(event) =>
-                      setNewEmployeeFixedEndTime(event.target.value)
-                    }
-                    title="Окончание рабочего дня"
-                    aria-label="Окончание рабочего дня"
-                    style={{ width: 118 }}
-                  />
-                </>
-              )}
-
-              <ActionButton
-                type="button"
-                $variant="primary"
-                onClick={() => void addEmployee()}
-                disabled={!canCreateEmployee || isCreatingEmployee}
-              >
-                <Plus size={16} />
-                {isCreatingEmployee ? 'Добавляю…' : 'Сотрудник'}
-              </ActionButton>
-
-              <ActionButton
-                type="button"
-                $variant="accent"
-                onClick={() => setShowDepartments((value) => !value)}
-                disabled={!canManageDepartments}
-              >
-                <Layers3 size={16} />
-                Отделы
-              </ActionButton>
-
-              <ActionButton
-                type="button"
-                $variant={scheduleView === 'schedule' ? 'primary' : 'secondary'}
-                onClick={() => {
-                  setEditingCell(null);
-                  setScheduleView('schedule');
-                }}
-              >
-                График
-              </ActionButton>
-
-              <ActionButton
-                type="button"
-                $variant={scheduleView === 'hours' ? 'primary' : 'secondary'}
-                onClick={() => {
-                  setEditingCell(null);
-                  setScheduleView('hours');
-                }}
-              >
-                День / ночь
-              </ActionButton>
-
-              <Divider />
-
-              <input
-                ref={excelFileInputRef}
-                type="file"
-                accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                style={{ display: 'none' }}
-                onChange={(event) =>
-                  handleExcelFile(event.target.files?.[0] || null)
-                }
-              />
-
-              <ActionButton
-                type="button"
-                onClick={() => excelFileInputRef.current?.click()}
-                disabled={
-                  !canImportExcel ||
-                  isImportingExcel ||
-                  isApplyingExcelImport
-                }
-                title="Загрузить график из Excel с предпросмотром"
-              >
-                <FileUp size={16} />
-                {isImportingExcel ? 'Читаю…' : 'Импорт Excel'}
-              </ActionButton>
-
-              <ActionButton
-                type="button"
-                $variant="accent"
-                onClick={handleExportExcel}
-                disabled={isExportingExcel}
-                title="Сформировать Excel-файл текущего месяца"
-              >
-                <FileSpreadsheet size={16} />
-                {isExportingExcel ? 'Excel…' : 'Экспорт Excel'}
-              </ActionButton>
-
-              <Select
-                value={printRangeKey}
-                disabled={isPreparingPrint}
-                onChange={(event) => setPrintRangeKey(event.target.value)}
-                title="Что печатать"
-                style={{ minWidth: 150 }}
-              >
-                <option value="month">Весь месяц</option>
-                {printCalendarWeekRanges.map((range) => (
-                  <option key={range.key} value={range.key}>
-                    Неделя {range.label}
-                  </option>
-                ))}
-              </Select>
-
-              <ActionButton
-                type="button"
-                onClick={() => void handlePrintSchedule()}
-                disabled={isPreparingPrint}
-                title="Открыть печатную версию A4"
-              >
-                <Printer size={16} />
-                {isPreparingPrint ? 'Готовлю…' : 'Печать'}
-              </ActionButton>
-
-              <ActionButton
-                type="button"
-                onClick={() => void fillOffAll()}
-                disabled={!canBulkEditSchedule}
-              >
-                {isApplyingBulkSchedule ? 'Применяю…' : 'OFF все'}
-              </ActionButton>
-
-              <ActionButton
-                type="button"
-                $variant="danger"
-                onClick={() => void clearAll()}
-                disabled={!canBulkEditSchedule}
-              >
-                <Trash2 size={15} />
-                {isApplyingBulkSchedule ? 'Применяю…' : 'Очистить месяц'}
-              </ActionButton>
-            </ControlsRow>
-          </ControlsCard>
-          )}
-
-          {canManageDepartments && showDepartments && (
-            <DepartmentPanel>
-              <PanelTitleRow>
-                <div>
-                  <PanelTitle>Отделы сотрудников</PanelTitle>
-                  <Muted>
-                    Создавайте отделы и переносите сотрудников между ними прямо
-                    в таблице.
-                  </Muted>
-                </div>
-
-                <ControlsRow>
-                  <TextInput
-                    value={newDepartmentName}
-                    onChange={(event) => setNewDepartmentName(event.target.value)}
-                    onKeyDown={(event) =>
-                      event.key === 'Enter' && void addDepartment()
-                    }
-                    placeholder="Название отдела"
-                    style={{ flex: '0 1 220px' }}
-                  />
-
-                  <Select
-                    value={newDepartmentKind}
-                    onChange={(event) =>
-                      setNewDepartmentKind(
-                        event.target.value as DepartmentKind
-                      )
-                    }
-                  >
-                    <option value="general">Обычный</option>
-                    <option value="fo">FO Agents</option>
-                    <option value="night">Night Agents</option>
-                  </Select>
-
-                  <ActionButton
-                    type="button"
-                    $variant="accent"
-                    onClick={() => void addDepartment()}
-                    disabled={mutatingDepartmentId !== null}
-                  >
-                    <Plus size={15} />
-                    {mutatingDepartmentId === 'create' ? 'Добавляю…' : 'Отдел'}
-                  </ActionButton>
-                </ControlsRow>
-              </PanelTitleRow>
-
-              <DepartmentGrid>
-                {departments.map((department) => {
-                  const employeeCount = employees.filter(
-                    (employee) => employee.departmentId === department.id
-                  ).length;
-
-                  return (
-                    <DepartmentCard key={department.id}>
-                      <DepartmentMeta>
-                        <DepartmentName>{department.name}</DepartmentName>
-                        <TinyText>{employeeCount} сотрудников</TinyText>
-                      </DepartmentMeta>
-
-                      <Select
-                        value={department.kind}
-                        disabled={mutatingDepartmentId !== null}
-                        onChange={(event) =>
-                          changeDepartmentKind(
-                            department.id,
-                            event.target.value as DepartmentKind
-                          )
-                        }
-                        style={{ minHeight: 32, padding: '0 8px' }}
-                      >
-                        <option value="general">Отдел</option>
-                        <option value="fo">FO</option>
-                        <option value="night">Night</option>
-                      </Select>
-
-                      <RowIconButton
-                        type="button"
-                        disabled={mutatingDepartmentId !== null}
-                        onClick={() => renameDepartment(department)}
-                        title="Переименовать"
-                      >
-                        <Pencil size={14} />
-                      </RowIconButton>
-
-                      <RowIconButton
-                        type="button"
-                        disabled={mutatingDepartmentId !== null}
-                        onClick={() => removeDepartment(department.id)}
-                        title="Деактивировать пустой отдел"
-                      >
-                        <Trash2 size={14} />
-                      </RowIconButton>
-                    </DepartmentCard>
-                  );
-                })}
-              </DepartmentGrid>
-            </DepartmentPanel>
+            <PlannerManagementScreen
+              newEmployeeName={newEmployeeName}
+              onNewEmployeeNameChange={setNewEmployeeName}
+              newEmployeeDepartmentId={newEmployeeDepartmentId}
+              onNewEmployeeDepartmentChange={setNewEmployeeDepartmentId}
+              newEmployeeScheduleMode={newEmployeeScheduleMode}
+              onNewEmployeeScheduleModeChange={setNewEmployeeScheduleMode}
+              newEmployeeFixedStartTime={newEmployeeFixedStartTime}
+              onNewEmployeeFixedStartTimeChange={setNewEmployeeFixedStartTime}
+              newEmployeeFixedEndTime={newEmployeeFixedEndTime}
+              onNewEmployeeFixedEndTimeChange={setNewEmployeeFixedEndTime}
+              departments={departments}
+              employees={employees}
+              canCreateEmployee={canCreateEmployee}
+              isCreatingEmployee={isCreatingEmployee}
+              onAddEmployee={() => void addEmployee()}
+              canManageDepartments={canManageDepartments}
+              showDepartments={showDepartments}
+              onToggleDepartments={() =>
+                setShowDepartments((value) => !value)
+              }
+              scheduleView={scheduleView}
+              onScheduleViewChange={(view) => {
+                setEditingCell(null);
+                setScheduleView(view);
+              }}
+              canImportExcel={canImportExcel}
+              isImportingExcel={isImportingExcel}
+              isApplyingExcelImport={isApplyingExcelImport}
+              onExcelFile={handleExcelFile}
+              isExportingExcel={isExportingExcel}
+              onExportExcel={() => void handleExportExcel()}
+              printRangeKey={printRangeKey}
+              onPrintRangeChange={setPrintRangeKey}
+              printCalendarWeekRanges={printCalendarWeekRanges}
+              isPreparingPrint={isPreparingPrint}
+              onPrint={() => void handlePrintSchedule()}
+              canBulkEditSchedule={canBulkEditSchedule}
+              isApplyingBulkSchedule={isApplyingBulkSchedule}
+              onFillOffAll={() => void fillOffAll()}
+              onClearAll={() => void clearAll()}
+              newDepartmentName={newDepartmentName}
+              onNewDepartmentNameChange={setNewDepartmentName}
+              newDepartmentKind={newDepartmentKind}
+              onNewDepartmentKindChange={setNewDepartmentKind}
+              mutatingDepartmentId={mutatingDepartmentId}
+              onAddDepartment={() => void addDepartment()}
+              onChangeDepartmentKind={changeDepartmentKind}
+              onRenameDepartment={renameDepartment}
+              onRemoveDepartment={removeDepartment}
+            />
           )}
 
           {canManagePlanner && (
@@ -2094,453 +1754,4 @@ function App() {
   );
 }
 
-interface DepartmentSectionProps {
-  department: Department;
-  employees: Employee[];
-  columnCount: number;
-  daysInMonth: number;
-  year: number;
-  month: number;
-  setEditingCell: (value: { empId: string; day: number } | null) => void;
-  getEntry: (empId: string, day: number) => ShiftEntry;
-  getEmployeeTotals: (empId: string) => {
-    day: number;
-    night: number;
-    total: number;
-    workDays: number;
-  };
-  removeEmployee: (id: string) => void;
-  onEditEmployee: (employeeId: string) => void;
-  getWishCount: (employeeId: string) => number;
-  getWishSummary: (employeeId: string) => string;
-  onOpenWishes: (employeeId: string) => void;
-  scheduleView: ScheduleView;
-  wishEditable: boolean;
-  employeeProfileEditable: boolean;
-  scheduleEditable: boolean;
-  employeeDraggable: boolean;
-  departmentDraggable: boolean;
-  isDragTarget: boolean;
-  collapsed: boolean;
-  onToggleCollapsed: () => void;
-}
-
-function DepartmentSection({
-  department,
-  employees,
-  columnCount,
-  daysInMonth,
-  year,
-  month,
-  setEditingCell,
-  getEntry,
-  getEmployeeTotals,
-  removeEmployee,
-  onEditEmployee,
-  getWishCount,
-  getWishSummary,
-  onOpenWishes,
-  scheduleView,
-  wishEditable,
-  employeeProfileEditable,
-  scheduleEditable,
-  employeeDraggable,
-  departmentDraggable,
-  isDragTarget,
-  collapsed,
-  onToggleCollapsed,
-}: DepartmentSectionProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef: setSortableNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({
-    id: 'dept:' + department.id,
-  });
-
-  const { setNodeRef: setDropNodeRef, isOver } = useDroppable({
-    id: 'dep:' + department.id,
-  });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.55 : 1,
-  };
-
-  return (
-    <>
-      <tr ref={setSortableNodeRef} style={style}>
-        <DepartmentRowCell
-          ref={setDropNodeRef}
-          colSpan={columnCount}
-          $over={isOver || isDragTarget}
-        >
-          <DepartmentRowInner>
-            <DragHandle
-              type="button"
-              title={
-                departmentDraggable
-                  ? 'Перетащить весь отдел'
-                  : 'Изменение порядка отделов сейчас недоступно'
-              }
-              disabled={!departmentDraggable}
-              {...(departmentDraggable ? attributes : {})}
-              {...(departmentDraggable ? listeners : {})}
-            >
-              <GripVertical size={16} />
-            </DragHandle>
-
-            <RowIconButton
-              type="button"
-              onClick={onToggleCollapsed}
-              title={collapsed ? 'Развернуть отдел' : 'Свернуть отдел'}
-            >
-              {collapsed ? (
-                <ChevronRight size={14} />
-              ) : (
-                <ChevronDown size={14} />
-              )}
-            </RowIconButton>
-
-            <strong>{department.name}</strong>
-            <DepartmentBadge $kind={department.kind}>
-              {departmentKindLabel(department.kind)}
-            </DepartmentBadge>
-            <TinyText>{employees.length} сотрудников</TinyText>
-            {employees.length === 0 && employeeDraggable && (
-              <TinyText>Перетащите сотрудника сюда</TinyText>
-            )}
-          </DepartmentRowInner>
-        </DepartmentRowCell>
-      </tr>
-
-      {!collapsed && (
-        <SortableContext
-          items={employees.map((employee) => 'emp:' + employee.id)}
-          strategy={verticalListSortingStrategy}
-        >
-          {employees.map((employee, index) => (
-            <SortableEmployeeRow
-              key={employee.id}
-              employee={employee}
-              index={index}
-              daysInMonth={daysInMonth}
-              year={year}
-              month={month}
-              setEditingCell={setEditingCell}
-              getEntry={getEntry}
-              totals={getEmployeeTotals(employee.id)}
-              removeEmployee={removeEmployee}
-              onEditEmployee={onEditEmployee}
-              wishCount={getWishCount(employee.id)}
-              wishSummary={getWishSummary(employee.id)}
-              onOpenWishes={onOpenWishes}
-              scheduleView={scheduleView}
-              wishEditable={wishEditable}
-              employeeProfileEditable={employeeProfileEditable}
-              scheduleEditable={scheduleEditable}
-              draggable={employeeDraggable}
-            />
-          ))}
-        </SortableContext>
-      )}
-    </>
-  );
-}
-
-interface SortableEmployeeRowProps {
-  employee: Employee;
-  index: number;
-  daysInMonth: number;
-  year: number;
-  month: number;
-  setEditingCell: (value: { empId: string; day: number } | null) => void;
-  getEntry: (empId: string, day: number) => ShiftEntry;
-  totals: { day: number; night: number; total: number; workDays: number };
-  removeEmployee: (id: string) => void;
-  onEditEmployee: (employeeId: string) => void;
-  wishCount: number;
-  wishSummary: string;
-  onOpenWishes: (employeeId: string) => void;
-  scheduleView: ScheduleView;
-  wishEditable: boolean;
-  employeeProfileEditable: boolean;
-  scheduleEditable: boolean;
-  draggable: boolean;
-}
-
-function SortableEmployeeRow({
-  employee,
-  index,
-  daysInMonth,
-  year,
-  month,
-  setEditingCell,
-  getEntry,
-  totals,
-  removeEmployee,
-  onEditEmployee,
-  wishCount,
-  wishSummary,
-  onOpenWishes,
-  scheduleView,
-  wishEditable,
-  employeeProfileEditable,
-  scheduleEditable,
-  draggable,
-}: SortableEmployeeRowProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({
-    id: 'emp:' + employee.id,
-  });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
-
-  return (
-    <EmployeeRow
-      ref={setNodeRef}
-      style={style}
-      $dragging={isDragging}
-      $odd={index % 2 === 1}
-    >
-      <EmployeeCell>
-        <EmployeeCellInner>
-          <DragHandle
-            type="button"
-            title={
-              draggable
-                ? 'Перетащить сотрудника'
-                : 'Перемещение сотрудника сейчас недоступно'
-            }
-            disabled={!draggable}
-            {...(draggable ? attributes : {})}
-            {...(draggable ? listeners : {})}
-          >
-            <GripVertical size={16} />
-          </DragHandle>
-
-          <EmployeeNameText>{employee.name}</EmployeeNameText>
-
-          {employee.scheduleMode === 'fixed-weekdays' &&
-            employee.fixedStartTime &&
-            employee.fixedEndTime && (
-              <span
-                title="Автоматический базовый график 5/2"
-                style={{
-                  flex: '0 0 auto',
-                  padding: '2px 6px',
-                  borderRadius: 999,
-                  fontSize: 9,
-                  fontWeight: 800,
-                  opacity: 0.72,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                5/2 {employee.fixedStartTime}-{employee.fixedEndTime}
-              </span>
-            )}
-
-          <RowIconButton
-            type="button"
-            $active={wishCount > 0}
-            disabled={!wishEditable}
-            onClick={() => onOpenWishes(employee.id)}
-            title={
-              wishSummary
-                ? 'Пожелания:\n' + wishSummary
-                : 'Добавить пожелания по графику'
-            }
-          >
-            <MessageSquare size={14} />
-            {wishCount > 0 && <WishCount>{wishCount}</WishCount>}
-          </RowIconButton>
-
-          <RowIconButton
-            type="button"
-            disabled={!employeeProfileEditable}
-            onClick={() => onEditEmployee(employee.id)}
-            title="Редактировать сотрудника"
-          >
-            <Pencil size={14} />
-          </RowIconButton>
-
-          <RowIconButton
-            type="button"
-            disabled={!employeeProfileEditable}
-            onClick={() => removeEmployee(employee.id)}
-            title="Деактивировать / удалить сотрудника"
-          >
-            <Trash2 size={14} />
-          </RowIconButton>
-        </EmployeeCellInner>
-      </EmployeeCell>
-
-      {Array.from({ length: daysInMonth }, (_, itemIndex) => itemIndex + 1).map(
-        (day) => {
-          const entry = getEntry(employee.id, day);
-          const dayOfWeek = getDayOfWeek(year, month, day);
-          const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-
-          let kind: 'empty' | 'error' | 'off' | 'day' | 'night' | 'mixed' =
-            'empty';
-
-          if (entry.type === 'error') {
-            kind = 'error';
-          } else if (entry.type === 'off') {
-            kind = 'off';
-          } else if (entry.type === 'shift') {
-            const shiftHours = calculateShiftHours(entry);
-            kind =
-              shiftHours.night > 0 && shiftHours.day === 0
-                ? 'night'
-                : shiftHours.night > 0
-                  ? 'mixed'
-                  : 'day';
-          }
-
-          const hours =
-            entry.type === 'shift'
-              ? calculateShiftHours(entry)
-              : { day: 0, night: 0, total: 0 };
-
-          return (
-            <ShiftCell
-              key={day}
-              $kind={kind}
-              $weekend={isWeekend}
-              $interactive={scheduleEditable && scheduleView === 'schedule'}
-              onClick={
-                scheduleEditable && scheduleView === 'schedule'
-                  ? () => setEditingCell({ empId: employee.id, day })
-                  : undefined
-              }
-            >
-              {scheduleView === 'hours' ? (
-                <ShiftDisplay
-                  style={{
-                    flexDirection: 'column',
-                    gap: 1,
-                    lineHeight: 1.08,
-                    cursor: 'default',
-                  }}
-                  title={
-                    entry.type === 'shift'
-                      ? 'Дневные: ' + hours.day +
-                        ' • Ночные: ' + hours.night +
-                        ' • Итого: ' + hours.total
-                      : entry.type === 'error'
-                        ? entry.error
-                        : entry.type === 'off'
-                          ? 'Выходной'
-                          : ''
-                  }
-                >
-                  {entry.type === 'shift' ? (
-                    <>
-                      <span style={{ fontSize: 9 }}>Д {hours.day}</span>
-                      <span style={{ fontSize: 9 }}>Н {hours.night}</span>
-                      <strong style={{ fontSize: 10 }}>Σ {hours.total}</strong>
-                    </>
-                  ) : entry.type === 'off' ? (
-                    'OFF'
-                  ) : entry.type === 'error' ? (
-                    '⚠'
-                  ) : (
-                    '·'
-                  )}
-                </ShiftDisplay>
-              ) : (
-                <ShiftDisplay
-                  title={
-                    entry.type === 'error'
-                      ? entry.error
-                      : entry.type === 'shift' && entry.shift
-                        ? (entry.shift.code ? entry.shift.code + ' ' : '') +
-                          entry.shift.start + '-' + entry.shift.end
-                        : ''
-                  }
-                >
-                  {entry.type === 'empty'
-                    ? '·'
-                    : entry.type === 'off'
-                      ? 'OFF'
-                      : entry.type === 'shift' && entry.shift
-                        ? entry.shift.code ||
-                          entry.shift.start.slice(0, 2) +
-                            '-' +
-                            entry.shift.end.slice(0, 2)
-                        : '⚠'}
-                </ShiftDisplay>
-              )}
-            </ShiftCell>
-          );
-        }
-      )}
-
-      <MetricCell $tone="day">{totals.day}</MetricCell>
-      <MetricCell $tone="night">{totals.night}</MetricCell>
-      <MetricCell $tone="total">{totals.total}</MetricCell>
-      <MetricCell $tone="muted">{totals.workDays}</MetricCell>
-    </EmployeeRow>
-  );
-}
-
-function ErrorPanel({
-  schedule,
-  employees,
-  daysInMonth,
-}: {
-  schedule: ScheduleData;
-  employees: Employee[];
-  daysInMonth: number;
-}) {
-  const errors: { empName: string; day: number; error: string }[] = [];
-
-  employees.forEach((employee) => {
-    for (let day = 1; day <= daysInMonth; day++) {
-      const entry = schedule[employee.id]?.[day];
-
-      if (entry?.type === 'error') {
-        errors.push({
-          empName: employee.name,
-          day,
-          error: entry.error || 'Ошибка',
-        });
-      }
-    }
-  });
-
-  if (errors.length === 0) return null;
-
-  return (
-    <ErrorCard>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800 }}>
-        <AlertTriangle size={17} />
-        Ошибки в заполнении ({errors.length})
-      </div>
-
-      <div style={{ marginTop: 8, display: 'grid', gap: 4, fontSize: 13 }}>
-        {errors.map((error, index) => (
-          <div key={index}>
-            <strong>{error.empName}</strong> → день {error.day}: {error.error}
-          </div>
-        ))}
-      </div>
-    </ErrorCard>
-  );
-}
-
-export default App;
+export default PlannerScreen;
