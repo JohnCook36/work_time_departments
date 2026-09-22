@@ -79,7 +79,7 @@ interface PlannerScheduleWorkspaceProps {
   activeDragId: string | null;
   collapsedDepartments: string[];
   onToggleDepartmentCollapsed: (departmentId: string) => void;
-  grandTotals: EmployeeTotals;
+  grandTotals: Pick<EmployeeTotals, 'day' | 'night' | 'total'>;
   draggedEmployee: Employee | null;
   draggedDepartment: Department | null;
   dragTargetDepartment: Department | null;
