@@ -2734,11 +2734,7 @@ function SortableEmployeeRow({
             type="button"
             disabled={!employeeProfileEditable}
             onClick={() => removeEmployee(employee.id)}
-            title={
-              serverPlannerWriteEnabled
-                ? 'Деактивировать сотрудника'
-                : 'Удалить сотрудника'
-            }
+            title="Деактивировать / удалить сотрудника"
           >
             <Trash2 size={14} />
           </RowIconButton>
