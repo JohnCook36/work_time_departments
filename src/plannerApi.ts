@@ -152,7 +152,7 @@ function mapDepartmentKindToServer(
   return 'GENERAL';
 }
 
-function serializeDepartmentMutationInput(
+export function buildDepartmentMutationInput(
   input: PlannerDepartmentMutationInput,
 ) {
   return {
@@ -373,7 +373,7 @@ export function createPlannerDepartment(
 ) {
   return apiRequest<DepartmentMutationResponse>('/departments', {
     method: 'POST',
-    body: JSON.stringify(serializeDepartmentMutationInput(input)),
+    body: JSON.stringify(buildDepartmentMutationInput(input)),
   });
 }
 
@@ -385,7 +385,7 @@ export function updatePlannerDepartment(
     '/departments/' + encodeURIComponent(departmentId),
     {
       method: 'PATCH',
-      body: JSON.stringify(serializeDepartmentMutationInput(input)),
+      body: JSON.stringify(buildDepartmentMutationInput(input)),
     },
   );
 }
