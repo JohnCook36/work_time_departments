@@ -6,6 +6,7 @@ import { EmployeeCandidate, OnboardingDepartment, OnboardingRequest,
 } from '../auth/api';
 import { useAuthUser } from '../auth/AuthContext';
 import { useAuthSession } from '../auth/AuthSessionProvider';
+import { authPalette } from '../theme/palette';
 import { pageStyle, cardStyle, inputStyle, buttonStyle, secondaryButtonStyle, ErrorText } from '../auth/authPageUi';
 
 function PendingRequest({
@@ -25,8 +26,8 @@ function PendingRequest({
         marginTop: 16,
         padding: 14,
         borderRadius: 12,
-        border: '1px solid rgba(245,158,11,.28)',
-        background: 'rgba(245,158,11,.07)',
+        border: '1px solid ' + authPalette.warningBorder,
+        background: authPalette.warningBackground,
       }}
     >
       <div
@@ -40,7 +41,7 @@ function PendingRequest({
         <Clock3 size={17} />
         Запрос ожидает подтверждения администратора
       </div>
-      <p style={{ margin: '8px 0 0', color: '#cbd5e1', fontSize: 13 }}>
+      <p style={{ margin: '8px 0 0', color: authPalette.supportText, fontSize: 13 }}>
         До подтверждения профиль сотрудника не привязывается к аккаунту.
       </p>
       <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
@@ -115,7 +116,7 @@ export function OnboardingPage() {
           <h1 style={{ margin: '0 0 6px', fontSize: 24 }}>
             Привязка профиля
           </h1>
-          <p style={{ margin: 0, color: '#94a3b8' }}>
+          <p style={{ margin: 0, color: authPalette.textMuted }}>
             Телефон подтверждён. Осталось подтвердить профиль сотрудника.
           </p>
           <PendingRequest
@@ -148,7 +149,7 @@ export function OnboardingPage() {
         <h1 style={{ margin: '0 0 6px', fontSize: 24 }}>
           Найдите свой профиль
         </h1>
-        <p style={{ margin: '0 0 18px', color: '#94a3b8', lineHeight: 1.5 }}>
+        <p style={{ margin: '0 0 18px', color: authPalette.textMuted, lineHeight: 1.5 }}>
           Для защиты от чужой привязки выбор профиля создаёт запрос. Сам профиль
           будет связан с аккаунтом только после подтверждения администратора.
         </p>
@@ -253,11 +254,11 @@ export function OnboardingPage() {
           style={{
             marginTop: 20,
             paddingTop: 16,
-            borderTop: '1px solid rgba(148,163,184,.17)',
+            borderTop: '1px solid ' + authPalette.divider,
           }}
         >
           <div style={{ fontWeight: 800 }}>Нет профиля в графике?</div>
-          <p style={{ margin: '5px 0 10px', color: '#94a3b8', fontSize: 13 }}>
+          <p style={{ margin: '5px 0 10px', color: authPalette.textMuted, fontSize: 13 }}>
             Отправьте администратору запрос на создание нового профиля в
             выбранном отделе.
           </p>
@@ -315,7 +316,7 @@ export function OnboardingPage() {
           Выйти
         </button>
 
-        <div style={{ marginTop: 12, color: '#64748b', fontSize: 11 }}>
+        <div style={{ marginTop: 12, color: authPalette.subtleText, fontSize: 11 }}>
           Аккаунт: {user.phoneE164}
         </div>
       </div>
