@@ -3,7 +3,7 @@ import styled from '@emotion/styled';
 import { Select, TextInput } from '../../theme/styles';
 
 export const FixedTimeInput = styled(TextInput)({
-  width: 118,
+  width: '100%',
 });
 
 export const HiddenFileInput = styled('input')({
@@ -11,59 +11,72 @@ export const HiddenFileInput = styled('input')({
 });
 
 export const PrintRangeSelect = styled(Select)({
-  minWidth: 150,
+  width: '100%',
 });
 
-
-export const EmployeeForm = styled('form')({
+export const ToolbarActions = styled('div')({
   display: 'flex',
-  alignItems: 'flex-start',
-  columnGap: 10,
-  rowGap: 0,
+  alignItems: 'center',
+  gap: 10,
   flexWrap: 'wrap',
-  flex: '1 1 auto',
-  '@media (max-width: 760px)': {
-    display: 'grid',
-    gridTemplateColumns: '1fr',
-    width: '100%',
-  },
+  width: '100%',
 });
 
-export const EmployeeNameField = styled('div')({
+export const DrawerForm = styled('form')({
   display: 'grid',
-  gridTemplateRows: '40px 16px',
-  gap: 4,
-  flex: '1 1 240px',
-  minWidth: 220,
-  '@media (max-width: 760px)': {
-    minWidth: 0,
-    width: '100%',
-  },
+  gap: 14,
 });
+
+export const DrawerField = styled('div')({
+  display: 'grid',
+  gap: 6,
+});
+
+export const DrawerFieldLabel = styled('label')(({ theme }) => ({
+  color: theme.colors.textMuted,
+  fontSize: 12,
+  fontWeight: 700,
+}));
 
 export const EmployeeNameInput = styled(TextInput)({
   width: '100%',
   minWidth: 0,
 });
 
-export const EmployeeFieldError = styled('div')(({ theme }) => ({
+export const ValidationSlot = styled('div')(({ theme }) => ({
   minHeight: 16,
   color: theme.colors.danger,
   fontSize: 11,
   lineHeight: '16px',
-  paddingLeft: 2,
-  whiteSpace: 'nowrap',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
 }));
 
-export const EmployeeFormStatus = styled('div')(({ theme }) => ({
-  width: '100%',
-  minHeight: 16,
-  color: theme.colors.danger,
-  fontSize: 11,
-  lineHeight: '16px',
-  whiteSpace: 'nowrap',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
+export const DrawerActions = styled('div')({
+  display: 'flex',
+  gap: 8,
+  flexWrap: 'wrap',
+  marginTop: 4,
+});
+
+export const ToolsSection = styled('section')(({ theme }) => ({
+  display: 'grid',
+  gap: 10,
+  padding: 12,
+  border: '1px solid ' + theme.colors.border,
+  borderRadius: 12,
+  background: theme.colors.surface,
 }));
+
+export const ToolsSectionTitle = styled('div')(({ theme }) => ({
+  color: theme.colors.text,
+  fontSize: 13,
+  fontWeight: 800,
+}));
+
+export const ToolsGrid = styled('div')({
+  display: 'grid',
+  gridTemplateColumns: '1fr 1fr',
+  gap: 8,
+  '@media (max-width: 520px)': {
+    gridTemplateColumns: '1fr',
+  },
+});
