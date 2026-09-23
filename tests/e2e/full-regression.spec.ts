@@ -90,9 +90,11 @@ test('department + employee + 15:00-23:00 produces D 6 / N 1 / total 7', async (
   await page.goto('/');
   await page.getByRole('button', { name: 'Отделы' }).click();
   await page.getByPlaceholder('Название отдела').fill('E2E Отдел');
-  await page.getByRole('button', { name: 'Отдел', exact: true }).click();
+  await page.getByRole('button', { name: 'Создать отдел' }).click();
+  await page.getByTitle('Закрыть').click();
 
-  const employeeName = page.getByPlaceholder('ФИО нового сотрудника...');
+  await page.getByRole('button', { name: 'Новый сотрудник' }).click();
+  const employeeName = page.getByPlaceholder('Например, Иван Иванов');
   await employeeName.fill('Новый E2E');
   await page.getByRole('combobox').first().selectOption({
     label: 'E2E Отдел',
@@ -223,6 +225,7 @@ test('Excel preview protects a cell and allows confirmed overwrite', async ({ pa
   worksheet.addRow(['Сотрудник', '1']);
   worksheet.addRow(['E2E Сотрудник', '15:00-23:00']);
   const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
+  await page.getByRole('button', { name: 'Управление графиком' }).click();
   const input = page.locator('input[type="file"]');
 
   await input.setInputFiles({
