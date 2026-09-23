@@ -19,7 +19,6 @@ import { Department, Employee, ScheduleData, ShiftEntry } from '../../domain/mod
 import { calculateShiftHours } from '../../domain/schedule/shiftHours';
 import { getDayOfWeek } from '../../utils/calendar';
 import {
-  DepartmentBadge,
   DepartmentRowCell,
   DepartmentRowInner,
   DragHandle,
@@ -49,12 +48,6 @@ import {
 } from './PlannerScheduleTable.styles';
 
 export type ScheduleView = 'schedule' | 'hours';
-
-function departmentKindLabel(kind: Department['kind']): string {
-  if (kind === 'fo') return 'FO';
-  if (kind === 'night') return 'Night';
-  return 'Отдел';
-}
 
 interface DepartmentSectionProps {
   department: Department;
@@ -170,9 +163,6 @@ export function DepartmentSection({
             </RowIconButton>
 
             <strong>{department.name}</strong>
-            <DepartmentBadge $kind={department.kind}>
-              {departmentKindLabel(department.kind)}
-            </DepartmentBadge>
             <TinyText>{employees.length} сотрудников</TinyText>
             {employees.length === 0 && employeeDraggable && (
               <TinyText>Перетащите сотрудника сюда</TinyText>
