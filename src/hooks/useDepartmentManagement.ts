@@ -7,6 +7,7 @@ import {
   updatePlannerDepartment,
 } from '../api/planner';
 import { Department, DepartmentKind } from '../domain/models';
+import { useAppDialog } from '../components/dialogs/AppDialogProvider';
 
 interface DepartmentCreateValues {
   name: string;
@@ -36,6 +37,7 @@ export function useDepartmentManagement({
   setCollapsedDepartments,
   refreshServerPlanner,
 }: UseDepartmentManagementOptions) {
+  const { showMessage } = useAppDialog();
   const [mutatingDepartmentId, setMutatingDepartmentId] =
     useState<string | null>(null);
 
@@ -54,7 +56,7 @@ export function useDepartmentManagement({
       }
 
       if (!canManageDepartments) {
-        alert('Управление отделами сейчас недоступно.');
+        await showMessage('Управление отделами сейчас недоступно.');
         return null;
       }
 
@@ -65,7 +67,7 @@ export function useDepartmentManagement({
         return created.id;
       } catch (error) {
         console.error('Server department create failed', error);
-        alert(
+        await showMessage(
           error instanceof Error
             ? 'Не удалось создать отдел: ' + error.message
             : 'Не удалось создать отдел на сервере.'
@@ -103,13 +105,13 @@ export function useDepartmentManagement({
       }
 
       if (!canManageDepartments) {
-        alert('Управление отделами сейчас недоступно.');
+        await showMessage('Управление отделами сейчас недоступно.');
         return 'blocked';
       }
 
       const metadata = serverDepartmentMetadata[departmentId];
       if (!metadata) {
-        alert('Не удалось определить версию отдела. Обновляю данные.');
+        await showMessage('Не удалось определить версию отдела. Обновляю данные.');
         void refreshServerPlanner();
         return 'failed';
       }
@@ -124,7 +126,7 @@ export function useDepartmentManagement({
         return 'success';
       } catch (error) {
         console.error('Server department rename failed', error);
-        alert(
+        await showMessage(
           error instanceof Error
             ? 'Не удалось переименовать отдел: ' + error.message
             : 'Не удалось переименовать отдел на сервере.'
@@ -162,13 +164,13 @@ export function useDepartmentManagement({
       }
 
       if (!canManageDepartments) {
-        alert('Управление отделами сейчас недоступно.');
+        await showMessage('Управление отделами сейчас недоступно.');
         return 'blocked';
       }
 
       const metadata = serverDepartmentMetadata[departmentId];
       if (!metadata) {
-        alert('Не удалось определить версию отдела. Обновляю данные.');
+        await showMessage('Не удалось определить версию отдела. Обновляю данные.');
         void refreshServerPlanner();
         return 'failed';
       }
@@ -183,7 +185,7 @@ export function useDepartmentManagement({
         return 'success';
       } catch (error) {
         console.error('Server department kind update failed', error);
-        alert(
+        await showMessage(
           error instanceof Error
             ? 'Не удалось изменить тип отдела: ' + error.message
             : 'Не удалось изменить тип отдела на сервере.'
@@ -219,13 +221,13 @@ export function useDepartmentManagement({
       }
 
       if (!canManageDepartments) {
-        alert('Управление отделами сейчас недоступно.');
+        await showMessage('Управление отделами сейчас недоступно.');
         return 'blocked';
       }
 
       const metadata = serverDepartmentMetadata[departmentId];
       if (!metadata) {
-        alert('Не удалось определить версию отдела. Обновляю данные.');
+        await showMessage('Не удалось определить версию отдела. Обновляю данные.');
         void refreshServerPlanner();
         return 'failed';
       }
@@ -240,7 +242,7 @@ export function useDepartmentManagement({
         return 'success';
       } catch (error) {
         console.error('Server department deactivate failed', error);
-        alert(
+        await showMessage(
           error instanceof Error
             ? 'Не удалось деактивировать отдел: ' + error.message
             : 'Не удалось деактивировать отдел на сервере.'

@@ -14,6 +14,7 @@ import {
   EmployeeWishesData,
 } from '../domain/models';
 import { PlannerServerStatus } from './usePlannerServerSync';
+import { useAppDialog } from '../components/dialogs/AppDialogProvider';
 
 interface UsePlannerWishesOptions {
   setWishes: Dispatch<SetStateAction<EmployeeWishesData>>;
@@ -38,6 +39,7 @@ export function usePlannerWishes({
   serverPlannerStatus,
   refreshServerPlanner,
 }: UsePlannerWishesOptions) {
+  const { showMessage } = useAppDialog();
   const [mutatingWishId, setMutatingWishId] = useState<string | null>(null);
 
   const addWish = useCallback(
@@ -57,7 +59,7 @@ export function usePlannerWishes({
       }
 
       if (serverPlannerStatus !== 'ready' || mutatingWishId !== null) {
-        alert('График ещё не готов к изменению пожеланий.');
+        void showMessage('График ещё не готов к изменению пожеланий.');
         return;
       }
 
@@ -72,7 +74,7 @@ export function usePlannerWishes({
         .then(() => refreshServerPlanner())
         .catch((error) => {
           console.error('Server wish create failed', error);
-          alert(
+          void showMessage(
             error instanceof Error
               ? 'Не удалось добавить пожелание: ' + error.message
               : 'Не удалось добавить пожелание на сервере.'
@@ -111,7 +113,7 @@ export function usePlannerWishes({
       }
 
       if (serverPlannerStatus !== 'ready' || mutatingWishId !== null) {
-        alert('График ещё не готов к изменению пожеланий.');
+        void showMessage('График ещё не готов к изменению пожеланий.');
         return;
       }
 
@@ -120,7 +122,7 @@ export function usePlannerWishes({
         .then(() => refreshServerPlanner())
         .catch((error) => {
           console.error('Server wish delete failed', error);
-          alert(
+          void showMessage(
             error instanceof Error
               ? 'Не удалось удалить пожелание: ' + error.message
               : 'Не удалось удалить пожелание на сервере.'
