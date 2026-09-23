@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, useReducedMotion } from 'framer-motion';
 import {
@@ -9,7 +9,7 @@ import {
   X,
 } from 'lucide-react';
 
-import { IconButton } from '../../theme/styles';
+import { ActionButton, IconButton } from '../../theme/styles';
 import {
   AdminControls,
   AdminDepartmentSelect,
@@ -19,6 +19,8 @@ import {
   AdminHeader,
   AdminOverlay,
   AdminTitle,
+  AdminTrigger,
+  AdminPendingBadge,
   ApproveButton,
   RejectButton,
   RequestActions,
@@ -32,6 +34,11 @@ import {
   RequestsLoading,
   RequestsSection,
   RequestTimestamp,
+  PendingNotification,
+  PendingNotificationActions,
+  PendingNotificationHeader,
+  PendingNotificationText,
+  PendingNotificationTitle,
 } from './AdminOnboardingPanel.styles';
 import {
   AdminOnboardingRequest,
@@ -68,6 +75,10 @@ export function AdminOnboardingPanel() {
   const [busyRequestId, setBusyRequestId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [showPendingNotification, setShowPendingNotification] =
+    useState(false);
+  const lastPendingCountRef = useRef(0);
 
   const selectedDepartment = useMemo(
     () =>
@@ -75,6 +86,42 @@ export function AdminOnboardingPanel() {
         (department) => department.id === selectedDepartmentId,
       ) || null,
     [departments, selectedDepartmentId],
+  );
+
+  const refreshPendingSummary = useCallback(
+    async (sourceDepartments: OnboardingDepartment[]) => {
+      if (sourceDepartments.length === 0) {
+        setPendingCount(0);
+        lastPendingCountRef.current = 0;
+        return;
+      }
+
+      try {
+        const pendingByDepartment = await Promise.all(
+          sourceDepartments.map((department) =>
+            getAdminPendingOnboardingRequests(department.id),
+          ),
+        );
+        const nextCount = pendingByDepartment.reduce(
+          (total, departmentRequests) =>
+            total + departmentRequests.length,
+          0,
+        );
+
+        if (nextCount > lastPendingCountRef.current) {
+          setShowPendingNotification(true);
+        }
+
+        lastPendingCountRef.current = nextCount;
+        setPendingCount(nextCount);
+      } catch (requestError) {
+        console.error(
+          'Admin onboarding pending summary failed',
+          requestError,
+        );
+      }
+    },
+    [],
   );
 
   const loadDepartments = useCallback(async () => {
@@ -87,6 +134,7 @@ export function AdminOnboardingPanel() {
           : next[0]?.id || '',
       );
       setAvailable(next.length > 0);
+      await refreshPendingSummary(next);
     } catch (requestError) {
       if (
         requestError instanceof ApiError &&
@@ -98,7 +146,7 @@ export function AdminOnboardingPanel() {
 
       setAvailable(false);
     }
-  }, []);
+  }, [refreshPendingSummary]);
 
   const loadRequests = useCallback(async () => {
     if (!selectedDepartmentId) {
@@ -110,9 +158,10 @@ export function AdminOnboardingPanel() {
     setError(null);
 
     try {
-      setRequests(
-        await getAdminPendingOnboardingRequests(selectedDepartmentId),
-      );
+      const nextRequests =
+        await getAdminPendingOnboardingRequests(selectedDepartmentId);
+      setRequests(nextRequests);
+      void refreshPendingSummary(departments);
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -122,7 +171,11 @@ export function AdminOnboardingPanel() {
     } finally {
       setLoading(false);
     }
-  }, [selectedDepartmentId]);
+  }, [
+    departments,
+    refreshPendingSummary,
+    selectedDepartmentId,
+  ]);
 
   useEffect(() => {
     void loadDepartments();
@@ -133,6 +186,21 @@ export function AdminOnboardingPanel() {
       void loadRequests();
     }
   }, [open, loadRequests]);
+
+  useEffect(() => {
+    if (available !== true || departments.length === 0) return;
+
+    const intervalId = window.setInterval(() => {
+      void refreshPendingSummary(departments);
+    }, 30000);
+
+    return () => window.clearInterval(intervalId);
+  }, [available, departments, refreshPendingSummary]);
+
+  const openPanel = () => {
+    setShowPendingNotification(false);
+    setOpen(true);
+  };
 
   if (available !== true) {
     return null;
@@ -166,13 +234,62 @@ export function AdminOnboardingPanel() {
 
   return (
     <>
-      <IconButton
-        type="button"
-        title="Заявки на привязку аккаунтов"
-        onClick={() => setOpen(true)}
-      >
-        <UserCheck size={18} />
-      </IconButton>
+      <AdminTrigger>
+        <IconButton
+          type="button"
+          title={
+            pendingCount > 0
+              ? 'Заявки на привязку аккаунтов: ' + pendingCount
+              : 'Заявки на привязку аккаунтов'
+          }
+          onClick={openPanel}
+        >
+          <UserCheck size={18} />
+        </IconButton>
+        {pendingCount > 0 && (
+          <AdminPendingBadge aria-hidden="true">
+            {pendingCount > 99 ? '99+' : pendingCount}
+          </AdminPendingBadge>
+        )}
+      </AdminTrigger>
+
+      {showPendingNotification && pendingCount > 0 && !open && (
+        <PendingNotification role="status" aria-live="polite">
+          <PendingNotificationHeader>
+            <div>
+              <PendingNotificationTitle>
+                {pendingCount === 1
+                  ? 'Новая заявка на привязку аккаунта'
+                  : 'Новые заявки на привязку аккаунтов'}
+              </PendingNotificationTitle>
+              <PendingNotificationText>
+                {pendingCount === 1
+                  ? 'Один сотрудник ожидает подтверждения руководителем.'
+                  : pendingCount +
+                    ' сотрудников ожидают подтверждения руководителем.'}
+              </PendingNotificationText>
+            </div>
+
+            <IconButton
+              type="button"
+              title="Скрыть уведомление"
+              onClick={() => setShowPendingNotification(false)}
+            >
+              <X size={16} />
+            </IconButton>
+          </PendingNotificationHeader>
+
+          <PendingNotificationActions>
+            <ActionButton
+              type="button"
+              $variant="primary"
+              onClick={openPanel}
+            >
+              Открыть заявки
+            </ActionButton>
+          </PendingNotificationActions>
+        </PendingNotification>
+      )}
 
       {createPortal(
         <AnimatePresence>

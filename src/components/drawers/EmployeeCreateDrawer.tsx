@@ -162,57 +162,54 @@ export function EmployeeCreateDrawer({
             <DrawerFieldError>{'\u00A0'}</DrawerFieldError>
           </FormGroup>
 
-          <FormGroup>
-            <FormLabel>Рабочее время 5/2</FormLabel>
-            <TwoColumnGrid>
-              <FullWidthInput
-                type="time"
-                disabled={busy || scheduleMode !== 'fixed-weekdays'}
-                aria-label="Начало рабочего дня"
-                aria-invalid={errors.fixedStartTime ? 'true' : 'false'}
-                {...register('fixedStartTime', {
-                  validate: (value) =>
-                    scheduleMode !== 'fixed-weekdays' ||
-                    Boolean(value) ||
-                    'Укажите начало рабочего дня',
-                })}
-              />
-              <FullWidthInput
-                type="time"
-                disabled={busy || scheduleMode !== 'fixed-weekdays'}
-                aria-label="Окончание рабочего дня"
-                aria-invalid={errors.fixedEndTime ? 'true' : 'false'}
-                {...register('fixedEndTime', {
-                  validate: (value) => {
-                    if (scheduleMode !== 'fixed-weekdays') return true;
-                    if (!value) return 'Укажите окончание рабочего дня';
+          {scheduleMode === 'fixed-weekdays' && (
+            <FormGroup>
+              <FormLabel>Рабочее время 5/2</FormLabel>
+              <TwoColumnGrid>
+                <FullWidthInput
+                  type="time"
+                  disabled={busy}
+                  aria-label="Начало рабочего дня"
+                  aria-invalid={errors.fixedStartTime ? 'true' : 'false'}
+                  {...register('fixedStartTime', {
+                    validate: (value) =>
+                      Boolean(value) || 'Укажите начало рабочего дня',
+                  })}
+                />
+                <FullWidthInput
+                  type="time"
+                  disabled={busy}
+                  aria-label="Окончание рабочего дня"
+                  aria-invalid={errors.fixedEndTime ? 'true' : 'false'}
+                  {...register('fixedEndTime', {
+                    validate: (value) => {
+                      if (!value) return 'Укажите окончание рабочего дня';
 
-                    const start = getValues('fixedStartTime');
-                    if (!start) return true;
+                      const start = getValues('fixedStartTime');
+                      if (!start) return true;
 
-                    return (
-                      validateShiftInput(start + '-' + value).type === 'shift' ||
-                      'Проверьте время начала и окончания'
-                    );
-                  },
-                })}
-              />
-            </TwoColumnGrid>
-            <DrawerFieldError
-              role={
-                errors.fixedStartTime || errors.fixedEndTime
-                  ? 'alert'
-                  : undefined
-              }
-              aria-live="polite"
-            >
-              {scheduleMode === 'fixed-weekdays'
-                ? errors.fixedStartTime?.message ||
+                      return (
+                        validateShiftInput(start + '-' + value).type === 'shift' ||
+                        'Проверьте время начала и окончания'
+                      );
+                    },
+                  })}
+                />
+              </TwoColumnGrid>
+              <DrawerFieldError
+                role={
+                  errors.fixedStartTime || errors.fixedEndTime
+                    ? 'alert'
+                    : undefined
+                }
+                aria-live="polite"
+              >
+                {errors.fixedStartTime?.message ||
                   errors.fixedEndTime?.message ||
-                  'По производственному календарю выходные и праздники подставятся автоматически.'
-                : 'Для плавающего графика время задаётся по сменам.'}
-            </DrawerFieldError>
-          </FormGroup>
+                  'По производственному календарю выходные и праздники подставятся автоматически.'}
+              </DrawerFieldError>
+            </FormGroup>
+          )}
 
           <DrawerActionsGrid>
             <ActionButton
