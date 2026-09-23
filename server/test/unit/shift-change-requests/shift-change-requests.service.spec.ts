@@ -29,6 +29,7 @@ function employeeUser(
       id: employeeId,
       displayName: employeeId,
       departmentId,
+      departmentName: 'Department A',
       employmentRate: 1,
     },
     memberships: [

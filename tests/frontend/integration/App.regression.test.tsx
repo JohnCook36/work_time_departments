@@ -245,6 +245,9 @@ describe('App regression flows', () => {
     renderApp();
 
     await screen.findByText('Серверный сотрудник');
+    await user.click(
+      screen.getByRole('button', { name: 'Управление графиком' }),
+    );
     await user.click(screen.getByRole('button', { name: 'Печать' }));
 
     await waitFor(() => {
