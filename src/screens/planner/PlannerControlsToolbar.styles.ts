@@ -18,7 +18,8 @@ export const PrintRangeSelect = styled(Select)({
 export const EmployeeForm = styled('form')({
   display: 'flex',
   alignItems: 'flex-start',
-  gap: 10,
+  columnGap: 10,
+  rowGap: 0,
   flexWrap: 'wrap',
   flex: '1 1 auto',
   '@media (max-width: 760px)': {
@@ -30,7 +31,8 @@ export const EmployeeForm = styled('form')({
 
 export const EmployeeNameField = styled('div')({
   display: 'grid',
-  gap: 5,
+  gridTemplateRows: '40px 16px',
+  gap: 4,
   flex: '1 1 240px',
   minWidth: 220,
   '@media (max-width: 760px)': {
@@ -45,15 +47,23 @@ export const EmployeeNameInput = styled(TextInput)({
 });
 
 export const EmployeeFieldError = styled('div')(({ theme }) => ({
+  minHeight: 16,
   color: theme.colors.danger,
   fontSize: 11,
-  lineHeight: 1.3,
+  lineHeight: '16px',
   paddingLeft: 2,
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
 }));
 
 export const EmployeeFormStatus = styled('div')(({ theme }) => ({
   width: '100%',
+  minHeight: 16,
   color: theme.colors.danger,
   fontSize: 11,
-  lineHeight: 1.3,
+  lineHeight: '16px',
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
 }));
