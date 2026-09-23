@@ -1,47 +1,25 @@
-import { useEffect, useRef } from 'react';
-import { useForm } from 'react-hook-form';
-import {
-  FileSpreadsheet,
-  FileUp,
-  Layers3,
-  Plus,
-  Printer,
-  Trash2,
-} from 'lucide-react';
+import { useState } from 'react';
+import { Layers3, SlidersHorizontal, UserPlus } from 'lucide-react';
 
-import { Department, EmployeeScheduleMode } from '../../domain/models';
-import { validateShiftInput } from '../../domain/schedule/shiftHours';
+import { Department } from '../../domain/models';
 import {
   ActionButton,
   ControlsCard,
   ControlsRow,
-  Divider,
-  Select,
 } from '../../theme/styles';
-import { ScheduleView } from './PlannerScheduleTable';
 import {
-  EmployeeFieldError,
-  EmployeeForm,
-  EmployeeFormStatus,
-  EmployeeNameField,
-  EmployeeNameInput,
-  FixedTimeInput,
-  HiddenFileInput,
-  PrintRangeSelect,
-} from './PlannerControlsToolbar.styles';
+  EmployeeCreateDrawer,
+  EmployeeCreateValues,
+} from '../../components/drawers/EmployeeCreateDrawer';
+import { PlannerScheduleToolsDrawer } from '../../components/drawers/PlannerScheduleToolsDrawer';
+import { ScheduleView } from './PlannerScheduleTable';
 
 interface PrintRange {
   key: string;
   label: string;
 }
 
-export interface EmployeeCreateFormValues {
-  displayName: string;
-  departmentId: string;
-  scheduleMode: EmployeeScheduleMode;
-  fixedStartTime: string;
-  fixedEndTime: string;
-}
+export type EmployeeCreateFormValues = EmployeeCreateValues;
 
 interface PlannerControlsToolbarProps {
   departments: Department[];
@@ -96,274 +74,93 @@ export function PlannerControlsToolbar({
   onFillOffAll,
   onClearAll,
 }: PlannerControlsToolbarProps) {
-  const excelFileInputRef = useRef<HTMLInputElement | null>(null);
-  const {
-    register,
-    handleSubmit,
-    watch,
-    getValues,
-    setValue,
-    reset,
-    formState: { errors },
-  } = useForm<EmployeeCreateFormValues>({
-    defaultValues: {
-      displayName: '',
-      departmentId: departments[0]?.id || '',
-      scheduleMode: 'flexible',
-      fixedStartTime: '',
-      fixedEndTime: '',
-    },
-  });
-
-  const scheduleMode = watch('scheduleMode');
-
-  useEffect(() => {
-    const departmentId = getValues('departmentId');
-    if (!departments.some((department) => department.id === departmentId)) {
-      setValue('departmentId', departments[0]?.id || '');
-    }
-  }, [departments, getValues, setValue]);
-
-  const submitEmployee = handleSubmit(async (values) => {
-    const created = await onAddEmployee({
-      ...values,
-      displayName: values.displayName.trim(),
-    });
-
-    if (created) {
-      reset({
-        displayName: '',
-        departmentId: departments[0]?.id || '',
-        scheduleMode: 'flexible',
-        fixedStartTime: '',
-        fixedEndTime: '',
-      });
-    }
-  });
+  const [showEmployeeCreate, setShowEmployeeCreate] = useState(false);
+  const [showScheduleTools, setShowScheduleTools] = useState(false);
 
   return (
-    <ControlsCard>
-      <ControlsRow>
-        <EmployeeForm onSubmit={submitEmployee} noValidate>
-          <EmployeeNameField>
-            <EmployeeNameInput
-              type="text"
-              disabled={!canCreateEmployee || isCreatingEmployee}
-              aria-invalid={errors.displayName ? 'true' : 'false'}
-              placeholder="ФИО нового сотрудника..."
-              {...register('displayName', {
-                required: 'Введите ФИО нового сотрудника',
-                validate: (value) =>
-                  value.trim().length >= 2 || 'Введите корректное ФИО',
-              })}
-            />
-            <EmployeeFieldError
-              role={errors.displayName ? 'alert' : undefined}
-              aria-live="polite"
-            >
-              {errors.displayName?.message || '\u00A0'}
-            </EmployeeFieldError>
-          </EmployeeNameField>
-
-          <Select
-            disabled={!canCreateEmployee || isCreatingEmployee}
-            aria-invalid={errors.departmentId ? 'true' : 'false'}
-            {...register('departmentId', {
-              required: 'Выберите отдел',
-            })}
-          >
-            {departments.map((department) => (
-              <option key={department.id} value={department.id}>
-                {department.name}
-              </option>
-            ))}
-          </Select>
-
-          <Select
-            disabled={!canCreateEmployee || isCreatingEmployee}
-            {...register('scheduleMode')}
-            title="Тип рабочего графика сотрудника"
-          >
-            <option value="flexible">Плавающий график</option>
-            <option value="fixed-weekdays">5/2 · фиксированные часы</option>
-          </Select>
-
-          {scheduleMode === 'fixed-weekdays' && (
-            <>
-              <FixedTimeInput
-                type="time"
-                disabled={!canCreateEmployee || isCreatingEmployee}
-                aria-invalid={errors.fixedStartTime ? 'true' : 'false'}
-                aria-label="Начало рабочего дня"
-                {...register('fixedStartTime', {
-                  validate: (value) =>
-                    scheduleMode !== 'fixed-weekdays' ||
-                    Boolean(value) ||
-                    'Укажите начало рабочего дня',
-                })}
-              />
-              <FixedTimeInput
-                type="time"
-                disabled={!canCreateEmployee || isCreatingEmployee}
-                aria-invalid={errors.fixedEndTime ? 'true' : 'false'}
-                aria-label="Окончание рабочего дня"
-                {...register('fixedEndTime', {
-                  validate: (value) => {
-                    if (scheduleMode !== 'fixed-weekdays') return true;
-                    if (!value) return 'Укажите окончание рабочего дня';
-
-                    const startTime = getValues('fixedStartTime');
-                    if (!startTime) return true;
-
-                    const entry = validateShiftInput(startTime + '-' + value);
-                    return (
-                      entry.type === 'shift' ||
-                      'Проверьте время начала и окончания'
-                    );
-                  },
-                })}
-              />
-            </>
-          )}
-
+    <>
+      <ControlsCard>
+        <ControlsRow>
           <ActionButton
-            type="submit"
+            type="button"
             $variant="primary"
-            disabled={
-              !canCreateEmployee ||
-              isCreatingEmployee ||
-              departments.length === 0
-            }
+            onClick={() => setShowEmployeeCreate(true)}
+            disabled={!canCreateEmployee}
           >
-            <Plus size={16} />
-            {isCreatingEmployee ? 'Добавляю…' : 'Добавить сотрудника'}
+            <UserPlus size={16} />
+            Новый сотрудник
           </ActionButton>
 
-          <EmployeeFormStatus
-            role={
-              errors.departmentId ||
-              errors.fixedStartTime ||
-              errors.fixedEndTime
-                ? 'alert'
-                : undefined
+          <ActionButton
+            type="button"
+            $variant="accent"
+            onClick={onToggleDepartments}
+            disabled={!canViewDepartments}
+            title={
+              canManageDepartments
+                ? 'Управление отделами'
+                : 'Просмотр отделов. Изменение структуры доступно только SUPER_ADMIN'
             }
-            aria-live="polite"
           >
-            {departments.length === 0
-              ? 'Нет доступных отделов для добавления сотрудника.'
-              : errors.departmentId?.message ||
-                errors.fixedStartTime?.message ||
-                errors.fixedEndTime?.message ||
-                '\u00A0'}
-          </EmployeeFormStatus>
-        </EmployeeForm>
+            <Layers3 size={16} />
+            Отделы
+          </ActionButton>
 
-        <ActionButton
-          type="button"
-          $variant="accent"
-          onClick={onToggleDepartments}
-          disabled={!canViewDepartments}
-          title={
-            canManageDepartments
-              ? 'Управление отделами'
-              : 'Просмотр отделов. Изменение структуры доступно только SUPER_ADMIN'
-          }
-        >
-          <Layers3 size={16} />
-          Отделы
-        </ActionButton>
+          <ActionButton
+            type="button"
+            onClick={() => setShowScheduleTools(true)}
+          >
+            <SlidersHorizontal size={16} />
+            Управление графиком
+          </ActionButton>
 
-        <ActionButton
-          type="button"
-          $variant={scheduleView === 'schedule' ? 'primary' : 'secondary'}
-          onClick={() => onScheduleViewChange('schedule')}
-        >
-          График
-        </ActionButton>
+          <ActionButton
+            type="button"
+            $variant={scheduleView === 'schedule' ? 'primary' : 'secondary'}
+            onClick={() => onScheduleViewChange('schedule')}
+          >
+            График
+          </ActionButton>
 
-        <ActionButton
-          type="button"
-          $variant={scheduleView === 'hours' ? 'primary' : 'secondary'}
-          onClick={() => onScheduleViewChange('hours')}
-        >
-          День / ночь
-        </ActionButton>
+          <ActionButton
+            type="button"
+            $variant={scheduleView === 'hours' ? 'primary' : 'secondary'}
+            onClick={() => onScheduleViewChange('hours')}
+          >
+            День / ночь
+          </ActionButton>
+        </ControlsRow>
+      </ControlsCard>
 
-        <Divider />
-
-        <HiddenFileInput
-          ref={excelFileInputRef}
-          type="file"
-          accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-          onChange={(event) => {
-            onExcelFile(event.target.files?.[0] || null);
-            event.currentTarget.value = '';
-          }}
+      {showEmployeeCreate && (
+        <EmployeeCreateDrawer
+          departments={departments}
+          busy={isCreatingEmployee}
+          onCreate={onAddEmployee}
+          onClose={() => setShowEmployeeCreate(false)}
         />
+      )}
 
-        <ActionButton
-          type="button"
-          onClick={() => excelFileInputRef.current?.click()}
-          disabled={!canImportExcel || isImportingExcel || isApplyingExcelImport}
-          title="Загрузить график из Excel с предпросмотром"
-        >
-          <FileUp size={16} />
-          {isImportingExcel ? 'Читаю…' : 'Импорт Excel'}
-        </ActionButton>
-
-        <ActionButton
-          type="button"
-          $variant="accent"
-          onClick={onExportExcel}
-          disabled={isExportingExcel}
-          title="Сформировать Excel-файл текущего месяца"
-        >
-          <FileSpreadsheet size={16} />
-          {isExportingExcel ? 'Excel…' : 'Экспорт Excel'}
-        </ActionButton>
-
-        <PrintRangeSelect
-          value={printRangeKey}
-          disabled={isPreparingPrint}
-          onChange={(event) => onPrintRangeChange(event.target.value)}
-          title="Что печатать"
-        >
-          <option value="month">Весь месяц</option>
-          {printCalendarWeekRanges.map((range) => (
-            <option key={range.key} value={range.key}>
-              Неделя {range.label}
-            </option>
-          ))}
-        </PrintRangeSelect>
-
-        <ActionButton
-          type="button"
-          onClick={onPrint}
-          disabled={isPreparingPrint}
-          title="Открыть печатную версию A4"
-        >
-          <Printer size={16} />
-          {isPreparingPrint ? 'Готовлю…' : 'Печать'}
-        </ActionButton>
-
-        <ActionButton
-          type="button"
-          onClick={onFillOffAll}
-          disabled={!canBulkEditSchedule}
-        >
-          {isApplyingBulkSchedule ? 'Применяю…' : 'OFF все'}
-        </ActionButton>
-
-        <ActionButton
-          type="button"
-          $variant="danger"
-          onClick={onClearAll}
-          disabled={!canBulkEditSchedule}
-        >
-          <Trash2 size={15} />
-          {isApplyingBulkSchedule ? 'Применяю…' : 'Очистить месяц'}
-        </ActionButton>
-      </ControlsRow>
-    </ControlsCard>
+      {showScheduleTools && (
+        <PlannerScheduleToolsDrawer
+          canImportExcel={canImportExcel}
+          isImportingExcel={isImportingExcel}
+          isApplyingExcelImport={isApplyingExcelImport}
+          onExcelFile={onExcelFile}
+          isExportingExcel={isExportingExcel}
+          onExportExcel={onExportExcel}
+          printRangeKey={printRangeKey}
+          onPrintRangeChange={onPrintRangeChange}
+          printCalendarWeekRanges={printCalendarWeekRanges}
+          isPreparingPrint={isPreparingPrint}
+          onPrint={onPrint}
+          canBulkEditSchedule={canBulkEditSchedule}
+          isApplyingBulkSchedule={isApplyingBulkSchedule}
+          onFillOffAll={onFillOffAll}
+          onClearAll={onClearAll}
+          onClose={() => setShowScheduleTools(false)}
+        />
+      )}
+    </>
   );
 }
