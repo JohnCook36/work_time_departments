@@ -24,6 +24,7 @@ import {
 } from '../api/planner';
 import { Department, Employee } from '../domain/models';
 import { PlannerServerStatus } from './usePlannerServerSync';
+import { useAppDialog } from '../components/dialogs/AppDialogProvider';
 
 interface UsePlannerDnDOptions {
   employees: Employee[];
@@ -52,6 +53,7 @@ export function usePlannerDnD({
   isSuperAdmin,
   refreshServerPlanner,
 }: UsePlannerDnDOptions) {
+  const { showMessage } = useAppDialog();
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [dragTargetDepartmentId, setDragTargetDepartmentId] =
     useState<string | null>(null);
@@ -171,7 +173,7 @@ export function usePlannerDnD({
               serverDepartmentMetadata
             );
           } catch (error) {
-            alert(
+            void showMessage(
               error instanceof Error
                 ? error.message
                 : 'Не удалось подготовить новый порядок отделов.'
@@ -185,7 +187,7 @@ export function usePlannerDnD({
             .then(() => refreshServerPlanner())
             .catch((error) => {
               console.error('Server department reorder failed', error);
-              alert(
+              void showMessage(
                 error instanceof Error
                   ? 'Не удалось изменить порядок отделов: ' + error.message
                   : 'Не удалось изменить порядок отделов на сервере.'
@@ -279,7 +281,7 @@ export function usePlannerDnD({
             );
           } catch (error) {
             setMovingEmployeeId(null);
-            alert(
+            void showMessage(
               error instanceof Error
                 ? error.message
                 : 'Не удалось подготовить новый порядок сотрудников.'
@@ -292,7 +294,7 @@ export function usePlannerDnD({
             .then(() => refreshServerPlanner())
             .catch((error) => {
               console.error('Server employee reorder failed', error);
-              alert(
+              void showMessage(
                 error instanceof Error
                   ? 'Не удалось изменить порядок сотрудников: ' +
                     error.message
@@ -309,7 +311,7 @@ export function usePlannerDnD({
         const metadata = serverEmployeeMetadata[activeEmployeeId];
         if (!metadata) {
           setMovingEmployeeId(null);
-          alert(
+          void showMessage(
             'Не удалось определить версию сотрудника. Обновляю данные.'
           );
           void refreshServerPlanner();
@@ -323,7 +325,7 @@ export function usePlannerDnD({
           .then(() => refreshServerPlanner())
           .catch((error) => {
             console.error('Server employee move failed', error);
-            alert(
+            void showMessage(
               error instanceof Error
                 ? 'Не удалось переместить сотрудника: ' + error.message
                 : 'Не удалось переместить сотрудника на сервере.'

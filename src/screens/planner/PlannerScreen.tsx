@@ -35,6 +35,7 @@ import { usePlannerStorage } from '../../hooks/usePlannerStorage';
 import { usePlannerWishes } from '../../hooks/usePlannerWishes';
 import { useScheduleMutations } from '../../hooks/useScheduleMutations';
 import { useAppTheme } from '../../theme/AppThemeProvider';
+import { useAppDialog } from '../../components/dialogs/AppDialogProvider';
 import { PlannerHeaderScreen } from './PlannerHeaderScreen';
 import { PlannerManagementScreen } from './PlannerManagementScreen';
 import type { EmployeeCreateFormValues } from './PlannerControlsToolbar';
@@ -107,6 +108,7 @@ export function PlannerScreen() {
   const [year, setYear] = useState(initialNow.getFullYear());
   const [month, setMonth] = useState(initialNow.getMonth());
   const { themeMode, toggleTheme } = useAppTheme();
+  const { showMessage, confirmAction, promptText } = useAppDialog();
 
   const [departments, setDepartments] = useState<Department[]>(
     serverPlannerReadEnabled
@@ -466,16 +468,25 @@ export function PlannerScreen() {
   };
 
   const removeEmployee = (id: string) => {
-    const promptText = serverPlannerWriteEnabled
+    const message = serverPlannerWriteEnabled
       ? 'Деактивировать сотрудника? Исторические смены будут сохранены.'
       : 'Удалить сотрудника, его смены и пожелания?';
 
-    if (!confirm(promptText)) return;
+    void confirmAction(message, {
+      title: serverPlannerWriteEnabled
+        ? 'Деактивация сотрудника'
+        : 'Удаление сотрудника',
+      confirmLabel: serverPlannerWriteEnabled
+        ? 'Деактивировать'
+        : 'Удалить',
+    }).then((confirmed) => {
+      if (!confirmed) return;
 
-    void deactivateEmployee(id).then((result) => {
-      if (result === 'blocked') return;
-      if (wishEmployeeId === id) setWishEmployeeId(null);
-      if (editingEmployeeId === id) setEditingEmployeeId(null);
+      void deactivateEmployee(id).then((result) => {
+        if (result === 'blocked') return;
+        if (wishEmployeeId === id) setWishEmployeeId(null);
+        if (editingEmployeeId === id) setEditingEmployeeId(null);
+      });
     });
   };
 
@@ -494,32 +505,42 @@ export function PlannerScreen() {
   };
 
   const renameDepartment = (department: Department) => {
-    const nextName = prompt('Новое название отдела', department.name)?.trim();
-    if (
-      !nextName ||
-      nextName === department.name ||
-      mutatingDepartmentId !== null
-    ) {
-      return;
-    }
+    if (mutatingDepartmentId !== null) return;
 
-    void renameDepartmentById(department.id, nextName);
+    void promptText({
+      title: 'Переименовать отдел',
+      label: 'Название отдела',
+      initialValue: department.name,
+      confirmLabel: 'Сохранить',
+    }).then((value) => {
+      const nextName = value?.trim();
+      if (!nextName || nextName === department.name) return;
+      void renameDepartmentById(department.id, nextName);
+    });
   };
 
   const removeDepartment = (departmentId: string) => {
     if (departments.length === 1) {
-      alert('Должен остаться хотя бы один отдел.');
+      void showMessage('Должен остаться хотя бы один отдел.', {
+        title: 'Отдел нельзя деактивировать',
+      });
       return;
     }
 
     if (employees.some((employee) => employee.departmentId === departmentId)) {
-      alert('Сначала перенесите сотрудников в другой отдел.');
+      void showMessage('Сначала перенесите сотрудников в другой отдел.', {
+        title: 'Отдел нельзя деактивировать',
+      });
       return;
     }
 
-    if (!confirm('Деактивировать пустой отдел?')) return;
-
-    void deactivateDepartment(departmentId);
+    void confirmAction('Деактивировать пустой отдел?', {
+      title: 'Деактивация отдела',
+      confirmLabel: 'Деактивировать',
+    }).then((confirmed) => {
+      if (!confirmed) return;
+      void deactivateDepartment(departmentId);
+    });
   };
 
   const toggleDepartmentCollapsed = (departmentId: string) => {
