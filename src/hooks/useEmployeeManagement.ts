@@ -14,6 +14,7 @@ import {
   SchedulePeriodsData,
 } from '../domain/models';
 import { PlannerServerStatus } from './usePlannerServerSync';
+import { useAppDialog } from '../components/dialogs/AppDialogProvider';
 
 export interface EmployeeManagementValues {
   displayName: string;
@@ -47,6 +48,7 @@ export function useEmployeeManagement({
   setWishes,
   refreshServerPlanner,
 }: UseEmployeeManagementOptions) {
+  const { showMessage } = useAppDialog();
   const [isCreatingEmployee, setIsCreatingEmployee] = useState(false);
   const [updatingEmployeeRateId, setUpdatingEmployeeRateId] =
     useState<string | null>(null);
@@ -78,7 +80,7 @@ export function useEmployeeManagement({
       }
 
       if (serverPlannerStatus !== 'ready') {
-        alert('График ещё не синхронизирован с сервером.');
+        void showMessage('График ещё не синхронизирован с сервером.');
         return false;
       }
 
@@ -106,7 +108,7 @@ export function useEmployeeManagement({
         return true;
       } catch (error) {
         console.error('Server employee create failed', error);
-        alert(
+        void showMessage(
           error instanceof Error
             ? 'Не удалось добавить сотрудника: ' + error.message
             : 'Не удалось добавить сотрудника на сервере.'
@@ -143,13 +145,13 @@ export function useEmployeeManagement({
         serverPlannerStatus !== 'ready' ||
         updatingEmployeeRateId !== null
       ) {
-        alert('График ещё не готов к изменению ставки.');
+        void showMessage('График ещё не готов к изменению ставки.');
         return;
       }
 
       const metadata = serverEmployeeMetadata[employeeId];
       if (!metadata) {
-        alert('Не удалось определить версию сотрудника. Обновляю данные.');
+        void showMessage('Не удалось определить версию сотрудника. Обновляю данные.');
         void refreshServerPlanner();
         return;
       }
@@ -162,7 +164,7 @@ export function useEmployeeManagement({
         .then(() => refreshServerPlanner())
         .catch((error) => {
           console.error('Server employee rate update failed', error);
-          alert(
+          void showMessage(
             error instanceof Error
               ? 'Не удалось изменить ставку: ' + error.message
               : 'Не удалось изменить ставку сотрудника на сервере.'
@@ -217,13 +219,13 @@ export function useEmployeeManagement({
       }
 
       if (serverPlannerStatus !== 'ready') {
-        alert('График ещё не готов к редактированию сотрудника.');
+        void showMessage('График ещё не готов к редактированию сотрудника.');
         return 'blocked';
       }
 
       const metadata = serverEmployeeMetadata[employeeId];
       if (!metadata) {
-        alert('Не удалось определить версию сотрудника. Обновляю данные.');
+        void showMessage('Не удалось определить версию сотрудника. Обновляю данные.');
         void refreshServerPlanner();
         return 'failed';
       }
@@ -246,7 +248,7 @@ export function useEmployeeManagement({
         return 'success';
       } catch (error) {
         console.error('Server employee edit failed', error);
-        alert(
+        void showMessage(
           error instanceof Error
             ? 'Не удалось изменить сотрудника: ' + error.message
             : 'Не удалось изменить сотрудника на сервере.'
@@ -294,13 +296,13 @@ export function useEmployeeManagement({
         serverPlannerStatus !== 'ready' ||
         mutatingEmployeeId !== null
       ) {
-        alert('График ещё не готов к деактивации сотрудника.');
+        void showMessage('График ещё не готов к деактивации сотрудника.');
         return 'blocked';
       }
 
       const metadata = serverEmployeeMetadata[employeeId];
       if (!metadata) {
-        alert('Не удалось определить версию сотрудника. Обновляю данные.');
+        void showMessage('Не удалось определить версию сотрудника. Обновляю данные.');
         void refreshServerPlanner();
         return 'failed';
       }
@@ -312,7 +314,7 @@ export function useEmployeeManagement({
         return 'success';
       } catch (error) {
         console.error('Server employee deactivate failed', error);
-        alert(
+        void showMessage(
           error instanceof Error
             ? 'Не удалось деактивировать сотрудника: ' + error.message
             : 'Не удалось деактивировать сотрудника на сервере.'

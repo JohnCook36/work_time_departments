@@ -85,3 +85,44 @@ export const SmallIconButton = styled(IconButton)({
   width: 30,
   height: 30,
 });
+
+
+export const DrawerFieldError = styled('div')(({ theme }) => ({
+  minHeight: 16,
+  color: theme.colors.danger,
+  fontSize: 11,
+  lineHeight: '16px',
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+}));
+
+export const DrawerSection = styled('section')(({ theme }) => ({
+  display: 'grid',
+  gap: 10,
+  padding: '14px 0',
+  borderTop: '1px solid ' + theme.colors.border,
+  ':first-of-type': {
+    borderTop: 0,
+    paddingTop: 0,
+  },
+}));
+
+export const DrawerSectionTitle = styled('div')(({ theme }) => ({
+  color: theme.colors.text,
+  fontSize: 13,
+  fontWeight: 800,
+}));
+
+export const DrawerButtonGrid = styled('div')({
+  display: 'grid',
+  gridTemplateColumns: '1fr 1fr',
+  gap: 8,
+  '@media (max-width: 420px)': {
+    gridTemplateColumns: '1fr',
+  },
+});
+
+export const HiddenFileInput = styled('input')({
+  display: 'none',
+});

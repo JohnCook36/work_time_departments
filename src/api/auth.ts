@@ -5,6 +5,7 @@ export interface AuthUser {
     id: string;
     displayName: string;
     departmentId: string;
+    departmentName?: string;
     employmentRate: number;
     scheduleMode: 'FLEXIBLE' | 'FIXED_WEEKDAYS';
     fixedStartTime: string | null;

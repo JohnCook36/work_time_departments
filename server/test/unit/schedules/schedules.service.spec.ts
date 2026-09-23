@@ -12,6 +12,7 @@ function user(overrides: Partial<AuthUserContext> = {}): AuthUserContext {
       id: 'employee-1',
       displayName: 'Employee',
       departmentId: 'department-a',
+      departmentName: 'Department A',
       employmentRate: 1,
     },
     memberships: [

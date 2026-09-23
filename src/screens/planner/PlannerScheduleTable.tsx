@@ -19,7 +19,6 @@ import { Department, Employee, ScheduleData, ShiftEntry } from '../../domain/mod
 import { calculateShiftHours } from '../../domain/schedule/shiftHours';
 import { getDayOfWeek } from '../../utils/calendar';
 import {
-  DepartmentBadge,
   DepartmentRowCell,
   DepartmentRowInner,
   DragHandle,
@@ -38,21 +37,17 @@ import {
 import {
   ErrorPanelList,
   ErrorPanelTitle,
-  FixedScheduleBadge,
+  EmployeeIdentity,
+  EmployeeScheduleMeta,
   HourLine,
   HoursShiftDisplay,
   HourTotal,
+  ShiftTimeLine,
   SortableDepartmentRow,
   SortableEmployeeTableRow,
 } from './PlannerScheduleTable.styles';
 
 export type ScheduleView = 'schedule' | 'hours';
-
-function departmentKindLabel(kind: Department['kind']): string {
-  if (kind === 'fo') return 'FO';
-  if (kind === 'night') return 'Night';
-  return 'Отдел';
-}
 
 interface DepartmentSectionProps {
   department: Department;
@@ -168,9 +163,6 @@ export function DepartmentSection({
             </RowIconButton>
 
             <strong>{department.name}</strong>
-            <DepartmentBadge $kind={department.kind}>
-              {departmentKindLabel(department.kind)}
-            </DepartmentBadge>
             <TinyText>{employees.length} сотрудников</TinyText>
             {employees.length === 0 && employeeDraggable && (
               <TinyText>Перетащите сотрудника сюда</TinyText>
@@ -291,15 +283,18 @@ function SortableEmployeeRow({
             <GripVertical size={16} />
           </DragHandle>
 
-          <EmployeeNameText>{employee.name}</EmployeeNameText>
-
-          {employee.scheduleMode === 'fixed-weekdays' &&
-            employee.fixedStartTime &&
-            employee.fixedEndTime && (
-              <FixedScheduleBadge title="Автоматический базовый график 5/2">
-                5/2 {employee.fixedStartTime}-{employee.fixedEndTime}
-              </FixedScheduleBadge>
-            )}
+          <EmployeeIdentity>
+            <EmployeeNameText title={employee.name}>
+              {employee.name}
+            </EmployeeNameText>
+            {employee.scheduleMode === 'fixed-weekdays' &&
+              employee.fixedStartTime &&
+              employee.fixedEndTime && (
+                <EmployeeScheduleMeta title="Автоматический базовый график 5/2">
+                  5/2 · {employee.fixedStartTime}–{employee.fixedEndTime}
+                </EmployeeScheduleMeta>
+              )}
+          </EmployeeIdentity>
 
           <RowIconButton
             type="button"
@@ -410,21 +405,21 @@ function SortableEmployeeRow({
                     entry.type === 'error'
                       ? entry.error
                       : entry.type === 'shift' && entry.shift
-                        ? (entry.shift.code ? entry.shift.code + ' ' : '') +
-                          entry.shift.start + '-' + entry.shift.end
+                        ? entry.shift.start + '–' + entry.shift.end
                         : ''
                   }
                 >
-                  {entry.type === 'empty'
-                    ? '·'
-                    : entry.type === 'off'
-                      ? 'OFF'
-                      : entry.type === 'shift' && entry.shift
-                        ? entry.shift.code ||
-                          entry.shift.start.slice(0, 2) +
-                            '-' +
-                            entry.shift.end.slice(0, 2)
-                        : '⚠'}
+                  {entry.type === 'empty' ? (
+                    '·'
+                  ) : entry.type === 'off' ? (
+                    'OFF'
+                  ) : entry.type === 'shift' && entry.shift ? (
+                    <ShiftTimeLine>
+                      {entry.shift.start.slice(0, 5)}–{entry.shift.end.slice(0, 5)}
+                    </ShiftTimeLine>
+                  ) : (
+                    '⚠'
+                  )}
                 </ShiftDisplay>
               )}
             </ShiftCell>

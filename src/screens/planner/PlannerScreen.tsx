@@ -9,16 +9,14 @@ import {
 import { Heart } from 'lucide-react';
 import {
   Department,
-  DepartmentKind,
   Employee,
   EmploymentRate,
-  EmployeeScheduleMode,
   EmployeeWishesData,
   ScheduleData,
   SchedulePeriodsData,
   ShiftEntry,
 } from '../../domain/models';
-import { calculateShiftHours, validateShiftInput } from '../../domain/schedule/shiftHours';
+import { calculateShiftHours } from '../../domain/schedule/shiftHours';
 import { getDaysInMonth } from '../../utils/calendar';
 import { EmployeeEditValues } from '../../components/drawers/EmployeeEditDrawer';
 import {
@@ -37,8 +35,10 @@ import { usePlannerStorage } from '../../hooks/usePlannerStorage';
 import { usePlannerWishes } from '../../hooks/usePlannerWishes';
 import { useScheduleMutations } from '../../hooks/useScheduleMutations';
 import { useAppTheme } from '../../theme/AppThemeProvider';
+import { useAppDialog } from '../../components/dialogs/AppDialogProvider';
 import { PlannerHeaderScreen } from './PlannerHeaderScreen';
 import { PlannerManagementScreen } from './PlannerManagementScreen';
+import type { EmployeeCreateFormValues } from './PlannerControlsToolbar';
 import { PlannerOverlays } from './PlannerOverlays';
 import { PlannerScheduleWorkspace } from './PlannerScheduleWorkspace';
 import { ScheduleView } from './PlannerScheduleTable';
@@ -108,6 +108,7 @@ export function PlannerScreen() {
   const [year, setYear] = useState(initialNow.getFullYear());
   const [month, setMonth] = useState(initialNow.getMonth());
   const { themeMode, toggleTheme } = useAppTheme();
+  const { showMessage, confirmAction, promptText } = useAppDialog();
 
   const [departments, setDepartments] = useState<Department[]>(
     serverPlannerReadEnabled
@@ -127,21 +128,7 @@ export function PlannerScreen() {
     serverPlannerReadEnabled ? [] : stored?.collapsedDepartments || []
   );
 
-  const [newEmployeeName, setNewEmployeeName] = useState('');
-  const [newEmployeeScheduleMode, setNewEmployeeScheduleMode] =
-    useState<EmployeeScheduleMode>('flexible');
-  const [newEmployeeFixedStartTime, setNewEmployeeFixedStartTime] =
-    useState('');
-  const [newEmployeeFixedEndTime, setNewEmployeeFixedEndTime] =
-    useState('');
-  const [newEmployeeDepartmentId, setNewEmployeeDepartmentId] = useState(
-    serverPlannerReadEnabled
-      ? ''
-      : (stored?.departments || DEFAULT_DEPARTMENTS)[0].id
-  );
   const [newDepartmentName, setNewDepartmentName] = useState('');
-  const [newDepartmentKind, setNewDepartmentKind] =
-    useState<DepartmentKind>('general');
   const [editingCell, setEditingCell] = useState<{
     empId: string;
     day: number;
@@ -280,7 +267,6 @@ export function PlannerScreen() {
   const {
     createDepartment,
     renameDepartment: renameDepartmentById,
-    changeDepartmentKind: changeDepartmentKindById,
     deactivateDepartment,
     mutatingDepartmentId,
   } = useDepartmentManagement({
@@ -340,12 +326,6 @@ export function PlannerScreen() {
     setEditingCell(null);
     setWishEmployeeId(null);
   }, [serverPlannerReadEnabled]);
-
-  useEffect(() => {
-    if (!departments.some((department) => department.id === newEmployeeDepartmentId)) {
-      setNewEmployeeDepartmentId(departments[0]?.id || '');
-    }
-  }, [departments, newEmployeeDepartmentId]);
 
   const updateCurrentSchedule = useCallback(
     (updater: (current: ScheduleData) => ScheduleData) => {
@@ -450,45 +430,23 @@ export function PlannerScreen() {
     [daysInMonth, getEntry]
   );
 
-  const resetNewEmployeeForm = () => {
-    setNewEmployeeName('');
-    setNewEmployeeScheduleMode('flexible');
-    setNewEmployeeFixedStartTime('');
-    setNewEmployeeFixedEndTime('');
-  };
-
-  const addEmployee = async () => {
-    const name = newEmployeeName.trim();
-    if (!name || !newEmployeeDepartmentId || isCreatingEmployee) return;
-
-    if (newEmployeeScheduleMode === 'fixed-weekdays') {
-      const fixedEntry = validateShiftInput(
-        newEmployeeFixedStartTime + '-' + newEmployeeFixedEndTime
-      );
-
-      if (fixedEntry.type !== 'shift') {
-        alert('Для фиксированного графика укажите корректное время начала и окончания.');
-        return;
-      }
-    }
-
-    const created = await createEmployee({
-      displayName: name,
-      departmentId: newEmployeeDepartmentId,
+  const addEmployee = async (
+    values: EmployeeCreateFormValues
+  ): Promise<boolean> =>
+    createEmployee({
+      displayName: values.displayName,
+      departmentId: values.departmentId,
       employmentRate: 1,
-      scheduleMode: newEmployeeScheduleMode,
+      scheduleMode: values.scheduleMode,
       fixedStartTime:
-        newEmployeeScheduleMode === 'fixed-weekdays'
-          ? newEmployeeFixedStartTime
+        values.scheduleMode === 'fixed-weekdays'
+          ? values.fixedStartTime
           : null,
       fixedEndTime:
-        newEmployeeScheduleMode === 'fixed-weekdays'
-          ? newEmployeeFixedEndTime
+        values.scheduleMode === 'fixed-weekdays'
+          ? values.fixedEndTime
           : null,
     });
-
-    if (created) resetNewEmployeeForm();
-  };
 
   const saveEmployeeEdit = (values: EmployeeEditValues) => {
     if (!editingEmployeeId || mutatingEmployeeId !== null) return;
@@ -510,16 +468,25 @@ export function PlannerScreen() {
   };
 
   const removeEmployee = (id: string) => {
-    const promptText = serverPlannerWriteEnabled
+    const message = serverPlannerWriteEnabled
       ? 'Деактивировать сотрудника? Исторические смены будут сохранены.'
       : 'Удалить сотрудника, его смены и пожелания?';
 
-    if (!confirm(promptText)) return;
+    void confirmAction(message, {
+      title: serverPlannerWriteEnabled
+        ? 'Деактивация сотрудника'
+        : 'Удаление сотрудника',
+      confirmLabel: serverPlannerWriteEnabled
+        ? 'Деактивировать'
+        : 'Удалить',
+    }).then((confirmed) => {
+      if (!confirmed) return;
 
-    void deactivateEmployee(id).then((result) => {
-      if (result === 'blocked') return;
-      if (wishEmployeeId === id) setWishEmployeeId(null);
-      if (editingEmployeeId === id) setEditingEmployeeId(null);
+      void deactivateEmployee(id).then((result) => {
+        if (result === 'blocked') return;
+        if (wishEmployeeId === id) setWishEmployeeId(null);
+        if (editingEmployeeId === id) setEditingEmployeeId(null);
+      });
     });
   };
 
@@ -529,50 +496,51 @@ export function PlannerScreen() {
 
     const createdDepartmentId = await createDepartment({
       name,
-      kind: newDepartmentKind,
+      kind: 'general',
     });
 
     if (!createdDepartmentId) return;
 
     setNewDepartmentName('');
-    setNewDepartmentKind('general');
-    setNewEmployeeDepartmentId(createdDepartmentId);
   };
 
   const renameDepartment = (department: Department) => {
-    const nextName = prompt('Новое название отдела', department.name)?.trim();
-    if (
-      !nextName ||
-      nextName === department.name ||
-      mutatingDepartmentId !== null
-    ) {
-      return;
-    }
+    if (mutatingDepartmentId !== null) return;
 
-    void renameDepartmentById(department.id, nextName);
-  };
-
-  const changeDepartmentKind = (
-    departmentId: string,
-    kind: DepartmentKind
-  ) => {
-    void changeDepartmentKindById(departmentId, kind);
+    void promptText({
+      title: 'Переименовать отдел',
+      label: 'Название отдела',
+      initialValue: department.name,
+      confirmLabel: 'Сохранить',
+    }).then((value) => {
+      const nextName = value?.trim();
+      if (!nextName || nextName === department.name) return;
+      void renameDepartmentById(department.id, nextName);
+    });
   };
 
   const removeDepartment = (departmentId: string) => {
     if (departments.length === 1) {
-      alert('Должен остаться хотя бы один отдел.');
+      void showMessage('Должен остаться хотя бы один отдел.', {
+        title: 'Отдел нельзя деактивировать',
+      });
       return;
     }
 
     if (employees.some((employee) => employee.departmentId === departmentId)) {
-      alert('Сначала перенесите сотрудников в другой отдел.');
+      void showMessage('Сначала перенесите сотрудников в другой отдел.', {
+        title: 'Отдел нельзя деактивировать',
+      });
       return;
     }
 
-    if (!confirm('Деактивировать пустой отдел?')) return;
-
-    void deactivateDepartment(departmentId);
+    void confirmAction('Деактивировать пустой отдел?', {
+      title: 'Деактивация отдела',
+      confirmLabel: 'Деактивировать',
+    }).then((confirmed) => {
+      if (!confirmed) return;
+      void deactivateDepartment(departmentId);
+    });
   };
 
   const toggleDepartmentCollapsed = (departmentId: string) => {
@@ -680,22 +648,13 @@ export function PlannerScreen() {
 
           {canManagePlanner && (
             <PlannerManagementScreen
-              newEmployeeName={newEmployeeName}
-              onNewEmployeeNameChange={setNewEmployeeName}
-              newEmployeeDepartmentId={newEmployeeDepartmentId}
-              onNewEmployeeDepartmentChange={setNewEmployeeDepartmentId}
-              newEmployeeScheduleMode={newEmployeeScheduleMode}
-              onNewEmployeeScheduleModeChange={setNewEmployeeScheduleMode}
-              newEmployeeFixedStartTime={newEmployeeFixedStartTime}
-              onNewEmployeeFixedStartTimeChange={setNewEmployeeFixedStartTime}
-              newEmployeeFixedEndTime={newEmployeeFixedEndTime}
-              onNewEmployeeFixedEndTimeChange={setNewEmployeeFixedEndTime}
               departments={departments}
               employees={employees}
               canCreateEmployee={canCreateEmployee}
               isCreatingEmployee={isCreatingEmployee}
-              onAddEmployee={() => void addEmployee()}
+              onAddEmployee={addEmployee}
               canManageDepartments={canManageDepartments}
+              canViewDepartments={canManagePlanner}
               showDepartments={showDepartments}
               onToggleDepartments={() =>
                 setShowDepartments((value) => !value)
@@ -722,11 +681,8 @@ export function PlannerScreen() {
               onClearAll={() => void clearAll()}
               newDepartmentName={newDepartmentName}
               onNewDepartmentNameChange={setNewDepartmentName}
-              newDepartmentKind={newDepartmentKind}
-              onNewDepartmentKindChange={setNewDepartmentKind}
               mutatingDepartmentId={mutatingDepartmentId}
               onAddDepartment={() => void addDepartment()}
-              onChangeDepartmentKind={changeDepartmentKind}
               onRenameDepartment={renameDepartment}
               onRemoveDepartment={removeDepartment}
             />
@@ -791,8 +747,9 @@ export function PlannerScreen() {
 
           <Footer>
             <div>
-              Данные сохраняются локально в браузере • Смены и пожелания раздельно
-              по месяцам
+              {serverPlannerReadEnabled
+                ? 'Данные загружаются с сервера • Смены и пожелания раздельно по месяцам'
+                : 'Локальный demo-режим • Данные сохраняются только в этом браузере'}
             </div>
             <PoweredByLine>
               Powered by Anastasiya P.

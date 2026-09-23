@@ -24,4 +24,12 @@ describe('getWeeklyNormHours', () => {
     expect(getWeeklyNormHours(2026, 8, 16, 20, 0.5)).toBe(12);
   });
 
+  it('uses the production calendar for New Year holidays', () => {
+    expect(getWeeklyNormHours(2026, 0, 5, 11, 1)).toBe(0);
+    expect(getWeeklyNormHours(2026, 0, 12, 18, 1)).toBe(40);
+  });
+
+  it('accounts for a shortened pre-holiday workday', () => {
+    expect(getWeeklyNormHours(2026, 3, 27, 30, 1)).toBe(31);
+  });
 });

@@ -165,3 +165,73 @@ export const ApproveButton = styled('button')(({ theme }) => ({
     cursor: 'wait',
   },
 }));
+
+
+export const AdminTrigger = styled('span')({
+  position: 'relative',
+  display: 'inline-flex',
+});
+
+export const AdminPendingBadge = styled('span')(({ theme }) => ({
+  position: 'absolute',
+  top: -6,
+  right: -6,
+  zIndex: 2,
+  minWidth: 18,
+  height: 18,
+  padding: '0 5px',
+  borderRadius: 999,
+  border: '2px solid ' + theme.colors.surfaceElevated,
+  background: theme.colors.danger,
+  color: theme.colors.surfaceElevated,
+  fontSize: 10,
+  lineHeight: '14px',
+  fontWeight: 900,
+  textAlign: 'center',
+  pointerEvents: 'none',
+}));
+
+export const PendingNotification = styled('div')(({ theme }) => ({
+  position: 'fixed',
+  top: 76,
+  right: 20,
+  zIndex: 11000,
+  width: 'min(360px, calc(100vw - 32px))',
+  padding: 14,
+  borderRadius: 14,
+  border: '1px solid ' + theme.colors.warningBorder,
+  background: theme.colors.surfaceElevated,
+  color: theme.colors.text,
+  boxShadow: theme.shadows.drawer,
+  '@media (max-width: 760px)': {
+    top: 12,
+    right: 12,
+    width: 'calc(100vw - 24px)',
+  },
+}));
+
+export const PendingNotificationHeader = styled('div')({
+  display: 'flex',
+  alignItems: 'flex-start',
+  justifyContent: 'space-between',
+  gap: 10,
+});
+
+export const PendingNotificationTitle = styled('div')({
+  fontSize: 14,
+  fontWeight: 900,
+});
+
+export const PendingNotificationText = styled('div')(({ theme }) => ({
+  marginTop: 4,
+  color: theme.colors.textMuted,
+  fontSize: 12,
+  lineHeight: 1.45,
+}));
+
+export const PendingNotificationActions = styled('div')({
+  display: 'flex',
+  justifyContent: 'flex-end',
+  gap: 8,
+  marginTop: 12,
+});

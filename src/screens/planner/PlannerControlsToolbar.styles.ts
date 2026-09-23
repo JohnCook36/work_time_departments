@@ -1,15 +1,9 @@
 import styled from '@emotion/styled';
 
-import { Select, TextInput } from '../../theme/styles';
-
-export const FixedTimeInput = styled(TextInput)({
-  width: 118,
-});
-
-export const HiddenFileInput = styled('input')({
-  display: 'none',
-});
-
-export const PrintRangeSelect = styled(Select)({
-  minWidth: 150,
+export const ToolbarActions = styled('div')({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 10,
+  flexWrap: 'wrap',
+  width: '100%',
 });

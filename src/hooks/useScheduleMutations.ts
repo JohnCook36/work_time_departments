@@ -9,6 +9,7 @@ import {
 import { Employee, ScheduleData } from '../domain/models';
 import { validateShiftInput } from '../domain/schedule/shiftHours';
 import { PlannerServerStatus } from './usePlannerServerSync';
+import { useAppDialog } from '../components/dialogs/AppDialogProvider';
 
 interface UseScheduleMutationsOptions {
   serverPlannerWriteEnabled: boolean;
@@ -37,6 +38,7 @@ export function useScheduleMutations({
   updateCurrentSchedule,
   refreshServerPlanner,
 }: UseScheduleMutationsOptions) {
+  const { showMessage, confirmAction } = useAppDialog();
   const [isApplyingBulkSchedule, setIsApplyingBulkSchedule] =
     useState(false);
 
@@ -56,18 +58,18 @@ export function useScheduleMutations({
       }
 
       if (entry.type === 'error') {
-        alert(entry.error || 'Некорректная смена.');
+        void showMessage(entry.error || 'Некорректная смена.');
         return;
       }
 
       if (serverPlannerStatus !== 'ready') {
-        alert('График ещё не синхронизирован с сервером.');
+        void showMessage('График ещё не синхронизирован с сервером.');
         return;
       }
 
       const employee = employees.find((item) => item.id === empId);
       if (!employee) {
-        alert('Сотрудник не найден в серверном графике.');
+        void showMessage('Сотрудник не найден в серверном графике.');
         void refreshServerPlanner();
         return;
       }
@@ -96,7 +98,7 @@ export function useScheduleMutations({
         .then(() => refreshServerPlanner())
         .catch((error) => {
           console.error('Server planner write failed', error);
-          alert(
+          void showMessage(
             error instanceof Error
               ? 'Не удалось сохранить смену: ' + error.message
               : 'Не удалось сохранить смену на сервере.'
@@ -117,9 +119,14 @@ export function useScheduleMutations({
   );
 
   const fillOffAll = useCallback(async () => {
-    if (!confirm('Заполнить все пустые ячейки текущего месяца как OFF?')) {
-      return;
-    }
+    const confirmed = await confirmAction(
+      'Заполнить все пустые ячейки текущего месяца как OFF?',
+      {
+        title: 'Заполнить OFF',
+        confirmLabel: 'Заполнить OFF',
+      },
+    );
+    if (!confirmed) return;
 
     if (!serverPlannerWriteEnabled) {
       updateCurrentSchedule((current) => {
@@ -164,12 +171,12 @@ export function useScheduleMutations({
     });
 
     if (changes.length === 0) {
-      alert('Пустых ячеек для заполнения OFF нет.');
+      void showMessage('Пустых ячеек для заполнения OFF нет.');
       return;
     }
 
     if (changes.length > 5000) {
-      alert(
+      void showMessage(
         'Слишком много ячеек для одной атомарной операции. Уменьшите количество сотрудников.'
       );
       return;
@@ -181,7 +188,7 @@ export function useScheduleMutations({
       await refreshServerPlanner();
     } catch (error) {
       console.error('Server bulk OFF failed', error);
-      alert(
+      void showMessage(
         error instanceof Error
           ? 'Не удалось заполнить OFF: ' + error.message
           : 'Не удалось заполнить OFF на сервере.'
@@ -203,7 +210,14 @@ export function useScheduleMutations({
   ]);
 
   const clearAll = useCallback(async () => {
-    if (!confirm('Очистить все смены за текущий месяц?')) return;
+    const confirmed = await confirmAction(
+      'Очистить все смены за текущий месяц?',
+      {
+        title: 'Очистить месяц',
+        confirmLabel: 'Очистить',
+      },
+    );
+    if (!confirmed) return;
 
     if (!serverPlannerWriteEnabled) {
       updateCurrentSchedule(() => ({}));
@@ -231,12 +245,12 @@ export function useScheduleMutations({
     );
 
     if (changes.length === 0) {
-      alert('Сохранённых смен за текущий месяц нет.');
+      void showMessage('Сохранённых смен за текущий месяц нет.');
       return;
     }
 
     if (changes.length > 5000) {
-      alert(
+      void showMessage(
         'Слишком много ячеек для одной атомарной операции. Операция отменена.'
       );
       return;
@@ -248,7 +262,7 @@ export function useScheduleMutations({
       await refreshServerPlanner();
     } catch (error) {
       console.error('Server clear month failed', error);
-      alert(
+      void showMessage(
         error instanceof Error
           ? 'Не удалось очистить месяц: ' + error.message
           : 'Не удалось очистить месяц на сервере.'

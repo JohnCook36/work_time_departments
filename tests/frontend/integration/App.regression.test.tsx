@@ -1,7 +1,7 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import App from '../../../src/screens/planner/PlannerScreen';
 import * as excelImport from '../../../src/services/excel/importExcel';
@@ -10,6 +10,7 @@ import * as printScheduleModule from '../../../src/services/print/printSchedule'
 import { AuthUserContext } from '../../../src/auth/AuthContext';
 import type { AuthUser } from '../../../src/api/auth';
 import { AppThemeProvider } from '../../../src/theme/AppThemeProvider';
+import { AppDialogProvider } from '../../../src/components/dialogs/AppDialogProvider';
 
 const STORAGE_KEY = 'hotel-shift-planner';
 
@@ -37,11 +38,13 @@ const managementUser: AuthUser = {
 function renderApp() {
   return render(
     <AppThemeProvider>
-      <MemoryRouter>
-        <AuthUserContext.Provider value={managementUser}>
-          <App />
-        </AuthUserContext.Provider>
-      </MemoryRouter>
+      <AppDialogProvider>
+        <MemoryRouter>
+          <AuthUserContext.Provider value={managementUser}>
+            <App />
+          </AuthUserContext.Provider>
+        </MemoryRouter>
+      </AppDialogProvider>
     </AppThemeProvider>,
   );
 }
@@ -131,10 +134,6 @@ function seedCurrentSchedule(value = '15:00-23:00') {
 }
 
 describe('App regression flows', () => {
-  beforeEach(() => {
-    vi.spyOn(window, 'alert').mockImplementation(() => undefined);
-  });
-
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.restoreAllMocks();
@@ -150,8 +149,8 @@ describe('App regression flows', () => {
 
     expect(await screen.findByText('Серверный сотрудник')).toBeInTheDocument();
     expect(screen.getByText(/контролируемый read-only этап/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Сотрудник' })).toBeDisabled();
-    expect(screen.getByText('08-17')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Новый сотрудник' })).toBeDisabled();
+    expect(screen.getByText('08:00–17:00')).toBeInTheDocument();
   });
 
   it('ignores and does not overwrite planner localStorage in server read mode', async () => {
@@ -240,11 +239,14 @@ describe('App regression flows', () => {
       .mockResolvedValueOnce(next);
     const printSpy = vi
       .spyOn(printScheduleModule, 'printSchedule')
-      .mockImplementation(() => undefined);
+      .mockReturnValue('opened');
 
     renderApp();
 
     await screen.findByText('Серверный сотрудник');
+    await user.click(
+      screen.getByRole('button', { name: 'Управление графиком' }),
+    );
     await user.click(screen.getByRole('button', { name: 'Печать' }));
 
     await waitFor(() => {
@@ -313,11 +315,13 @@ describe('App regression flows', () => {
 
     render(
       <AppThemeProvider>
-        <MemoryRouter>
-          <AuthUserContext.Provider value={departmentAdmin}>
-            <App />
-          </AuthUserContext.Provider>
-        </MemoryRouter>
+        <AppDialogProvider>
+          <MemoryRouter>
+            <AuthUserContext.Provider value={departmentAdmin}>
+              <App />
+            </AuthUserContext.Provider>
+          </MemoryRouter>
+        </AppDialogProvider>
       </AppThemeProvider>,
     );
 
@@ -354,7 +358,7 @@ describe('App regression flows', () => {
       screen.getByPlaceholderText('Название отдела'),
       'Новый отдел',
     );
-    await user.click(screen.getByRole('button', { name: 'Отдел' }));
+    await user.click(screen.getByRole('button', { name: 'Создать отдел' }));
 
     await waitFor(() => {
       expect(createDepartmentSpy).toHaveBeenCalledWith({
@@ -370,7 +374,6 @@ describe('App regression flows', () => {
     const snapshot = serverPlannerSnapshot();
     vi.stubEnv('VITE_SERVER_PLANNER_WRITE', '1');
     vi.spyOn(plannerApi, 'loadPlannerServerSnapshot').mockResolvedValue(snapshot);
-    vi.spyOn(window, 'prompt').mockReturnValue('Новый Front Office');
     const updateDepartmentSpy = vi
       .spyOn(plannerApi, 'updatePlannerDepartment')
       .mockResolvedValue({
@@ -388,6 +391,16 @@ describe('App regression flows', () => {
     await screen.findByText('Серверный сотрудник');
     await user.click(screen.getByRole('button', { name: 'Отделы' }));
     await user.click(screen.getByRole('button', { name: 'Переименовать' }));
+
+    const renameDialog = await screen.findByRole('dialog', {
+      name: 'Переименовать отдел',
+    });
+    const renameInput = within(renameDialog).getByLabelText('Название отдела');
+    await user.clear(renameInput);
+    await user.type(renameInput, 'Новый Front Office');
+    await user.click(
+      within(renameDialog).getByRole('button', { name: 'Сохранить' }),
+    );
 
     await waitFor(() => {
       expect(updateDepartmentSpy).toHaveBeenCalledWith(
@@ -416,7 +429,6 @@ describe('App regression flows', () => {
 
     vi.stubEnv('VITE_SERVER_PLANNER_WRITE', '1');
     vi.spyOn(plannerApi, 'loadPlannerServerSnapshot').mockResolvedValue(snapshot);
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     const deactivateSpy = vi
       .spyOn(plannerApi, 'deactivatePlannerDepartment')
       .mockResolvedValue({
@@ -432,6 +444,15 @@ describe('App regression flows', () => {
       name: 'Деактивировать пустой отдел',
     });
     await user.click(deactivateButtons[1]);
+
+    const departmentDialog = await screen.findByRole('dialog', {
+      name: 'Деактивация отдела',
+    });
+    await user.click(
+      within(departmentDialog).getByRole('button', {
+        name: 'Деактивировать',
+      }),
+    );
 
     await waitFor(() => {
       expect(deactivateSpy).toHaveBeenCalledWith(
@@ -460,7 +481,7 @@ describe('App regression flows', () => {
 
     renderApp();
 
-    await user.click(await screen.findByText('08-17'));
+    await user.click(await screen.findByText('08:00–17:00'));
     expect(screen.getByText('Смена сотрудника')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Отделы' })).toBeEnabled();
 
@@ -510,7 +531,17 @@ describe('App regression flows', () => {
     renderApp();
 
     await screen.findByText('Серверный сотрудник');
-    await user.click(screen.getByRole('button', { name: 'OFF все' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Управление графиком' }),
+    );
+    await user.click(screen.getByRole('button', { name: 'OFF всем' }));
+
+    const fillOffDialog = await screen.findByRole('dialog', {
+      name: 'Заполнить OFF',
+    });
+    await user.click(
+      within(fillOffDialog).getByRole('button', { name: 'Заполнить OFF' }),
+    );
 
     await waitFor(() => {
       expect(applySpy).toHaveBeenCalledTimes(1);
@@ -563,7 +594,17 @@ describe('App regression flows', () => {
 
     await screen.findByText('Серверный сотрудник');
     await user.click(
+      screen.getByRole('button', { name: 'Управление графиком' }),
+    );
+    await user.click(
       screen.getByRole('button', { name: 'Очистить месяц' }),
+    );
+
+    const clearDialog = await screen.findByRole('dialog', {
+      name: 'Очистить месяц',
+    });
+    await user.click(
+      within(clearDialog).getByRole('button', { name: 'Очистить' }),
     );
 
     await waitFor(() => {
@@ -582,6 +623,32 @@ describe('App regression flows', () => {
       );
     });
     expect(plannerApi.loadPlannerServerSnapshot).toHaveBeenCalledTimes(2);
+  });
+
+  it('shows inline validation when Employee name is empty', async () => {
+    const user = userEvent.setup();
+    const snapshot = serverPlannerSnapshot();
+    vi.stubEnv('VITE_SERVER_PLANNER_WRITE', '1');
+    vi.spyOn(plannerApi, 'loadPlannerServerSnapshot').mockResolvedValue(snapshot);
+    const createSpy = vi.spyOn(plannerApi, 'createPlannerEmployee');
+
+    renderApp();
+
+    await screen.findByText('Серверный сотрудник');
+    await user.click(
+      screen.getByRole('button', { name: 'Новый сотрудник' }),
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'Добавить сотрудника' }),
+    );
+
+    expect(
+      await screen.findByText('Введите имя и фамилию сотрудника'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText('Например, Иван Иванов'),
+    ).toHaveAttribute('aria-invalid', 'true');
+    expect(createSpy).not.toHaveBeenCalled();
   });
 
   it('creates an Employee through the backend in server write mode', async () => {
@@ -610,11 +677,16 @@ describe('App regression flows', () => {
     await screen.findByText('Серверный сотрудник');
     expect(screen.getByRole('button', { name: 'Отделы' })).toBeEnabled();
 
-    const nameInput = screen.getByPlaceholderText('ФИО нового сотрудника...');
+    await user.click(
+      screen.getByRole('button', { name: 'Новый сотрудник' }),
+    );
+    const nameInput = screen.getByPlaceholderText('Например, Иван Иванов');
     expect(nameInput).toBeEnabled();
     await user.clear(nameInput);
     await user.type(nameInput, 'Новый сотрудник');
-    await user.click(screen.getByRole('button', { name: 'Сотрудник' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Добавить сотрудника' }),
+    );
 
     await waitFor(() => {
       expect(createSpy).toHaveBeenCalledWith({
@@ -700,6 +772,15 @@ describe('App regression flows', () => {
     await user.click(
       screen.getByRole('button', {
         name: 'Деактивировать / удалить сотрудника',
+      }),
+    );
+
+    const employeeDialog = await screen.findByRole('dialog', {
+      name: 'Деактивация сотрудника',
+    });
+    await user.click(
+      within(employeeDialog).getByRole('button', {
+        name: 'Деактивировать',
       }),
     );
 
@@ -835,7 +916,7 @@ describe('App regression flows', () => {
     seedCurrentSchedule();
     renderApp();
 
-    expect(screen.getByText('15-23')).toBeInTheDocument();
+    expect(screen.getByText('15:00–23:00')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'День / ночь' }));
 
@@ -855,7 +936,7 @@ describe('App regression flows', () => {
 
     await user.click(screen.getByRole('button', { name: 'График' }));
 
-    expect(screen.getByText('15-23')).toBeInTheDocument();
+    expect(screen.getByText('15:00–23:00')).toBeInTheDocument();
     expect(screen.queryByText('Недельная норма')).not.toBeInTheDocument();
   });
 
@@ -878,7 +959,7 @@ describe('App regression flows', () => {
     renderApp();
 
     expect(screen.getByText('Legacy Employee')).toBeInTheDocument();
-    expect(screen.getByText('08-17')).toBeInTheDocument();
+    expect(screen.getByText('08:00–17:00')).toBeInTheDocument();
 
     await waitFor(() => {
       const migrated = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
@@ -963,6 +1044,9 @@ describe('App regression flows', () => {
     const { container } = renderApp();
 
     await screen.findByText('Серверный сотрудник');
+    await user.click(
+      screen.getByRole('button', { name: 'Управление графиком' }),
+    );
     const importButton = screen.getByRole('button', { name: 'Импорт Excel' });
     expect(importButton).toBeEnabled();
 
@@ -996,7 +1080,8 @@ describe('App regression flows', () => {
     });
 
     expect(plannerApi.loadPlannerServerSnapshot).toHaveBeenCalledTimes(2);
-    expect(window.alert).toHaveBeenLastCalledWith('Импортировано смен: 1');
+    expect(await screen.findByText('Импортировано смен: 1')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Понятно' }));
   });
 
   it('protects a filled cell by default and overwrites only after confirmation', async () => {
@@ -1022,6 +1107,9 @@ describe('App regression flows', () => {
     };
     vi.spyOn(excelImport, 'parseScheduleExcel').mockResolvedValue(preview);
     const { container } = renderApp();
+    await user.click(
+      screen.getByRole('button', { name: 'Управление графиком' }),
+    );
     const fileInput = container.querySelector<HTMLInputElement>('input[type="file"]')!;
     const file = new File(['content'], 'import.xlsx');
 
@@ -1030,10 +1118,17 @@ describe('App regression flows', () => {
     expect(screen.getByText('Конфликтов с текущим графиком')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Применить импорт' }));
 
-    expect(window.alert).toHaveBeenLastCalledWith(
-      'Импортировано смен: 0\nЗащищено заполненных ячеек: 1',
+    const protectedImportDialog = await screen.findByRole('dialog', {
+      name: 'Сообщение',
+    });
+    expect(protectedImportDialog).toHaveTextContent('Импортировано смен: 0');
+    expect(protectedImportDialog).toHaveTextContent(
+      'Защищено заполненных ячеек: 1',
     );
-    expect(screen.getByText('08-17')).toBeInTheDocument();
+    await user.click(
+      within(protectedImportDialog).getByRole('button', { name: 'Понятно' }),
+    );
+    expect(screen.getByText('08:00–17:00')).toBeInTheDocument();
 
     fireEvent.change(fileInput, { target: { files: [file] } });
     expect(await screen.findByText('Предпросмотр импорта')).toBeInTheDocument();
@@ -1042,8 +1137,9 @@ describe('App regression flows', () => {
     );
     await user.click(screen.getByRole('button', { name: 'Применить импорт' }));
 
-    expect(window.alert).toHaveBeenCalledTimes(2);
-    expect(await screen.findByText('15-23')).toBeInTheDocument();
+    expect(await screen.findByText('Импортировано смен: 1')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Понятно' }));
+    expect(await screen.findByText('15:00–23:00')).toBeInTheDocument();
     await waitFor(() => {
       const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
       expect(stored.schedules[currentPeriodKey()].employee[1].shift).toEqual({
@@ -1072,6 +1168,9 @@ describe('App regression flows', () => {
     };
     vi.spyOn(excelImport, 'parseScheduleExcel').mockResolvedValue(preview);
     const { container } = renderApp();
+    await user.click(
+      screen.getByRole('button', { name: 'Управление графиком' }),
+    );
     const fileInput = container.querySelector<HTMLInputElement>('input[type="file"]')!;
 
     fireEvent.change(fileInput, {
@@ -1089,8 +1188,15 @@ describe('App regression flows', () => {
       expect(stored.schedules[currentPeriodKey()].employee[3]).toBeUndefined();
       expect(stored.schedules[currentPeriodKey()].employee[32]).toBeUndefined();
     });
-    expect(window.alert).toHaveBeenLastCalledWith(
-      'Импортировано смен: 1\nПропущено дней вне текущего месяца: 1',
+    const importResultDialog = await screen.findByRole('dialog', {
+      name: 'Сообщение',
+    });
+    expect(importResultDialog).toHaveTextContent('Импортировано смен: 1');
+    expect(importResultDialog).toHaveTextContent(
+      'Пропущено дней вне текущего месяца: 1',
+    );
+    await user.click(
+      within(importResultDialog).getByRole('button', { name: 'Понятно' }),
     );
   });
 

@@ -1,4 +1,4 @@
-import { getDayOfWeek } from '../../utils/calendar';
+import { getRussiaFiveDayNormHours } from './productionCalendar';
 import { EmploymentRate, ShiftCode, ShiftEntry } from '../models';
 
 const MINUTES_IN_DAY = 24 * 60;
@@ -193,14 +193,11 @@ export function getWeeklyNormHours(
   endDay: number,
   rate: EmploymentRate
 ): number {
-  let weekdays = 0;
+  let normHours = 0;
 
   for (let day = startDay; day <= endDay; day++) {
-    const dayOfWeek = getDayOfWeek(year, month, day);
-    if (dayOfWeek >= 1 && dayOfWeek <= 5) {
-      weekdays++;
-    }
+    normHours += getRussiaFiveDayNormHours(year, month, day, 8);
   }
 
-  return Math.round(weekdays * 8 * rate * 100) / 100;
+  return Math.round(normHours * rate * 100) / 100;
 }

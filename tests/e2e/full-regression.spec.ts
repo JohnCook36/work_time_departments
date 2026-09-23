@@ -90,14 +90,16 @@ test('department + employee + 15:00-23:00 produces D 6 / N 1 / total 7', async (
   await page.goto('/');
   await page.getByRole('button', { name: 'Отделы' }).click();
   await page.getByPlaceholder('Название отдела').fill('E2E Отдел');
-  await page.getByRole('button', { name: 'Отдел', exact: true }).click();
+  await page.getByRole('button', { name: 'Создать отдел' }).click();
+  await page.getByTitle('Закрыть').click();
 
-  const employeeName = page.getByPlaceholder('ФИО нового сотрудника...');
+  await page.getByRole('button', { name: 'Новый сотрудник' }).click();
+  const employeeName = page.getByPlaceholder('Например, Иван Иванов');
   await employeeName.fill('Новый E2E');
   await page.getByRole('combobox').first().selectOption({
     label: 'E2E Отдел',
   });
-  await page.getByRole('button', { name: 'Сотрудник', exact: true }).click();
+  await page.getByRole('button', { name: 'Добавить сотрудника', exact: true }).click();
 
   const row = employeeRow(page, 'Новый E2E');
   await row.locator('td').nth(1).click();
@@ -169,6 +171,29 @@ test('employee drag to another department survives reload', async ({ page }) => 
   ).toBe('department-2');
 });
 
+test('night shift shows working time instead of internal N code', async ({ page }) => {
+  await seed(
+    page,
+    state({
+      schedule: {
+        'employee-1': {
+          1: {
+            type: 'shift',
+            shift: { start: '20:00', end: '08:00', code: 'N' },
+          },
+        },
+      },
+    }),
+  );
+  await page.goto('/');
+
+  const row = employeeRow(page);
+  const nightCell = row.locator('td').nth(1);
+
+  await expect(nightCell).toContainText('20:00–08:00');
+  await expect(nightCell).not.toContainText(/^N$/);
+});
+
 test('shift editor saves the 08:00-17:00 preset into the cell', async ({ page }) => {
   await seed(page, state());
   await page.goto('/');
@@ -179,7 +204,7 @@ test('shift editor saves the 08:00-17:00 preset into the cell', async ({ page })
   await page.getByRole('button', { name: '08:00–17:00' }).click();
   await page.getByRole('button', { name: /Сохранить смену/ }).click();
 
-  await expect(row.getByTitle('08:00-17:00')).toHaveText('08-17');
+  await expect(row.getByTitle('08:00–17:00')).toHaveText('08:00–17:00');
 });
 
 test('Excel preview protects a cell and allows confirmed overwrite', async ({ page }) => {
@@ -200,6 +225,7 @@ test('Excel preview protects a cell and allows confirmed overwrite', async ({ pa
   worksheet.addRow(['Сотрудник', '1']);
   worksheet.addRow(['E2E Сотрудник', '15:00-23:00']);
   const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
+  await page.getByRole('button', { name: 'Управление графиком' }).click();
   const input = page.locator('input[type="file"]');
 
   await input.setInputFiles({
@@ -209,9 +235,14 @@ test('Excel preview protects a cell and allows confirmed overwrite', async ({ pa
   });
   await expect(page.getByText('Предпросмотр импорта')).toBeVisible();
   await expect(page.getByText('Конфликтов с текущим графиком')).toBeVisible();
-  page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: 'Применить импорт' }).click();
-  await expect(employeeRow(page).getByTitle('08:00-17:00')).toBeVisible();
+  const protectedImportDialog = page.getByRole('dialog', { name: 'Сообщение' });
+  await expect(protectedImportDialog).toContainText('Импортировано смен: 0');
+  await expect(protectedImportDialog).toContainText(
+    'Защищено заполненных ячеек: 1',
+  );
+  await protectedImportDialog.getByRole('button', { name: 'Понятно' }).click();
+  await expect(employeeRow(page).getByTitle('08:00–17:00')).toBeVisible();
 
   await input.setInputFiles({
     name: 'import.xlsx',
@@ -221,10 +252,12 @@ test('Excel preview protects a cell and allows confirmed overwrite', async ({ pa
   await page
     .getByRole('checkbox', { name: /Перезаписывать заполненные ячейки/ })
     .check();
-  page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: 'Применить импорт' }).click();
+  const overwriteDialog = page.getByRole('dialog', { name: 'Сообщение' });
+  await expect(overwriteDialog).toContainText('Импортировано смен: 1');
+  await overwriteDialog.getByRole('button', { name: 'Понятно' }).click();
 
-  await expect(employeeRow(page).getByTitle('15:00-23:00')).toBeVisible();
+  await expect(employeeRow(page).getByTitle('15:00–23:00')).toBeVisible();
 });
 
 test('employment rate changes the weekly norm', async ({ page }) => {
