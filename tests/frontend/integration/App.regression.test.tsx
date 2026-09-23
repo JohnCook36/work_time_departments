@@ -1065,6 +1065,9 @@ describe('App regression flows', () => {
     };
     vi.spyOn(excelImport, 'parseScheduleExcel').mockResolvedValue(preview);
     const { container } = renderApp();
+    await user.click(
+      screen.getByRole('button', { name: 'Управление графиком' }),
+    );
     const fileInput = container.querySelector<HTMLInputElement>('input[type="file"]')!;
     const file = new File(['content'], 'import.xlsx');
 
@@ -1115,6 +1118,9 @@ describe('App regression flows', () => {
     };
     vi.spyOn(excelImport, 'parseScheduleExcel').mockResolvedValue(preview);
     const { container } = renderApp();
+    await user.click(
+      screen.getByRole('button', { name: 'Управление графиком' }),
+    );
     const fileInput = container.querySelector<HTMLInputElement>('input[type="file"]')!;
 
     fireEvent.change(fileInput, {
