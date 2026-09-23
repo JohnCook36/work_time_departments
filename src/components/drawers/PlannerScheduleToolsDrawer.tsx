@@ -21,6 +21,7 @@ import {
 import {
   CompactDrawer,
   DrawerButtonGrid,
+  FullWidthActionButton,
   DrawerSection,
   DrawerSectionTitle,
   HiddenFileInput,
@@ -143,14 +144,14 @@ export function PlannerScheduleToolsDrawer({
             </Select>
           </FormGroup>
 
-          <ActionButton
+          <FullWidthActionButton
             type="button"
             onClick={onPrint}
             disabled={isPreparingPrint}
           >
             <Printer size={16} />
             {isPreparingPrint ? 'Готовлю…' : 'Печать'}
-          </ActionButton>
+          </FullWidthActionButton>
         </DrawerSection>
 
         <DrawerSection>

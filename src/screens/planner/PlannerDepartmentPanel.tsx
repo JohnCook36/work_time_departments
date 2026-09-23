@@ -2,7 +2,6 @@ import { Pencil, Plus, Trash2, X } from 'lucide-react';
 
 import { Department, Employee } from '../../domain/models';
 import {
-  ActionButton,
   DepartmentCard,
   DepartmentGrid,
   DepartmentMeta,
@@ -20,6 +19,7 @@ import {
 } from '../../theme/styles';
 import {
   CompactDrawer,
+  FullWidthActionButton,
   FullWidthInput,
 } from '../../components/drawers/styles';
 
@@ -91,7 +91,7 @@ export function PlannerDepartmentPanel({
               disabled={mutatingDepartmentId !== null}
             />
 
-            <ActionButton
+            <FullWidthActionButton
               type="button"
               $variant="accent"
               onClick={onAddDepartment}
@@ -104,7 +104,7 @@ export function PlannerDepartmentPanel({
               {mutatingDepartmentId === 'create'
                 ? 'Создаю…'
                 : 'Создать отдел'}
-            </ActionButton>
+            </FullWidthActionButton>
           </FormGroup>
         ) : (
           <Muted>
