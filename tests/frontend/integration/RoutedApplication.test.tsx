@@ -159,10 +159,23 @@ describe('Routing foundation with real session provider and ErrorBoundary', () =
     vi.mocked(api.getMe).mockResolvedValueOnce({ ...user, employee: null })
       .mockRejectedValue(new api.ApiError('Unauthorized', 401));
     vi.spyOn(api, 'logout').mockResolvedValue({ status: 'ok' });
+    localStorage.setItem(
+      'hotel-shift-planner:user:' + encodeURIComponent(user.id),
+      JSON.stringify({ employees: [{ id: 'private-employee' }] }),
+    );
+
     open('/onboarding');
     fireEvent.click(await screen.findByRole('button', { name: 'Выйти' }));
-    expect(await screen.findByRole('heading', { name: 'Вход для сотрудников' })).toBeInTheDocument();
+
+    expect(
+      await screen.findByRole('heading', { name: 'Вход для сотрудников' }),
+    ).toBeInTheDocument();
     expect(api.logout).toHaveBeenCalledOnce();
+    expect(
+      localStorage.getItem(
+        'hotel-shift-planner:user:' + encodeURIComponent(user.id),
+      ),
+    ).toBeNull();
     expect(window.location.pathname).toBe('/login');
   });
 

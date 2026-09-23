@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 
 import {
   Department,
@@ -7,8 +7,11 @@ import {
   ScheduleData,
   SchedulePeriodsData,
 } from '../domain/models';
-
-const STORAGE_KEY = 'hotel-shift-planner';
+import {
+  clearLegacyPlannerStorage,
+  readPlannerStorage,
+  writePlannerStorage,
+} from '../services/storage/plannerStorage';
 
 interface StoredData {
   employees?: Array<Employee | Omit<Employee, 'departmentId'>>;
@@ -41,11 +44,12 @@ export interface PlannerStorageState {
 }
 
 function loadPlannerStorage(
+  ownerId: string,
   initialPeriodKey: string,
   defaults: PlannerStorageDefaults
 ): LoadedPlannerStorage | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = readPlannerStorage(ownerId);
     if (!raw) return null;
 
     const data = JSON.parse(raw) as StoredData;
@@ -109,32 +113,34 @@ function loadPlannerStorage(
   }
 }
 
-function savePlannerStorage(state: PlannerStorageState): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch {
-    // Browser storage may be unavailable.
-  }
+function savePlannerStorage(
+  ownerId: string,
+  state: PlannerStorageState,
+): void {
+  writePlannerStorage(ownerId, JSON.stringify(state));
 }
 
-export function usePlannerStorage(enabled: boolean) {
+export function usePlannerStorage(enabled: boolean, ownerId: string) {
+  useEffect(() => {
+    clearLegacyPlannerStorage();
+  }, []);
   const load = useCallback(
     (
       initialPeriodKey: string,
       defaults: PlannerStorageDefaults
     ): LoadedPlannerStorage | null => {
-      if (!enabled) return null;
-      return loadPlannerStorage(initialPeriodKey, defaults);
+      if (!enabled || !ownerId) return null;
+      return loadPlannerStorage(ownerId, initialPeriodKey, defaults);
     },
-    [enabled]
+    [enabled, ownerId]
   );
 
   const persist = useCallback(
     (state: PlannerStorageState): void => {
-      if (!enabled) return;
-      savePlannerStorage(state);
+      if (!enabled || !ownerId) return;
+      savePlannerStorage(ownerId, state);
     },
-    [enabled]
+    [enabled, ownerId]
   );
 
   return {

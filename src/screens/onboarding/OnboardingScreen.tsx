@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Clock3, LogOut, Search, UserPlus } from 'lucide-react';
 import { EmployeeCandidate, OnboardingDepartment, OnboardingRequest,
-  cancelOnboardingRequest, getOnboardingDepartments, getOnboardingStatus, logout,
+  cancelOnboardingRequest, getOnboardingDepartments, getOnboardingStatus,
   requestExistingEmployeeLink, requestNewEmployeeRegistration, searchEmployeeCandidates,
 } from '../../api/auth';
 import { useAuthUser } from '../../auth/AuthContext';
@@ -81,7 +81,7 @@ function PendingRequest({
 
 export function OnboardingScreen() {
   const user = useAuthUser();
-  const { refresh: onSessionChanged } = useAuthSession();
+  const { refresh: onSessionChanged, signOut } = useAuthSession();
   const [departments, setDepartments] = useState<OnboardingDepartment[]>([]);
   const [departmentId, setDepartmentId] = useState('');
   const [query, setQuery] = useState('');
@@ -137,10 +137,7 @@ export function OnboardingScreen() {
           />
           <LogoutButton
             type="button"
-            onClick={async () => {
-              await logout();
-              onSessionChanged();
-            }}
+            onClick={() => void signOut()}
           >
             <LogOut size={16} />
             Выйти
@@ -288,10 +285,7 @@ export function OnboardingScreen() {
 
         <LogoutButton
           type="button"
-          onClick={async () => {
-            await logout();
-            onSessionChanged();
-          }}
+          onClick={() => void signOut()}
         >
           <LogOut size={16} />
           Выйти

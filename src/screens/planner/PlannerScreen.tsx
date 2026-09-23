@@ -95,7 +95,7 @@ export function PlannerScreen() {
     initialNow.getMonth()
   );
   const { load: loadPlannerStorage, persist: persistPlannerStorage } =
-    usePlannerStorage(!serverPlannerReadEnabled);
+    usePlannerStorage(!serverPlannerReadEnabled, authUser.id);
   const stored = useMemo(
     () =>
       loadPlannerStorage(initialPeriodKey, {

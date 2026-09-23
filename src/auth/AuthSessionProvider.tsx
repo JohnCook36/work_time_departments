@@ -1,5 +1,9 @@
 import React, { createContext, ReactNode, useCallback, useContext, useEffect, useState } from 'react';
-import { ApiError, AuthUser, getMe } from '../api/auth';
+import { ApiError, AuthUser, getMe, logout } from '../api/auth';
+import {
+  clearLegacyPlannerStorage,
+  clearPlannerStorageForUser,
+} from '../services/storage/plannerStorage';
 import { AuthUserContext } from './AuthContext';
 
 type SessionStatus = 'loading' | 'guest' | 'ready' | 'error';
@@ -8,6 +12,7 @@ interface AuthSession {
   status: SessionStatus;
   error: string | null;
   refresh: () => Promise<void>;
+  signOut: () => Promise<void>;
 }
 const AuthSessionContext = createContext<AuthSession | null>(null);
 
@@ -35,7 +40,13 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
       setState('ready');
     } catch (requestError) {
       if (requestError instanceof ApiError && requestError.status === 401) {
-        setUser(null);
+        clearLegacyPlannerStorage();
+        setUser((currentUser) => {
+          if (currentUser?.id) {
+            clearPlannerStorageForUser(currentUser.id);
+          }
+          return null;
+        });
         setState('guest');
         return;
       }
@@ -49,12 +60,27 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const signOut = useCallback(async () => {
+    setError(null);
+
+    await logout();
+
+    clearLegacyPlannerStorage();
+    if (user?.id) {
+      clearPlannerStorageForUser(user.id);
+    }
+    setUser(null);
+    setState('guest');
+  }, [user?.id]);
+
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
   return (
-    <AuthSessionContext.Provider value={{ user, status: state, error, refresh }}>
+    <AuthSessionContext.Provider
+      value={{ user, status: state, error, refresh, signOut }}
+    >
       <AuthUserContext.Provider value={user}>{children}</AuthUserContext.Provider>
     </AuthSessionContext.Provider>
   );
