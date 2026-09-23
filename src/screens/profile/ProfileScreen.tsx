@@ -77,7 +77,7 @@ export function ProfileScreen() {
 
                 <DataRow>
                   <DataLabel>Отдел</DataLabel>
-                  <DataValue>{employee.departmentId}</DataValue>
+                  <DataValue>{employee.departmentName || 'Не указан'}</DataValue>
                 </DataRow>
               </>
             )}
