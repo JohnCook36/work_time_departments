@@ -21,6 +21,12 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Design token guard
+        run: npm run check:design-tokens
+
+      - name: Inline style guard
+        run: npm run check:inline-styles
+
       - name: Tests (if present)
         run: npm test --if-present
 

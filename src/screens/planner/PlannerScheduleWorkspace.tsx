@@ -1,0 +1,330 @@
+import { createPortal } from 'react-dom';
+import { DragOverlay } from '@dnd-kit/core';
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { GripVertical } from 'lucide-react';
+
+import {
+  Department,
+  Employee,
+  EmployeeWishesData,
+  EmploymentRate,
+  ScheduleData,
+  ShiftEntry,
+} from '../../domain/models';
+import { calculateShiftHours } from '../../domain/schedule/shiftHours';
+import { DAY_NAMES_SHORT, getDayOfWeek } from '../../utils/calendar';
+import { WeeklyHoursPanel } from '../../components/schedule/WeeklyHoursPanel';
+import {
+  HeaderCell,
+  Legend,
+  MetricCell,
+  ScheduleTable,
+  StickyHeaderCell,
+  StickyTotalCell,
+  TableHeadRow,
+  TableScroll,
+  TableShell,
+  TotalCell,
+  TotalRow,
+} from '../../theme/styles';
+import {
+  DepartmentSection,
+  ErrorPanel,
+  ScheduleView,
+} from './PlannerScheduleTable';
+import {
+  DayName,
+  DragDepartmentCard,
+  DragEmployeeBody,
+  DragEmployeeCard,
+  DragEmployeeName,
+  DragTargetText,
+  EmptyEmployees,
+} from './PlannerScheduleWorkspace.styles';
+
+interface EmployeeTotals {
+  day: number;
+  night: number;
+  total: number;
+  workDays: number;
+}
+
+interface WeekRangeLike {
+  key: string;
+  start: number;
+  end: number;
+  label: string;
+}
+
+interface PlannerScheduleWorkspaceProps {
+  departments: Department[];
+  employees: Employee[];
+  daysInMonth: number;
+  year: number;
+  month: number;
+  schedule: ScheduleData;
+  periodKey: string;
+  wishes: EmployeeWishesData;
+  scheduleView: ScheduleView;
+  onEditCell: (value: { empId: string; day: number } | null) => void;
+  getEntry: (employeeId: string, day: number) => ShiftEntry;
+  getEmployeeTotals: (employeeId: string) => EmployeeTotals;
+  onRemoveEmployee: (employeeId: string) => void;
+  onEditEmployee: (employeeId: string) => void;
+  onOpenWishes: (employeeId: string) => void;
+  canEditWishes: boolean;
+  canManageEmployeeProfiles: boolean;
+  canEditScheduleCells: boolean;
+  canMoveEmployees: boolean;
+  canMoveDepartments: boolean;
+  dragTargetDepartmentId: string | null;
+  activeDragId: string | null;
+  collapsedDepartments: string[];
+  onToggleDepartmentCollapsed: (departmentId: string) => void;
+  grandTotals: Pick<EmployeeTotals, 'day' | 'night' | 'total'>;
+  draggedEmployee: Employee | null;
+  draggedDepartment: Department | null;
+  dragTargetDepartment: Department | null;
+  printWeekRanges: WeekRangeLike[];
+  onRateChange: (employeeId: string, rate: EmploymentRate) => void;
+  canEditEmployeeRate: boolean;
+  updatingEmployeeRateId: string | null;
+}
+
+export function PlannerScheduleWorkspace({
+  departments,
+  employees,
+  daysInMonth,
+  year,
+  month,
+  schedule,
+  periodKey,
+  wishes,
+  scheduleView,
+  onEditCell,
+  getEntry,
+  getEmployeeTotals,
+  onRemoveEmployee,
+  onEditEmployee,
+  onOpenWishes,
+  canEditWishes,
+  canManageEmployeeProfiles,
+  canEditScheduleCells,
+  canMoveEmployees,
+  canMoveDepartments,
+  dragTargetDepartmentId,
+  activeDragId,
+  collapsedDepartments,
+  onToggleDepartmentCollapsed,
+  grandTotals,
+  draggedEmployee,
+  draggedDepartment,
+  dragTargetDepartment,
+  printWeekRanges,
+  onRateChange,
+  canEditEmployeeRate,
+  updatingEmployeeRateId,
+}: PlannerScheduleWorkspaceProps) {
+  const columnCount = daysInMonth + 5;
+
+  return (
+    <>
+      <TableShell>
+        <TableScroll>
+          <ScheduleTable>
+            <thead>
+              <TableHeadRow>
+                <StickyHeaderCell>Сотрудник</StickyHeaderCell>
+
+                {Array.from(
+                  { length: daysInMonth },
+                  (_, index) => index + 1
+                ).map((day) => {
+                  const dayOfWeek = getDayOfWeek(year, month, day);
+                  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
+                  return (
+                    <HeaderCell key={day} $weekend={isWeekend}>
+                      <DayName>{DAY_NAMES_SHORT[dayOfWeek]}</DayName>
+                      <div>{day}</div>
+                    </HeaderCell>
+                  );
+                })}
+
+                <HeaderCell>☀️<br />Днев.</HeaderCell>
+                <HeaderCell>🌙<br />Ночн.</HeaderCell>
+                <HeaderCell>Σ<br />Итого</HeaderCell>
+                <HeaderCell>📅<br />Дней</HeaderCell>
+              </TableHeadRow>
+            </thead>
+
+            <tbody>
+              <SortableContext
+                items={departments.map((department) => 'dept:' + department.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                {departments.map((department) => {
+                  const departmentEmployees = employees.filter(
+                    (employee) => employee.departmentId === department.id
+                  );
+
+                  return (
+                    <DepartmentSection
+                      key={department.id}
+                      department={department}
+                      employees={departmentEmployees}
+                      columnCount={columnCount}
+                      daysInMonth={daysInMonth}
+                      year={year}
+                      month={month}
+                      setEditingCell={onEditCell}
+                      getEntry={getEntry}
+                      getEmployeeTotals={getEmployeeTotals}
+                      removeEmployee={onRemoveEmployee}
+                      onEditEmployee={onEditEmployee}
+                      getWishCount={(employeeId) =>
+                        wishes[employeeId]?.[periodKey]?.length || 0
+                      }
+                      getWishSummary={(employeeId) =>
+                        (wishes[employeeId]?.[periodKey] || [])
+                          .slice(0, 3)
+                          .map(
+                            (wish) =>
+                              (wish.day === null
+                                ? 'Общее'
+                                : String(wish.day)) +
+                              ': ' +
+                              wish.text
+                          )
+                          .join('\n')
+                      }
+                      onOpenWishes={onOpenWishes}
+                      scheduleView={scheduleView}
+                      wishEditable={canEditWishes}
+                      employeeProfileEditable={canManageEmployeeProfiles}
+                      scheduleEditable={canEditScheduleCells}
+                      employeeDraggable={canMoveEmployees}
+                      departmentDraggable={canMoveDepartments}
+                      isDragTarget={
+                        dragTargetDepartmentId === department.id &&
+                        activeDragId?.startsWith('emp:') === true
+                      }
+                      collapsed={collapsedDepartments.includes(department.id)}
+                      onToggleCollapsed={() =>
+                        onToggleDepartmentCollapsed(department.id)
+                      }
+                    />
+                  );
+                })}
+              </SortableContext>
+            </tbody>
+
+            {employees.length > 0 && (
+              <tfoot>
+                <TotalRow>
+                  <StickyTotalCell>ИТОГО</StickyTotalCell>
+
+                  {Array.from(
+                    { length: daysInMonth },
+                    (_, index) => index + 1
+                  ).map((day) => {
+                    let dayCount = 0;
+                    let dayPaidHours = 0;
+
+                    employees.forEach((employee) => {
+                      const entry = getEntry(employee.id, day);
+                      if (entry.type === 'shift') {
+                        dayCount++;
+                        dayPaidHours += calculateShiftHours(entry).total;
+                      }
+                    });
+
+                    return (
+                      <TotalCell key={day}>
+                        {scheduleView === 'hours'
+                          ? dayPaidHours > 0
+                            ? Math.round(dayPaidHours * 100) / 100
+                            : ''
+                          : dayCount > 0
+                            ? dayCount
+                            : ''}
+                      </TotalCell>
+                    );
+                  })}
+
+                  <MetricCell $tone="day">{grandTotals.day}</MetricCell>
+                  <MetricCell $tone="night">{grandTotals.night}</MetricCell>
+                  <MetricCell $tone="total">{grandTotals.total}</MetricCell>
+                  <MetricCell $tone="muted">—</MetricCell>
+                </TotalRow>
+              </tfoot>
+            )}
+          </ScheduleTable>
+        </TableScroll>
+
+        {employees.length === 0 && (
+          <EmptyEmployees>Сотрудников пока нет.</EmptyEmployees>
+        )}
+      </TableShell>
+
+      {createPortal(
+        <DragOverlay
+          zIndex={10000}
+          adjustScale={false}
+          dropAnimation={{ duration: 140, easing: 'ease-out' }}
+        >
+          {draggedEmployee ? (
+            <DragEmployeeCard>
+              <GripVertical size={17} />
+              <DragEmployeeBody>
+                <DragEmployeeName>{draggedEmployee.name}</DragEmployeeName>
+                <DragTargetText>
+                  {dragTargetDepartment
+                    ? 'Переместить в: ' + dragTargetDepartment.name
+                    : 'Перетащите в нужный отдел'}
+                </DragTargetText>
+              </DragEmployeeBody>
+            </DragEmployeeCard>
+          ) : draggedDepartment ? (
+            <DragDepartmentCard>
+              <GripVertical size={17} />
+              {draggedDepartment.name}
+            </DragDepartmentCard>
+          ) : null}
+        </DragOverlay>,
+        document.body
+      )}
+
+      {scheduleView === 'hours' && employees.length > 0 && (
+        <WeeklyHoursPanel
+          employees={employees}
+          schedule={schedule}
+          year={year}
+          month={month}
+          weeks={printWeekRanges}
+          onRateChange={onRateChange}
+          readOnly={!canEditEmployeeRate || updatingEmployeeRateId !== null}
+        />
+      )}
+
+      <ErrorPanel
+        schedule={schedule}
+        employees={employees}
+        daysInMonth={daysInMonth}
+      />
+
+      <Legend>
+        <span>⋮⋮ Перетащить сотрудника или отдел</span>
+        <span>▾ / › Свернуть отдел</span>
+        <span>💬 Пожелания</span>
+        <span>График / День-ночь — два режима таблицы</span>
+        <span>☀️ Дневная смена</span>
+        <span>🌙 Ночная смена</span>
+        <span>OFF Выходной</span>
+      </Legend>
+    </>
+  );
+}

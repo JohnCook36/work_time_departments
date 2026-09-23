@@ -1,33 +1,65 @@
-# Hotel Shift Planner — enhanced standalone version
+# Work time departments
 
-Готовая статическая версия находится в `dist/` и не требует сборки или установки зависимостей.
+Приложение для планирования смен: React + TypeScript + Vite + Emotion, backend — NestJS + PostgreSQL + Prisma. Авторизация по телефону, подтверждение привязки профиля сотрудника, planner, расчёт дневных/ночных часов, пожелания, Excel и печать.
 
-## Запуск
+## Локальный запуск
 
-Откройте `dist/index.html` в браузере или запустите локальный HTTP-сервер:
+Требуется Node.js 22. Backend и базу данных запустите по инструкции в [server/README.md](server/README.md).
 
 ```bash
-python -m http.server 8080 -d dist
+npm ci
+cp .env.example .env.local
+npm run dev
 ```
 
-## Что добавлено
+Локально frontend запускается на `http://localhost:5173`, backend — на `http://localhost:3000`. Эти порты не должны совпадать.
 
-- недельный и месячный режим;
-- реальный список сотрудников и групп отеля;
-- пожелания сотрудников на конкретную неделю;
-- отдельные настройки нормы часов и перерыва;
-- статусы `OFF`, `VAC`, `SICK`;
-- опциональные коды `E / IN / INN / L / N` перед временем;
-- корректный расчёт дневных 06:00–22:00 и ночных 22:00–06:00 через полночь;
-- правило `N = 12 часов`;
-- контроль FO Agents: цель около 5, максимум 5;
-- контроль утреннего открытия: два с 07:00 или 07:00 + 08:00;
-- Night Team отделён от FO и проверяется на ночные смены;
-- закреплённые сотрудники и копирование предыдущей недели;
-- экспорт/импорт JSON, экспорт CSV, печать;
-- локальное автосохранение без сервера.
-- отделы/группы сотрудников: создание, переименование, изменение порядка и удаление пустых отделов;
-- drag & drop сотрудников за ручку `⋮⋮`: перенос между отделами и изменение порядка внутри отдела;
-- тип отдела можно назначить как обычный, `FO` (участвует в лимите покрытия) или `Night` (ночная группа).
+Frontend обращается к `VITE_API_URL` (по умолчанию `http://localhost:3000`) с существующей cookie session. Для локального OTP используйте конфигурацию backend; production SMS provider пока не подключён.
 
-Исходный React-код из архива сохранён в `src/` как исходная версия. Deploy-ready версия `dist/` сделана без внешних зависимостей, чтобы её можно было открыть сразу.
+Для обычного локального запуска `.env.example` включает server-backed planner: `VITE_SERVER_PLANNER_READ=1` и `VITE_SERVER_PLANNER_WRITE=1`. Write подразумевает read. Legacy local mode остаётся только для отладки/миграционных проверок при явном выставлении обоих флагов в `0`. В server mode источником данных служит backend, без fallback на planner localStorage.
+
+## Структура
+
+- `src/pages/` — route-level композиция; `src/router/` — маршруты, redirects и guards.
+- `src/screens/` — auth/onboarding/planner/personal schedule сценарии и screen composition.
+- `src/components/` — reusable presentation UI, drawers и schedule components.
+- `src/auth/` — canonical session provider и user context; `src/hooks/` — application/UI orchestration.
+- `src/api/` — HTTP clients и wire contracts.
+- `src/domain/` — модели и чистые правила расписания, расчёты часов и применение импортированных смен.
+- `src/services/` — Excel file adapters и печать; `src/utils/` — общие календарные helpers.
+- `src/theme/` — единая palette, semantic tokens, Emotion theme и общие стили.
+- `tests/frontend/{unit,component,integration}/` — Vitest; `tests/frontend/setup.ts` — setup.
+- `tests/e2e/` — Playwright.
+- `server/src/` — backend production; `server/test/{unit,integration}/` — Jest.
+- `server/prisma/` — schema и migrations.
+
+Tests не входят в production tree. Pages не реализуют business logic; API clients не содержат UI. Палитра централизована в `src/theme/palette.ts`, компоненты используют semantic tokens.
+
+Root ErrorBoundary защищает routed application. `/login` и `/onboarding` обслуживают существующие auth scenarios; `/` перенаправляет на `/planner`; доступ к planner получают linked employees. Для неизвестных путей сохранена 404 после проверки сессии.
+
+## Проверки
+
+```bash
+npm test
+npm run typecheck
+npm run build
+npx playwright install --with-deps chromium
+npm run test:e2e
+```
+
+Backend проверки запускаются из `server/`:
+
+```bash
+npm ci
+npm run prisma:generate
+npm run prisma:validate
+npm test
+npm run typecheck
+npm run build
+```
+
+Для Prisma задайте `DATABASE_URL` согласно `server/.env.example`. HTTP/Jest и Playwright regression tests используют mocks; их прохождение не подтверждает production SMS или интеграцию с живой БД.
+
+## Сборка и deploy
+
+`npm run build` генерирует `dist/`. Netlify использует эту команду и SPA fallback из `netlify.toml`; backend разворачивается отдельно. `dist/` и `node_modules/` не хранятся в Git. Старый standalone-прототип `site/` удалён; актуальное приложение запускается через Vite и использует backend auth.

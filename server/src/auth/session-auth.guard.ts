@@ -6,22 +6,14 @@ import {
 } from '@nestjs/common';
 
 import { AuthService, AuthUserContext } from './auth.service';
+import { extractSessionToken } from './auth.utils';
 
 export interface AuthenticatedRequest {
   headers: {
     authorization?: string;
+    cookie?: string;
   };
   authUser?: AuthUserContext;
-}
-
-function extractBearerToken(authorization?: string): string {
-  const match = authorization?.match(/^Bearer\s+(.+)$/i);
-
-  if (!match?.[1]) {
-    throw new UnauthorizedException('Bearer token is required');
-  }
-
-  return match[1].trim();
 }
 
 @Injectable()
@@ -30,7 +22,11 @@ export class SessionAuthGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
-    const token = extractBearerToken(request.headers.authorization);
+    const token = extractSessionToken(request.headers);
+
+    if (!token) {
+      throw new UnauthorizedException('Session is required');
+    }
 
     request.authUser = await this.authService.getCurrentUser(token);
     return true;
