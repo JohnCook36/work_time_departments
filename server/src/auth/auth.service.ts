@@ -31,6 +31,7 @@ export interface AuthUserContext {
     id: string;
     displayName: string;
     departmentId: string;
+    departmentName: string;
     employmentRate: number;
     scheduleMode?: 'FLEXIBLE' | 'FIXED_WEEKDAYS';
     fixedStartTime?: string | null;
@@ -203,7 +204,15 @@ export class AuthService {
       include: {
         user: {
           include: {
-            employee: true,
+            employee: {
+              include: {
+                department: {
+                  select: {
+                    name: true,
+                  },
+                },
+              },
+            },
             memberships: {
               where: { isActive: true },
             },
@@ -234,6 +243,7 @@ export class AuthService {
             id: session.user.employee.id,
             displayName: session.user.employee.displayName,
             departmentId: session.user.employee.departmentId,
+            departmentName: session.user.employee.department.name,
             employmentRate: session.user.employee.employmentRate,
             scheduleMode: session.user.employee.scheduleMode,
             fixedStartTime: session.user.employee.fixedStartTime,
