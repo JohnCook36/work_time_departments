@@ -150,7 +150,7 @@ describe('App regression flows', () => {
 
     expect(await screen.findByText('Серверный сотрудник')).toBeInTheDocument();
     expect(screen.getByText(/контролируемый read-only этап/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Добавить сотрудника' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Новый сотрудник' })).toBeDisabled();
     expect(screen.getByText('08:00–17:00')).toBeInTheDocument();
   });
 
@@ -354,7 +354,7 @@ describe('App regression flows', () => {
       screen.getByPlaceholderText('Название отдела'),
       'Новый отдел',
     );
-    await user.click(screen.getByRole('button', { name: 'Отдел' }));
+    await user.click(screen.getByRole('button', { name: 'Создать отдел' }));
 
     await waitFor(() => {
       expect(createDepartmentSpy).toHaveBeenCalledWith({
@@ -510,7 +510,10 @@ describe('App regression flows', () => {
     renderApp();
 
     await screen.findByText('Серверный сотрудник');
-    await user.click(screen.getByRole('button', { name: 'OFF все' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Управление графиком' }),
+    );
+    await user.click(screen.getByRole('button', { name: 'OFF всем' }));
 
     await waitFor(() => {
       expect(applySpy).toHaveBeenCalledTimes(1);
@@ -563,6 +566,9 @@ describe('App regression flows', () => {
 
     await screen.findByText('Серверный сотрудник');
     await user.click(
+      screen.getByRole('button', { name: 'Управление графиком' }),
+    );
+    await user.click(
       screen.getByRole('button', { name: 'Очистить месяц' }),
     );
 
@@ -595,14 +601,17 @@ describe('App regression flows', () => {
 
     await screen.findByText('Серверный сотрудник');
     await user.click(
+      screen.getByRole('button', { name: 'Новый сотрудник' }),
+    );
+    await user.click(
       screen.getByRole('button', { name: 'Добавить сотрудника' }),
     );
 
     expect(
-      await screen.findByText('Введите ФИО нового сотрудника'),
+      await screen.findByText('Введите имя и фамилию сотрудника'),
     ).toBeInTheDocument();
     expect(
-      screen.getByPlaceholderText('ФИО нового сотрудника...'),
+      screen.getByPlaceholderText('Например, Иван Иванов'),
     ).toHaveAttribute('aria-invalid', 'true');
     expect(createSpy).not.toHaveBeenCalled();
   });
@@ -633,11 +642,16 @@ describe('App regression flows', () => {
     await screen.findByText('Серверный сотрудник');
     expect(screen.getByRole('button', { name: 'Отделы' })).toBeEnabled();
 
-    const nameInput = screen.getByPlaceholderText('ФИО нового сотрудника...');
+    await user.click(
+      screen.getByRole('button', { name: 'Новый сотрудник' }),
+    );
+    const nameInput = screen.getByPlaceholderText('Например, Иван Иванов');
     expect(nameInput).toBeEnabled();
     await user.clear(nameInput);
     await user.type(nameInput, 'Новый сотрудник');
-    await user.click(screen.getByRole('button', { name: 'Добавить сотрудника' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Добавить сотрудника' }),
+    );
 
     await waitFor(() => {
       expect(createSpy).toHaveBeenCalledWith({
@@ -986,6 +1000,9 @@ describe('App regression flows', () => {
     const { container } = renderApp();
 
     await screen.findByText('Серверный сотрудник');
+    await user.click(
+      screen.getByRole('button', { name: 'Управление графиком' }),
+    );
     const importButton = screen.getByRole('button', { name: 'Импорт Excel' });
     expect(importButton).toBeEnabled();
 
