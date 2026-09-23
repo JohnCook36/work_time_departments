@@ -1,30 +1,27 @@
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { Pencil, Plus, Trash2, X } from 'lucide-react';
 
-import {
-  Department,
-  DepartmentKind,
-  Employee,
-} from '../../domain/models';
+import { Department, Employee } from '../../domain/models';
 import {
   ActionButton,
-  ControlsRow,
   DepartmentCard,
   DepartmentGrid,
   DepartmentMeta,
   DepartmentName,
-  DepartmentPanel,
+  DrawerHeader,
+  DrawerOverlay,
+  DrawerSubtitle,
+  DrawerTitle,
+  FormGroup,
+  FormLabel,
+  IconButton,
   Muted,
-  PanelTitle,
-  PanelTitleRow,
   RowIconButton,
-  Select,
-  TextInput,
   TinyText,
 } from '../../theme/styles';
 import {
-  CompactDepartmentSelect,
-  DepartmentNameInput,
-} from './PlannerDepartmentPanel.styles';
+  CompactDrawer,
+  FullWidthInput,
+} from '../../components/drawers/styles';
 
 interface PlannerDepartmentPanelProps {
   departments: Department[];
@@ -34,16 +31,11 @@ interface PlannerDepartmentPanelProps {
   showDepartments: boolean;
   newDepartmentName: string;
   onNewDepartmentNameChange: (value: string) => void;
-  newDepartmentKind: DepartmentKind;
-  onNewDepartmentKindChange: (value: DepartmentKind) => void;
   mutatingDepartmentId: string | null;
   onAddDepartment: () => void;
-  onChangeDepartmentKind: (
-    departmentId: string,
-    kind: DepartmentKind
-  ) => void;
   onRenameDepartment: (department: Department) => void;
   onRemoveDepartment: (departmentId: string) => void;
+  onClose: () => void;
 }
 
 export function PlannerDepartmentPanel({
@@ -54,119 +46,112 @@ export function PlannerDepartmentPanel({
   showDepartments,
   newDepartmentName,
   onNewDepartmentNameChange,
-  newDepartmentKind,
-  onNewDepartmentKindChange,
   mutatingDepartmentId,
   onAddDepartment,
-  onChangeDepartmentKind,
   onRenameDepartment,
   onRemoveDepartment,
+  onClose,
 }: PlannerDepartmentPanelProps) {
   if (!canViewDepartments || !showDepartments) return null;
 
   return (
-    <DepartmentPanel>
-      <PanelTitleRow>
-        <div>
-          <PanelTitle>Отделы сотрудников</PanelTitle>
-          <Muted>
-            Создавайте отделы и переносите сотрудников между ними прямо в
-            таблице.
-          </Muted>
-        </div>
+    <DrawerOverlay onMouseDown={onClose}>
+      <CompactDrawer onMouseDown={(event) => event.stopPropagation()}>
+        <DrawerHeader>
+          <div>
+            <DrawerTitle>Отделы</DrawerTitle>
+            <DrawerSubtitle>
+              Управление структурой отделов вынесено из основной таблицы.
+            </DrawerSubtitle>
+          </div>
+
+          <IconButton type="button" onClick={onClose} title="Закрыть">
+            <X size={18} />
+          </IconButton>
+        </DrawerHeader>
 
         {canManageDepartments ? (
-          <ControlsRow>
-          <DepartmentNameInput
-            value={newDepartmentName}
-            onChange={(event) =>
-              onNewDepartmentNameChange(event.target.value)
-            }
-            onKeyDown={(event) =>
-              event.key === 'Enter' && onAddDepartment()
-            }
-            placeholder="Название отдела"
-          />
+          <FormGroup>
+            <FormLabel>Новый отдел</FormLabel>
+            <FullWidthInput
+              value={newDepartmentName}
+              onChange={(event) =>
+                onNewDepartmentNameChange(event.target.value)
+              }
+              onKeyDown={(event) => {
+                if (
+                  event.key === 'Enter' &&
+                  newDepartmentName.trim().length >= 2 &&
+                  mutatingDepartmentId === null
+                ) {
+                  onAddDepartment();
+                }
+              }}
+              placeholder="Название отдела"
+              disabled={mutatingDepartmentId !== null}
+            />
 
-          <Select
-            value={newDepartmentKind}
-            onChange={(event) =>
-              onNewDepartmentKindChange(
-                event.target.value as DepartmentKind
-              )
-            }
-          >
-            <option value="general">Обычный</option>
-            <option value="fo">FO Agents</option>
-            <option value="night">Night Agents</option>
-          </Select>
-
-          <ActionButton
-            type="button"
-            $variant="accent"
-            onClick={onAddDepartment}
-            disabled={mutatingDepartmentId !== null}
-          >
-            <Plus size={15} />
-            {mutatingDepartmentId === 'create' ? 'Добавляю…' : 'Отдел'}
-          </ActionButton>
-        </ControlsRow>
+            <ActionButton
+              type="button"
+              $variant="accent"
+              onClick={onAddDepartment}
+              disabled={
+                mutatingDepartmentId !== null ||
+                newDepartmentName.trim().length < 2
+              }
+            >
+              <Plus size={15} />
+              {mutatingDepartmentId === 'create'
+                ? 'Создаю…'
+                : 'Создать отдел'}
+            </ActionButton>
+          </FormGroup>
         ) : (
           <Muted>
-            Структуру отделов может изменять только SUPER_ADMIN. Для вашей роли доступен просмотр.
+            Изменять структуру отделов может только SUPER_ADMIN. Для вашей роли
+            доступен просмотр.
           </Muted>
         )}
-      </PanelTitleRow>
 
-      <DepartmentGrid>
-        {departments.map((department) => {
-          const employeeCount = employees.filter(
-            (employee) => employee.departmentId === department.id
-          ).length;
+        <DepartmentGrid>
+          {departments.map((department) => {
+            const employeeCount = employees.filter(
+              (employee) => employee.departmentId === department.id,
+            ).length;
 
-          return (
-            <DepartmentCard key={department.id}>
-              <DepartmentMeta>
-                <DepartmentName>{department.name}</DepartmentName>
-                <TinyText>{employeeCount} сотрудников</TinyText>
-              </DepartmentMeta>
+            return (
+              <DepartmentCard key={department.id}>
+                <DepartmentMeta>
+                  <DepartmentName>{department.name}</DepartmentName>
+                  <TinyText>{employeeCount} сотрудников</TinyText>
+                </DepartmentMeta>
 
-              <CompactDepartmentSelect
-                value={department.kind}
-                disabled={!canManageDepartments || mutatingDepartmentId !== null}
-                onChange={(event) =>
-                  onChangeDepartmentKind(
-                    department.id,
-                    event.target.value as DepartmentKind
-                  )
-                }
-              >
-                <option value="general">Отдел</option>
-                <option value="fo">FO</option>
-                <option value="night">Night</option>
-              </CompactDepartmentSelect>
+                <RowIconButton
+                  type="button"
+                  disabled={
+                    !canManageDepartments || mutatingDepartmentId !== null
+                  }
+                  onClick={() => onRenameDepartment(department)}
+                  title="Переименовать"
+                >
+                  <Pencil size={14} />
+                </RowIconButton>
 
-              <RowIconButton
-                type="button"
-                disabled={!canManageDepartments || mutatingDepartmentId !== null}
-                onClick={() => onRenameDepartment(department)}
-                title="Переименовать"
-              >
-                <Pencil size={14} />
-              </RowIconButton>
-
-              <RowIconButton
-                type="button"
-                disabled={!canManageDepartments || mutatingDepartmentId !== null}
-                onClick={() => onRemoveDepartment(department.id)}
-                title="Деактивировать пустой отдел"
-              >
-                <Trash2 size={14} />
-              </RowIconButton>
-            </DepartmentCard>
-          );
-        })}
-      </DepartmentGrid>
-    </DepartmentPanel>
+                <RowIconButton
+                  type="button"
+                  disabled={
+                    !canManageDepartments || mutatingDepartmentId !== null
+                  }
+                  onClick={() => onRemoveDepartment(department.id)}
+                  title="Деактивировать пустой отдел"
+                >
+                  <Trash2 size={14} />
+                </RowIconButton>
+              </DepartmentCard>
+            );
+          })}
+        </DepartmentGrid>
+      </CompactDrawer>
+    </DrawerOverlay>
   );
 }
