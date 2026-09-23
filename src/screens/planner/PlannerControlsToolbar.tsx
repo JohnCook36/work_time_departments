@@ -157,11 +157,12 @@ export function PlannerControlsToolbar({
                   value.trim().length >= 2 || 'Введите корректное ФИО',
               })}
             />
-            {errors.displayName && (
-              <EmployeeFieldError role="alert">
-                {errors.displayName.message}
-              </EmployeeFieldError>
-            )}
+            <EmployeeFieldError
+              role={errors.displayName ? 'alert' : undefined}
+              aria-live="polite"
+            >
+              {errors.displayName?.message || '\u00A0'}
+            </EmployeeFieldError>
           </EmployeeNameField>
 
           <Select
@@ -238,21 +239,23 @@ export function PlannerControlsToolbar({
             {isCreatingEmployee ? 'Добавляю…' : 'Добавить сотрудника'}
           </ActionButton>
 
-          {(errors.departmentId ||
-            errors.fixedStartTime ||
-            errors.fixedEndTime) && (
-            <EmployeeFormStatus role="alert">
-              {errors.departmentId?.message ||
+          <EmployeeFormStatus
+            role={
+              errors.departmentId ||
+              errors.fixedStartTime ||
+              errors.fixedEndTime
+                ? 'alert'
+                : undefined
+            }
+            aria-live="polite"
+          >
+            {departments.length === 0
+              ? 'Нет доступных отделов для добавления сотрудника.'
+              : errors.departmentId?.message ||
                 errors.fixedStartTime?.message ||
-                errors.fixedEndTime?.message}
-            </EmployeeFormStatus>
-          )}
-
-          {departments.length === 0 && (
-            <EmployeeFormStatus>
-              Нет доступных отделов для добавления сотрудника.
-            </EmployeeFormStatus>
-          )}
+                errors.fixedEndTime?.message ||
+                '\u00A0'}
+          </EmployeeFormStatus>
         </EmployeeForm>
 
         <ActionButton
