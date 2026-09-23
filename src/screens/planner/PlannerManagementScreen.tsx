@@ -1,6 +1,5 @@
 import {
   Department,
-  DepartmentKind,
   Employee,
 } from '../../domain/models';
 import {
@@ -44,14 +43,8 @@ interface PlannerManagementScreenProps {
   onClearAll: () => void;
   newDepartmentName: string;
   onNewDepartmentNameChange: (value: string) => void;
-  newDepartmentKind: DepartmentKind;
-  onNewDepartmentKindChange: (value: DepartmentKind) => void;
   mutatingDepartmentId: string | null;
   onAddDepartment: () => void;
-  onChangeDepartmentKind: (
-    departmentId: string,
-    kind: DepartmentKind
-  ) => void;
   onRenameDepartment: (department: Department) => void;
   onRemoveDepartment: (departmentId: string) => void;
 }
@@ -85,11 +78,8 @@ export function PlannerManagementScreen({
   onClearAll,
   newDepartmentName,
   onNewDepartmentNameChange,
-  newDepartmentKind,
-  onNewDepartmentKindChange,
   mutatingDepartmentId,
   onAddDepartment,
-  onChangeDepartmentKind,
   onRenameDepartment,
   onRemoveDepartment,
 }: PlannerManagementScreenProps) {
@@ -130,13 +120,11 @@ export function PlannerManagementScreen({
         showDepartments={showDepartments}
         newDepartmentName={newDepartmentName}
         onNewDepartmentNameChange={onNewDepartmentNameChange}
-        newDepartmentKind={newDepartmentKind}
-        onNewDepartmentKindChange={onNewDepartmentKindChange}
         mutatingDepartmentId={mutatingDepartmentId}
         onAddDepartment={onAddDepartment}
-        onChangeDepartmentKind={onChangeDepartmentKind}
         onRenameDepartment={onRenameDepartment}
         onRemoveDepartment={onRemoveDepartment}
+        onClose={onToggleDepartments}
       />
     </>
   );
