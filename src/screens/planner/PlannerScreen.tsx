@@ -9,7 +9,6 @@ import {
 import { Heart } from 'lucide-react';
 import {
   Department,
-  DepartmentKind,
   Employee,
   EmploymentRate,
   EmployeeWishesData,
@@ -128,8 +127,6 @@ export function PlannerScreen() {
   );
 
   const [newDepartmentName, setNewDepartmentName] = useState('');
-  const [newDepartmentKind, setNewDepartmentKind] =
-    useState<DepartmentKind>('general');
   const [editingCell, setEditingCell] = useState<{
     empId: string;
     day: number;
@@ -268,7 +265,6 @@ export function PlannerScreen() {
   const {
     createDepartment,
     renameDepartment: renameDepartmentById,
-    changeDepartmentKind: changeDepartmentKindById,
     deactivateDepartment,
     mutatingDepartmentId,
   } = useDepartmentManagement({
@@ -489,13 +485,12 @@ export function PlannerScreen() {
 
     const createdDepartmentId = await createDepartment({
       name,
-      kind: newDepartmentKind,
+      kind: 'general',
     });
 
     if (!createdDepartmentId) return;
 
     setNewDepartmentName('');
-    setNewDepartmentKind('general');
   };
 
   const renameDepartment = (department: Department) => {
@@ -509,13 +504,6 @@ export function PlannerScreen() {
     }
 
     void renameDepartmentById(department.id, nextName);
-  };
-
-  const changeDepartmentKind = (
-    departmentId: string,
-    kind: DepartmentKind
-  ) => {
-    void changeDepartmentKindById(departmentId, kind);
   };
 
   const removeDepartment = (departmentId: string) => {
@@ -672,11 +660,8 @@ export function PlannerScreen() {
               onClearAll={() => void clearAll()}
               newDepartmentName={newDepartmentName}
               onNewDepartmentNameChange={setNewDepartmentName}
-              newDepartmentKind={newDepartmentKind}
-              onNewDepartmentKindChange={setNewDepartmentKind}
               mutatingDepartmentId={mutatingDepartmentId}
               onAddDepartment={() => void addDepartment()}
-              onChangeDepartmentKind={changeDepartmentKind}
               onRenameDepartment={renameDepartment}
               onRemoveDepartment={removeDepartment}
             />
