@@ -33,6 +33,8 @@ export interface PrintPeriod {
   month: number;
 }
 
+export type PrintScheduleResult = 'opened' | 'empty' | 'blocked';
+
 interface PrintScheduleOptions {
   departments: Department[];
   employees: Employee[];
@@ -515,7 +517,7 @@ export function printSchedule({
   month,
   daysInMonth,
   rangeKey,
-}: PrintScheduleOptions): void {
+}: PrintScheduleOptions): PrintScheduleResult {
   const content =
     rangeKey === 'month'
       ? getMonthWeekRanges(year, month, daysInMonth)
@@ -543,13 +545,12 @@ export function printSchedule({
             : '';
         })();
 
-  if (!content) return;
+  if (!content) return 'empty';
 
   const printWindow = window.open('', '_blank');
 
   if (!printWindow) {
-    alert('Браузер заблокировал окно печати. Разрешите всплывающие окна для сайта.');
-    return;
+    return 'blocked';
   }
 
   printWindow.opener = null;
@@ -708,4 +709,5 @@ ${content}
 </body>
 </html>`);
   printWindow.document.close();
+  return 'opened';
 }

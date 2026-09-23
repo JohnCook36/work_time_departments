@@ -26,6 +26,7 @@ import {
   SchedulePeriodsData,
 } from '../domain/models';
 import { validateShiftInput } from '../domain/schedule/shiftHours';
+import { useAppDialog } from '../components/dialogs/AppDialogProvider';
 
 interface UsePlannerScheduleToolsOptions {
   departments: Department[];
@@ -62,6 +63,7 @@ export function usePlannerScheduleTools({
   updateCurrentSchedule,
   refreshServerPlanner,
 }: UsePlannerScheduleToolsOptions) {
+  const { showMessage } = useAppDialog();
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [isImportingExcel, setIsImportingExcel] = useState(false);
   const [isApplyingExcelImport, setIsApplyingExcelImport] = useState(false);
@@ -90,7 +92,7 @@ export function usePlannerScheduleTools({
       });
     } catch (error) {
       console.error('Excel export failed', error);
-      alert('Не удалось сформировать Excel-файл.');
+      await showMessage('Не удалось сформировать Excel-файл.');
     } finally {
       setIsExportingExcel(false);
     }
@@ -158,7 +160,7 @@ export function usePlannerScheduleTools({
         );
       } catch (error) {
         console.error('Server print period preload failed', error);
-        alert(
+        await showMessage(
           'Не удалось загрузить соседние месяцы для печати. Попробуйте ещё раз.'
         );
         return;
@@ -167,7 +169,7 @@ export function usePlannerScheduleTools({
       }
     }
 
-    printSchedule({
+    const printResult = printSchedule({
       departments,
       employees,
       schedule,
@@ -177,6 +179,13 @@ export function usePlannerScheduleTools({
       daysInMonth,
       rangeKey: printRangeKey,
     });
+
+    if (printResult === 'blocked') {
+      await showMessage(
+        'Браузер заблокировал окно печати. Разрешите всплывающие окна для сайта.',
+        { title: 'Печать' },
+      );
+    }
   }, [
     daysInMonth,
     departments,
@@ -203,7 +212,7 @@ export function usePlannerScheduleTools({
         setExcelImportPreview(preview);
       } catch (error) {
         console.error('Excel import failed', error);
-        alert(
+        await showMessage(
           error instanceof Error
             ? error.message
             : 'Не удалось прочитать Excel-файл.'
@@ -252,7 +261,7 @@ export function usePlannerScheduleTools({
       updateCurrentSchedule(() => result.schedule);
       setExcelImportPreview(null);
       setOverwriteExcelCells(false);
-      alert(details.join('\n'));
+      await showMessage(details.join('\n'));
       return;
     }
 
@@ -261,7 +270,7 @@ export function usePlannerScheduleTools({
     if (resolved.entries.length === 0) {
       setExcelImportPreview(null);
       setOverwriteExcelCells(false);
-      alert(details.join('\n'));
+      await showMessage(details.join('\n'));
       return;
     }
 
@@ -287,7 +296,7 @@ export function usePlannerScheduleTools({
         );
       });
     } catch (error) {
-      alert(
+      await showMessage(
         error instanceof Error
           ? 'Не удалось подготовить импорт: ' + error.message
           : 'Не удалось подготовить импорт для сервера.'
@@ -306,10 +315,10 @@ export function usePlannerScheduleTools({
       setExcelImportPreview(null);
       setOverwriteExcelCells(false);
       await refreshServerPlanner();
-      alert(details.join('\n'));
+      await showMessage(details.join('\n'));
     } catch (error) {
       console.error('Server Excel import failed', error);
-      alert(
+      await showMessage(
         error instanceof Error
           ? 'Не удалось применить импорт: ' + error.message
           : 'Не удалось применить импорт на сервере.'
