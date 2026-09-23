@@ -1,7 +1,7 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import App from '../../../src/screens/planner/PlannerScreen';
 import * as excelImport from '../../../src/services/excel/importExcel';
@@ -10,6 +10,7 @@ import * as printScheduleModule from '../../../src/services/print/printSchedule'
 import { AuthUserContext } from '../../../src/auth/AuthContext';
 import type { AuthUser } from '../../../src/api/auth';
 import { AppThemeProvider } from '../../../src/theme/AppThemeProvider';
+import { AppDialogProvider } from '../../../src/components/dialogs/AppDialogProvider';
 
 const STORAGE_KEY = 'hotel-shift-planner';
 
@@ -37,11 +38,13 @@ const managementUser: AuthUser = {
 function renderApp() {
   return render(
     <AppThemeProvider>
-      <MemoryRouter>
-        <AuthUserContext.Provider value={managementUser}>
-          <App />
-        </AuthUserContext.Provider>
-      </MemoryRouter>
+      <AppDialogProvider>
+        <MemoryRouter>
+          <AuthUserContext.Provider value={managementUser}>
+            <App />
+          </AuthUserContext.Provider>
+        </MemoryRouter>
+      </AppDialogProvider>
     </AppThemeProvider>,
   );
 }
@@ -131,10 +134,6 @@ function seedCurrentSchedule(value = '15:00-23:00') {
 }
 
 describe('App regression flows', () => {
-  beforeEach(() => {
-    vi.spyOn(window, 'alert').mockImplementation(() => undefined);
-  });
-
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.restoreAllMocks();
@@ -240,7 +239,7 @@ describe('App regression flows', () => {
       .mockResolvedValueOnce(next);
     const printSpy = vi
       .spyOn(printScheduleModule, 'printSchedule')
-      .mockImplementation(() => undefined);
+      .mockReturnValue('opened');
 
     renderApp();
 
@@ -316,11 +315,13 @@ describe('App regression flows', () => {
 
     render(
       <AppThemeProvider>
-        <MemoryRouter>
-          <AuthUserContext.Provider value={departmentAdmin}>
-            <App />
-          </AuthUserContext.Provider>
-        </MemoryRouter>
+        <AppDialogProvider>
+          <MemoryRouter>
+            <AuthUserContext.Provider value={departmentAdmin}>
+              <App />
+            </AuthUserContext.Provider>
+          </MemoryRouter>
+        </AppDialogProvider>
       </AppThemeProvider>,
     );
 
@@ -373,7 +374,6 @@ describe('App regression flows', () => {
     const snapshot = serverPlannerSnapshot();
     vi.stubEnv('VITE_SERVER_PLANNER_WRITE', '1');
     vi.spyOn(plannerApi, 'loadPlannerServerSnapshot').mockResolvedValue(snapshot);
-    vi.spyOn(window, 'prompt').mockReturnValue('Новый Front Office');
     const updateDepartmentSpy = vi
       .spyOn(plannerApi, 'updatePlannerDepartment')
       .mockResolvedValue({
@@ -391,6 +391,16 @@ describe('App regression flows', () => {
     await screen.findByText('Серверный сотрудник');
     await user.click(screen.getByRole('button', { name: 'Отделы' }));
     await user.click(screen.getByRole('button', { name: 'Переименовать' }));
+
+    const renameDialog = await screen.findByRole('dialog', {
+      name: 'Переименовать отдел',
+    });
+    const renameInput = within(renameDialog).getByLabelText('Название отдела');
+    await user.clear(renameInput);
+    await user.type(renameInput, 'Новый Front Office');
+    await user.click(
+      within(renameDialog).getByRole('button', { name: 'Сохранить' }),
+    );
 
     await waitFor(() => {
       expect(updateDepartmentSpy).toHaveBeenCalledWith(
@@ -419,7 +429,6 @@ describe('App regression flows', () => {
 
     vi.stubEnv('VITE_SERVER_PLANNER_WRITE', '1');
     vi.spyOn(plannerApi, 'loadPlannerServerSnapshot').mockResolvedValue(snapshot);
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     const deactivateSpy = vi
       .spyOn(plannerApi, 'deactivatePlannerDepartment')
       .mockResolvedValue({
@@ -435,6 +444,15 @@ describe('App regression flows', () => {
       name: 'Деактивировать пустой отдел',
     });
     await user.click(deactivateButtons[1]);
+
+    const departmentDialog = await screen.findByRole('dialog', {
+      name: 'Деактивация отдела',
+    });
+    await user.click(
+      within(departmentDialog).getByRole('button', {
+        name: 'Деактивировать',
+      }),
+    );
 
     await waitFor(() => {
       expect(deactivateSpy).toHaveBeenCalledWith(
@@ -518,6 +536,13 @@ describe('App regression flows', () => {
     );
     await user.click(screen.getByRole('button', { name: 'OFF всем' }));
 
+    const fillOffDialog = await screen.findByRole('dialog', {
+      name: 'Заполнить OFF',
+    });
+    await user.click(
+      within(fillOffDialog).getByRole('button', { name: 'Заполнить OFF' }),
+    );
+
     await waitFor(() => {
       expect(applySpy).toHaveBeenCalledTimes(1);
     });
@@ -573,6 +598,13 @@ describe('App regression flows', () => {
     );
     await user.click(
       screen.getByRole('button', { name: 'Очистить месяц' }),
+    );
+
+    const clearDialog = await screen.findByRole('dialog', {
+      name: 'Очистить месяц',
+    });
+    await user.click(
+      within(clearDialog).getByRole('button', { name: 'Очистить' }),
     );
 
     await waitFor(() => {
@@ -740,6 +772,15 @@ describe('App regression flows', () => {
     await user.click(
       screen.getByRole('button', {
         name: 'Деактивировать / удалить сотрудника',
+      }),
+    );
+
+    const employeeDialog = await screen.findByRole('dialog', {
+      name: 'Деактивация сотрудника',
+    });
+    await user.click(
+      within(employeeDialog).getByRole('button', {
+        name: 'Деактивировать',
       }),
     );
 
@@ -1039,7 +1080,8 @@ describe('App regression flows', () => {
     });
 
     expect(plannerApi.loadPlannerServerSnapshot).toHaveBeenCalledTimes(2);
-    expect(window.alert).toHaveBeenLastCalledWith('Импортировано смен: 1');
+    expect(await screen.findByText('Импортировано смен: 1')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Понятно' }));
   });
 
   it('protects a filled cell by default and overwrites only after confirmation', async () => {
@@ -1076,9 +1118,12 @@ describe('App regression flows', () => {
     expect(screen.getByText('Конфликтов с текущим графиком')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Применить импорт' }));
 
-    expect(window.alert).toHaveBeenLastCalledWith(
-      'Импортировано смен: 0\nЗащищено заполненных ячеек: 1',
-    );
+    expect(
+      await screen.findByText(
+        'Импортировано смен: 0\nЗащищено заполненных ячеек: 1',
+      ),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Понятно' }));
     expect(screen.getByText('08:00–17:00')).toBeInTheDocument();
 
     fireEvent.change(fileInput, { target: { files: [file] } });
@@ -1088,7 +1133,8 @@ describe('App regression flows', () => {
     );
     await user.click(screen.getByRole('button', { name: 'Применить импорт' }));
 
-    expect(window.alert).toHaveBeenCalledTimes(2);
+    expect(await screen.findByText('Импортировано смен: 1')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Понятно' }));
     expect(await screen.findByText('15:00–23:00')).toBeInTheDocument();
     await waitFor(() => {
       const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
@@ -1138,9 +1184,12 @@ describe('App regression flows', () => {
       expect(stored.schedules[currentPeriodKey()].employee[3]).toBeUndefined();
       expect(stored.schedules[currentPeriodKey()].employee[32]).toBeUndefined();
     });
-    expect(window.alert).toHaveBeenLastCalledWith(
-      'Импортировано смен: 1\nПропущено дней вне текущего месяца: 1',
-    );
+    expect(
+      await screen.findByText(
+        'Импортировано смен: 1\nПропущено дней вне текущего месяца: 1',
+      ),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Понятно' }));
   });
 
 });
