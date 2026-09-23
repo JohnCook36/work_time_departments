@@ -235,8 +235,13 @@ test('Excel preview protects a cell and allows confirmed overwrite', async ({ pa
   });
   await expect(page.getByText('Предпросмотр импорта')).toBeVisible();
   await expect(page.getByText('Конфликтов с текущим графиком')).toBeVisible();
-  page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: 'Применить импорт' }).click();
+  const protectedImportDialog = page.getByRole('dialog', { name: 'Сообщение' });
+  await expect(protectedImportDialog).toContainText('Импортировано смен: 0');
+  await expect(protectedImportDialog).toContainText(
+    'Защищено заполненных ячеек: 1',
+  );
+  await protectedImportDialog.getByRole('button', { name: 'Понятно' }).click();
   await expect(employeeRow(page).getByTitle('08:00–17:00')).toBeVisible();
 
   await input.setInputFiles({
@@ -247,8 +252,10 @@ test('Excel preview protects a cell and allows confirmed overwrite', async ({ pa
   await page
     .getByRole('checkbox', { name: /Перезаписывать заполненные ячейки/ })
     .check();
-  page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: 'Применить импорт' }).click();
+  const overwriteDialog = page.getByRole('dialog', { name: 'Сообщение' });
+  await expect(overwriteDialog).toContainText('Импортировано смен: 1');
+  await overwriteDialog.getByRole('button', { name: 'Понятно' }).click();
 
   await expect(employeeRow(page).getByTitle('15:00–23:00')).toBeVisible();
 });

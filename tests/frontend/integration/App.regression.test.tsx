@@ -1118,12 +1118,16 @@ describe('App regression flows', () => {
     expect(screen.getByText('Конфликтов с текущим графиком')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Применить импорт' }));
 
-    expect(
-      await screen.findByText(
-        'Импортировано смен: 0\nЗащищено заполненных ячеек: 1',
-      ),
-    ).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Понятно' }));
+    const protectedImportDialog = await screen.findByRole('dialog', {
+      name: 'Сообщение',
+    });
+    expect(protectedImportDialog).toHaveTextContent('Импортировано смен: 0');
+    expect(protectedImportDialog).toHaveTextContent(
+      'Защищено заполненных ячеек: 1',
+    );
+    await user.click(
+      within(protectedImportDialog).getByRole('button', { name: 'Понятно' }),
+    );
     expect(screen.getByText('08:00–17:00')).toBeInTheDocument();
 
     fireEvent.change(fileInput, { target: { files: [file] } });
@@ -1184,12 +1188,16 @@ describe('App regression flows', () => {
       expect(stored.schedules[currentPeriodKey()].employee[3]).toBeUndefined();
       expect(stored.schedules[currentPeriodKey()].employee[32]).toBeUndefined();
     });
-    expect(
-      await screen.findByText(
-        'Импортировано смен: 1\nПропущено дней вне текущего месяца: 1',
-      ),
-    ).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Понятно' }));
+    const importResultDialog = await screen.findByRole('dialog', {
+      name: 'Сообщение',
+    });
+    expect(importResultDialog).toHaveTextContent('Импортировано смен: 1');
+    expect(importResultDialog).toHaveTextContent(
+      'Пропущено дней вне текущего месяца: 1',
+    );
+    await user.click(
+      within(importResultDialog).getByRole('button', { name: 'Понятно' }),
+    );
   });
 
 });
