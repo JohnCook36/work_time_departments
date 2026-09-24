@@ -63,14 +63,23 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     setError(null);
 
-    await logout();
-
+    const currentUserId = user?.id;
     clearLegacyPlannerStorage();
-    if (user?.id) {
-      clearPlannerStorageForUser(user.id);
+    if (currentUserId) {
+      clearPlannerStorageForUser(currentUserId);
     }
     setUser(null);
-    setState('guest');
+    setState('loading');
+
+    try {
+      await logout();
+      setState('guest');
+    } catch (requestError) {
+      setError(
+        'Не удалось завершить сессию на сервере. Локальные данные очищены; повторите выход после восстановления связи.',
+      );
+      setState('error');
+    }
   }, [user?.id]);
 
   useEffect(() => {
