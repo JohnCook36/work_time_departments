@@ -134,6 +134,23 @@ export interface ApplyScheduleChangesResponse {
   } | null;
 }
 
+export interface SchedulePublicationResponse {
+  id: string;
+  scheduleId: string;
+  departmentId: string;
+  version: number;
+  publishedByUserId: string;
+  sourceScheduleUpdatedAt: string;
+  comment: string | null;
+  rulesVersion: string | null;
+  snapshot: Record<string, unknown>;
+  diff: {
+    employees: unknown[];
+    shifts: unknown[];
+  };
+  createdAt: string;
+}
+
 export interface EmployeeMutationInput {
   displayName?: string;
   departmentId?: string;
@@ -520,6 +537,42 @@ export async function loadPlannerServerSnapshot(
     responses,
     departments,
     departmentWishResponses.flat(),
+  );
+}
+
+export function publishDepartmentSchedule(
+  departmentId: string,
+  year: number,
+  month: number,
+  comment?: string,
+) {
+  return apiRequest<SchedulePublicationResponse>(
+    '/schedule-data/department/publish',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        departmentId,
+        year,
+        month,
+        ...(comment?.trim() ? { comment: comment.trim() } : {}),
+      }),
+    },
+  );
+}
+
+export function getDepartmentSchedulePublications(
+  departmentId: string,
+  year: number,
+  month: number,
+) {
+  const params = new URLSearchParams({
+    departmentId,
+    year: String(year),
+    month: String(month),
+  });
+
+  return apiRequest<SchedulePublicationResponse[]>(
+    '/schedule-data/department/publications?' + params.toString(),
   );
 }
 
