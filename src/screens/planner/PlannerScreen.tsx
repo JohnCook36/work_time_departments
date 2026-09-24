@@ -584,6 +584,37 @@ export function PlannerScreen() {
     );
   };
 
+  const navigateToValidationIssue = useCallback(
+    (employeeId: string, date: string) => {
+      const employee = employees.find((item) => item.id === employeeId);
+      const day = Number(date.slice(8, 10));
+      if (
+        !employee ||
+        !Number.isInteger(day) ||
+        day < 1 ||
+        day > daysInMonth
+      ) {
+        return;
+      }
+
+      setCollapsedDepartments((current) =>
+        current.filter((departmentId) => departmentId !== employee.departmentId),
+      );
+      setEditingCell(null);
+      setScheduleView('schedule');
+
+      window.setTimeout(() => {
+        const cell = document.getElementById(
+          'schedule-cell-' + encodeURIComponent(employeeId) + '-' + day,
+        );
+        if (!(cell instanceof HTMLElement)) return;
+        cell.scrollIntoView({ block: 'center', inline: 'center' });
+        cell.focus({ preventScroll: true });
+      }, 0);
+    },
+    [daysInMonth, employees],
+  );
+
   const prevMonth = () => {
     if (month === 0) {
       setMonth(11);
@@ -721,6 +752,7 @@ export function PlannerScreen() {
               isApplyingBulkSchedule={isApplyingBulkSchedule}
               onFillOffAll={() => void fillOffAll()}
               onClearAll={() => void clearAll()}
+              onNavigateToValidationIssue={navigateToValidationIssue}
               newDepartmentName={newDepartmentName}
               onNewDepartmentNameChange={setNewDepartmentName}
               mutatingDepartmentId={mutatingDepartmentId}
