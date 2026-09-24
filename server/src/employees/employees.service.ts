@@ -569,6 +569,27 @@ export class EmployeesService {
         requestedDepartmentId,
       );
       await this.assertActiveDepartment(requestedDepartmentId);
+
+      const activeShiftChangeCount = await this.prisma.shiftChangeRequest.count({
+        where: {
+          status: {
+            in: [
+              ShiftChangeRequestStatus.PENDING_TARGET,
+              ShiftChangeRequestStatus.PENDING_MANAGER,
+            ],
+          },
+          OR: [
+            { requesterEmployeeId: existing.id },
+            { targetEmployeeId: existing.id },
+          ],
+        },
+      });
+
+      if (activeShiftChangeCount > 0) {
+        throw new ConflictException(
+          'Resolve active shift-change requests before moving Employee',
+        );
+      }
     }
 
     const displayName = optionalName(input.displayName);
