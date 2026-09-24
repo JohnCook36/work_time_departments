@@ -58,14 +58,13 @@ export function resolveAuthRequestSource(
     : forwardedFor ?? ''
   )
     .split(',')
-    .map((value) => normalizeIp(value))
-    .filter((value): value is string => value !== null);
+    .map((value) => normalizeIp(value));
 
   if (forwarded.length < trustedProxyHops) {
     return direct;
   }
 
-  return forwarded[forwarded.length - trustedProxyHops];
+  return forwarded[forwarded.length - trustedProxyHops] ?? direct;
 }
 
 export function hashSessionToken(token: string): string {
