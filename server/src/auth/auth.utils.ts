@@ -1,4 +1,5 @@
 import { createHmac, createHash, timingSafeEqual } from 'node:crypto';
+import { isIP } from 'node:net';
 
 const PHONE_PATTERN = /^\+[1-9]\d{7,14}$/;
 const OTP_PATTERN = /^\d{6}$/;
@@ -25,6 +26,46 @@ export function validateOtpCode(value: string): string {
 
 export function hashOtp(code: string, pepper: string): string {
   return createHmac('sha256', pepper).update(code).digest('hex');
+}
+
+export function hashAuthRequestSource(source: string, pepper: string): string {
+  return createHmac('sha256', pepper).update(source).digest('hex');
+}
+
+function normalizeIp(value: string | undefined | null): string | null {
+  const candidate = value?.trim();
+  return candidate && isIP(candidate) ? candidate : null;
+}
+
+export function resolveAuthRequestSource(
+  remoteAddress: string | undefined | null,
+  forwardedFor: string | string[] | undefined,
+  trustedProxyHopsRaw: string | undefined,
+): string {
+  const direct = normalizeIp(remoteAddress) ?? 'unknown';
+  const trustedProxyHops = Number(trustedProxyHopsRaw ?? '0');
+
+  if (
+    !Number.isInteger(trustedProxyHops) ||
+    trustedProxyHops < 1 ||
+    trustedProxyHops > 5
+  ) {
+    return direct;
+  }
+
+  const forwarded = (Array.isArray(forwardedFor)
+    ? forwardedFor.join(',')
+    : forwardedFor ?? ''
+  )
+    .split(',')
+    .map((value) => normalizeIp(value))
+    .filter((value): value is string => value !== null);
+
+  if (forwarded.length < trustedProxyHops) {
+    return direct;
+  }
+
+  return forwarded[forwarded.length - trustedProxyHops];
 }
 
 export function hashSessionToken(token: string): string {
