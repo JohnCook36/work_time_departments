@@ -125,6 +125,24 @@ describe('Prisma schema invariants', () => {
     expect(audit).not.toMatch(/phone|displayName|address|metadata/i);
   });
 
+  it('keeps managed schedule rules versioned and publication rules snapshots immutable by reference', () => {
+    const rule = block('model', 'ScheduleRule');
+    const version = block('model', 'ScheduleRuleVersion');
+    const publication = block('model', 'SchedulePublication');
+
+    expect(rule).toMatch(/scope\s+ScheduleRuleScope/);
+    expect(rule).toMatch(/severity\s+ScheduleRuleSeverity/);
+    expect(rule).toMatch(/config\s+Json/);
+    expect(rule).toMatch(/version\s+Int\s+@default\(1\)/);
+    expect(rule).toMatch(/isDeleted\s+Boolean\s+@default\(false\)/);
+    expect(rule).toContain('@@index([departmentId, isActive, isDeleted])');
+    expect(version).toContain('@@unique([ruleId, version])');
+    expect(version).toMatch(/snapshot\s+Json/);
+    expect(version).toMatch(/changedByUserId\s+String/);
+    expect(publication).toMatch(/rulesVersion\s+String\?/);
+    expect(publication).toMatch(/rulesSnapshot\s+Json\?/);
+  });
+
   it('retains indexes used by department, schedule and wish lookups', () => {
     expect(block('model', 'Employee')).toContain('@@index([departmentId])');
     expect(block('model', 'Shift')).toContain('@@index([employeeId])');
