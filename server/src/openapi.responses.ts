@@ -75,6 +75,20 @@ export const schedulePublicationResponse = object({
   createdAt: timestamp,
 });
 export const schedulePublicationListResponse = arrayOf(schedulePublicationResponse);
+export const schedulePublicationValidationResponse = object({
+  departmentId: text,
+  period,
+  rulesVersion: text,
+  canPublish: boolean,
+  violations: arrayOf(object({
+    severity: { type: 'string', enum: ['hard', 'soft'] },
+    code: text,
+    message: text,
+    employeeId: nullable(text),
+    shiftId: nullable(text),
+    date: nullable({ type: 'string', format: 'date' }),
+  })),
+});
 
 export const wishResponse = object({ id: text, employeeId: text, year: integer, month: integer, day: nullable(integer), text, createdAt: timestamp, updatedAt: timestamp });
 export const shiftChangeResponse = object({
