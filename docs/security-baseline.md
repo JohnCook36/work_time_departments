@@ -1,6 +1,8 @@
 # Security Baseline
 
 This checklist is the minimum security gate for Work time departments.
+The current trust boundaries and residual risks are documented in
+`docs/security-threat-model.md`.
 It complements roadmap task #43 (security audit) and applies to future auth,
 roles, permissions, PII, export/print and backend changes.
 
@@ -108,6 +110,6 @@ Before merging auth/roles/permissions/PII/security-sensitive work:
 6. user acceptance is recorded when the task requires manual verification;
 7. roadmap/handoff records what was verified and what remains.
 
-This baseline does **not** mean roadmap #43 is complete. Threat modelling, live database
+This baseline does **not** mean roadmap #43 is complete. Live database
 IDOR/concurrency verification, production SMS readiness, dependency/secrets review,
 PII/logging review, backup/restore and a final repeat security audit remain separate gates.
