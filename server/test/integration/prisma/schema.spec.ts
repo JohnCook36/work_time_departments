@@ -111,6 +111,20 @@ describe('Prisma schema invariants', () => {
     expect(challenge).not.toMatch(/requestIp|ipAddress|forwardedFor/i);
   });
 
+  it('keeps the administrative audit log minimal and queryable', () => {
+    const audit = block('model', 'AuditLog');
+
+    expect(audit).toMatch(/actorUserId\s+String/);
+    expect(audit).toMatch(/action\s+AuditAction/);
+    expect(audit).toMatch(/entityType\s+AuditEntityType/);
+    expect(audit).toMatch(/entityId\s+String/);
+    expect(audit).toMatch(/departmentId\s+String\?/);
+    expect(audit).toContain('@@index([actorUserId, createdAt])');
+    expect(audit).toContain('@@index([departmentId, createdAt])');
+    expect(audit).toContain('@@index([action, createdAt])');
+    expect(audit).not.toMatch(/phone|displayName|address|metadata/i);
+  });
+
   it('retains indexes used by department, schedule and wish lookups', () => {
     expect(block('model', 'Employee')).toContain('@@index([departmentId])');
     expect(block('model', 'Shift')).toContain('@@index([employeeId])');
