@@ -1,5 +1,5 @@
 import type { SchemaObject } from '@nestjs/swagger';
-import { DepartmentKind, EmployeeScheduleMode, OnboardingRequestStatus, OnboardingRequestType, RoleType, ShiftChangeRequestEventType, ShiftChangeRequestKind, ShiftChangeRequestStatus } from '@prisma/client';
+import { DepartmentKind, EmployeeScheduleMode, OnboardingRequestStatus, OnboardingRequestType, RoleType, ScheduleRuleKind, ScheduleRuleScope, ScheduleRuleSeverity, ShiftChangeRequestEventType, ShiftChangeRequestKind, ShiftChangeRequestStatus } from '@prisma/client';
 
 // Wire response shapes selected/serialized by the services, never database records or fixtures.
 const text: SchemaObject = { type: 'string' };
@@ -70,6 +70,11 @@ export const schedulePublicationResponse = object({
     description:
       'Server-owned ruleset identifier. Legacy publications may contain null.',
   },
+  rulesSnapshot: {
+    ...nullable(jsonObject),
+    description:
+      'Immutable managed-rules snapshot used for this publication. Legacy publications may contain null.',
+  },
   snapshot: jsonObject,
   diff: jsonObject,
   createdAt: timestamp,
@@ -89,6 +94,39 @@ export const schedulePublicationValidationResponse = object({
     date: nullable({ type: 'string', format: 'date' }),
   })),
 });
+
+export const scheduleRuleResponse = object({
+  id: text,
+  name: text,
+  description: text,
+  kind: enumeration(ScheduleRuleKind),
+  scope: enumeration(ScheduleRuleScope),
+  scopeValue: nullable(text),
+  departmentId: nullable(text),
+  priority: integer,
+  severity: enumeration(ScheduleRuleSeverity),
+  isActive: boolean,
+  isDeleted: boolean,
+  config: jsonObject,
+  violationMessage: text,
+  version: integer,
+  createdByUserId: text,
+  updatedByUserId: text,
+  createdAt: timestamp,
+  updatedAt: timestamp,
+  editable: boolean,
+});
+export const scheduleRuleDeletedResponse = object({
+  status: { type: 'string', enum: ['ok'] },
+  ruleId: text,
+});
+export const scheduleRuleHistoryResponse = arrayOf(object({
+  id: text,
+  version: integer,
+  snapshot: jsonObject,
+  changedByUserId: text,
+  createdAt: timestamp,
+}));
 
 export const wishResponse = object({ id: text, employeeId: text, year: integer, month: integer, day: nullable(integer), text, createdAt: timestamp, updatedAt: timestamp });
 export const shiftChangeResponse = object({

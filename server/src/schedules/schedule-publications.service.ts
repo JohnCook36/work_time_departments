@@ -8,6 +8,7 @@ import {
   AuditAction,
   AuditEntityType,
   Prisma,
+  ScheduleRuleScope,
 } from '@prisma/client';
 
 import { appendAuditLog } from '../audit/audit-log';
@@ -15,8 +16,12 @@ import { AuthUserContext } from '../auth/auth.service';
 import { AuthorizationService } from '../auth/authorization.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
-  assertSchedulePublicationRules,
-  SCHEDULE_PUBLICATION_RULES_VERSION,
+  buildManagedRulesetSnapshot,
+  buildRulesVersion,
+  ManagedScheduleRuleSnapshot,
+  validateManagedScheduleRules,
+} from '../schedule-rules/rule-engine';
+import {
   validateSchedulePublicationSnapshot,
 } from './schedule-publication-rules';
 
@@ -27,6 +32,7 @@ export interface PublishedEmployeeSnapshot {
   scheduleMode: string;
   fixedStartTime: string | null;
   fixedEndTime: string | null;
+  roles?: string[];
 }
 
 export interface PublishedShiftSnapshot {
@@ -185,6 +191,7 @@ function serializePublication(publication: {
   sourceScheduleUpdatedAt: Date;
   comment: string | null;
   rulesVersion: string | null;
+  rulesSnapshot: Prisma.JsonValue | null;
   snapshot: Prisma.JsonValue;
   diff: Prisma.JsonValue;
   createdAt: Date;
@@ -198,9 +205,32 @@ function serializePublication(publication: {
     sourceScheduleUpdatedAt: publication.sourceScheduleUpdatedAt.toISOString(),
     comment: publication.comment,
     rulesVersion: publication.rulesVersion,
+    rulesSnapshot: publication.rulesSnapshot,
     snapshot: publication.snapshot,
     diff: publication.diff,
     createdAt: publication.createdAt.toISOString(),
+  };
+}
+
+function validatePublicationRules(
+  snapshot: SchedulePublicationSnapshot,
+  rules: ManagedScheduleRuleSnapshot[],
+  year: number,
+  month: number,
+) {
+  const rulesSnapshot = buildManagedRulesetSnapshot(rules);
+  const violations = [
+    ...validateSchedulePublicationSnapshot(snapshot, year, month),
+    ...validateManagedScheduleRules(snapshot, rules, year, month),
+  ];
+
+  return {
+    rulesSnapshot,
+    rulesVersion: buildRulesVersion(rulesSnapshot),
+    violations,
+    canPublish: !violations.some(
+      (violation) => violation.severity === 'hard',
+    ),
   };
 }
 
@@ -248,6 +278,14 @@ export class SchedulePublicationsService {
                   scheduleMode: true,
                   fixedStartTime: true,
                   fixedEndTime: true,
+                  user: {
+                    select: {
+                      memberships: {
+                        where: { isActive: true },
+                        select: { role: true },
+                      },
+                    },
+                  },
                 },
               },
             },
@@ -306,6 +344,9 @@ export class SchedulePublicationsService {
               scheduleMode: employee.scheduleMode,
               fixedStartTime: employee.fixedStartTime,
               fixedEndTime: employee.fixedEndTime,
+              roles:
+                employee.user?.memberships.map((membership) => membership.role) ??
+                [],
             })),
             shifts: shifts.map((shift) => ({
               id: shift.id,
@@ -319,7 +360,39 @@ export class SchedulePublicationsService {
             })),
           };
 
-          assertSchedulePublicationRules(snapshot, year, month);
+          const managedRules = (await tx.scheduleRule.findMany({
+            where: {
+              isActive: true,
+              isDeleted: false,
+              OR: [
+                { scope: ScheduleRuleScope.ORGANIZATION },
+                { scope: ScheduleRuleScope.ROLE },
+                { scope: ScheduleRuleScope.SHIFT_TYPE },
+                {
+                  scope: ScheduleRuleScope.DEPARTMENT,
+                  departmentId,
+                },
+              ],
+            },
+            orderBy: [{ priority: 'desc' }, { id: 'asc' }],
+          })) as ManagedScheduleRuleSnapshot[];
+
+          const ruleValidation = validatePublicationRules(
+            snapshot,
+            managedRules,
+            year,
+            month,
+          );
+          if (!ruleValidation.canPublish) {
+            throw new BadRequestException({
+              message: 'Schedule failed pre-publication validation',
+              code: 'SCHEDULE_PUBLICATION_RULES_FAILED',
+              rulesVersion: ruleValidation.rulesVersion,
+              violations: ruleValidation.violations.filter(
+                (violation) => violation.severity === 'hard',
+              ),
+            });
+          }
 
           const latest = await tx.schedulePublication.findFirst({
             where: {
@@ -361,7 +434,9 @@ export class SchedulePublicationsService {
               publishedByUserId: admin.id,
               sourceScheduleUpdatedAt: schedule.updatedAt,
               comment: normalizedComment,
-              rulesVersion: SCHEDULE_PUBLICATION_RULES_VERSION,
+              rulesVersion: ruleValidation.rulesVersion,
+              rulesSnapshot:
+                ruleValidation.rulesSnapshot as unknown as Prisma.InputJsonValue,
               snapshot: snapshot as unknown as Prisma.InputJsonValue,
               diff: diff as unknown as Prisma.InputJsonValue,
             },
@@ -374,6 +449,7 @@ export class SchedulePublicationsService {
               sourceScheduleUpdatedAt: true,
               comment: true,
               rulesVersion: true,
+              rulesSnapshot: true,
               snapshot: true,
               diff: true,
               createdAt: true,
@@ -437,6 +513,14 @@ export class SchedulePublicationsService {
             scheduleMode: true,
             fixedStartTime: true,
             fixedEndTime: true,
+            user: {
+              select: {
+                memberships: {
+                  where: { isActive: true },
+                  select: { role: true },
+                },
+              },
+            },
           },
         },
       },
@@ -490,6 +574,9 @@ export class SchedulePublicationsService {
         scheduleMode: employee.scheduleMode,
         fixedStartTime: employee.fixedStartTime,
         fixedEndTime: employee.fixedEndTime,
+        roles:
+          employee.user?.memberships.map((membership) => membership.role) ??
+          [],
       })),
       shifts: shifts.map((shift) => ({
         id: shift.id,
@@ -503,8 +590,26 @@ export class SchedulePublicationsService {
       })),
     };
 
-    const violations = validateSchedulePublicationSnapshot(
+    const managedRules = (await this.prisma.scheduleRule.findMany({
+      where: {
+        isActive: true,
+        isDeleted: false,
+        OR: [
+          { scope: ScheduleRuleScope.ORGANIZATION },
+          { scope: ScheduleRuleScope.ROLE },
+          { scope: ScheduleRuleScope.SHIFT_TYPE },
+          {
+            scope: ScheduleRuleScope.DEPARTMENT,
+            departmentId,
+          },
+        ],
+      },
+      orderBy: [{ priority: 'desc' }, { id: 'asc' }],
+    })) as ManagedScheduleRuleSnapshot[];
+
+    const ruleValidation = validatePublicationRules(
       snapshot,
+      managedRules,
       year,
       month,
     );
@@ -512,11 +617,9 @@ export class SchedulePublicationsService {
     return {
       departmentId,
       period: { year, month },
-      rulesVersion: SCHEDULE_PUBLICATION_RULES_VERSION,
-      canPublish: !violations.some(
-        (violation) => violation.severity === 'hard',
-      ),
-      violations: violations.map((violation) => ({
+      rulesVersion: ruleValidation.rulesVersion,
+      canPublish: ruleValidation.canPublish,
+      violations: ruleValidation.violations.map((violation) => ({
         ...violation,
         employeeId: violation.employeeId ?? null,
         shiftId: violation.shiftId ?? null,
@@ -563,6 +666,7 @@ export class SchedulePublicationsService {
         sourceScheduleUpdatedAt: true,
         comment: true,
         rulesVersion: true,
+        rulesSnapshot: true,
         snapshot: true,
         diff: true,
         createdAt: true,
@@ -608,6 +712,7 @@ export class SchedulePublicationsService {
         sourceScheduleUpdatedAt: true,
         comment: true,
         rulesVersion: true,
+        rulesSnapshot: true,
         snapshot: true,
         diff: true,
         createdAt: true,

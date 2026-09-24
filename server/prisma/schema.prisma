@@ -20,6 +20,23 @@ enum RoleType {
   EMPLOYEE
 }
 
+enum ScheduleRuleScope {
+  ORGANIZATION
+  DEPARTMENT
+  ROLE
+  SHIFT_TYPE
+}
+
+enum ScheduleRuleSeverity {
+  HARD
+  SOFT
+}
+
+enum ScheduleRuleKind {
+  MAX_CONCURRENT_EMPLOYEES
+  MIN_STAFF_AT_TIME
+}
+
 enum EmployeeScheduleMode {
   FLEXIBLE
   FIXED_WEEKDAYS
@@ -67,6 +84,9 @@ enum AuditAction {
   DEPARTMENT_DEACTIVATED
   SCHEDULE_CHANGED
   SCHEDULE_PUBLISHED
+  SCHEDULE_RULE_CREATED
+  SCHEDULE_RULE_UPDATED
+  SCHEDULE_RULE_DELETED
   ONBOARDING_APPROVED
   ONBOARDING_REJECTED
   SHIFT_CHANGE_MANAGER_APPROVED
@@ -77,6 +97,7 @@ enum AuditEntityType {
   EMPLOYEE
   DEPARTMENT
   SCHEDULE
+  SCHEDULE_RULE
   ONBOARDING_REQUEST
   SHIFT_CHANGE_REQUEST
 }
@@ -95,6 +116,7 @@ model Department {
   requestedShiftChanges ShiftChangeRequest[] @relation("ShiftChangeRequesterDepartment")
   targetedShiftChanges  ShiftChangeRequest[] @relation("ShiftChangeTargetDepartment")
   schedulePublications   SchedulePublication[]
+  scheduleRules          ScheduleRule[]
 }
 
 model User {
@@ -113,6 +135,9 @@ model User {
   managedShiftChanges        ShiftChangeRequest[]      @relation("ShiftChangeManagerUser")
   shiftChangeEvents          ShiftChangeRequestEvent[] @relation("ShiftChangeEventActor")
   schedulePublications       SchedulePublication[]
+  createdScheduleRules       ScheduleRule[]        @relation("ScheduleRuleCreatedBy")
+  updatedScheduleRules       ScheduleRule[]        @relation("ScheduleRuleUpdatedBy")
+  scheduleRuleVersions       ScheduleRuleVersion[] @relation("ScheduleRuleVersionChangedBy")
 }
 
 model Employee {
@@ -321,6 +346,7 @@ model SchedulePublication {
   sourceScheduleUpdatedAt DateTime
   comment                 String?  @db.VarChar(500)
   rulesVersion            String?  @db.VarChar(100)
+  rulesSnapshot           Json?
   snapshot                Json
   diff                    Json
   createdAt               DateTime @default(now())
@@ -331,6 +357,51 @@ model SchedulePublication {
   @@unique([scheduleId, departmentId, version])
   @@index([scheduleId, departmentId, createdAt])
   @@index([publishedByUserId, createdAt])
+}
+
+model ScheduleRule {
+  id                String               @id @default(cuid())
+  name              String               @db.VarChar(120)
+  description       String               @db.Text
+  kind              ScheduleRuleKind
+  scope             ScheduleRuleScope
+  scopeValue        String?              @db.VarChar(64)
+  departmentId      String?
+  priority          Int                  @default(100)
+  severity          ScheduleRuleSeverity @default(HARD)
+  isActive          Boolean              @default(true)
+  isDeleted         Boolean              @default(false)
+  config            Json
+  violationMessage  String               @db.VarChar(500)
+  version           Int                  @default(1)
+  createdByUserId   String
+  updatedByUserId   String
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  department        Department?          @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  createdBy         User                 @relation("ScheduleRuleCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  updatedBy         User                 @relation("ScheduleRuleUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: Restrict)
+  versions          ScheduleRuleVersion[]
+
+  @@index([scope, isActive, isDeleted])
+  @@index([departmentId, isActive, isDeleted])
+  @@index([kind, isActive, isDeleted])
+  @@index([priority])
+}
+
+model ScheduleRuleVersion {
+  id              String       @id @default(cuid())
+  ruleId          String
+  version         Int
+  snapshot        Json
+  changedByUserId String
+  createdAt       DateTime     @default(now())
+  rule            ScheduleRule @relation(fields: [ruleId], references: [id], onDelete: Restrict)
+  changedBy       User         @relation("ScheduleRuleVersionChangedBy", fields: [changedByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([ruleId, version])
+  @@index([ruleId, createdAt])
+  @@index([changedByUserId, createdAt])
 }
 
 model AuditLog {

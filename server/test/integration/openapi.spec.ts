@@ -53,6 +53,9 @@ describe('OpenAPI documentation', () => {
     ['/schedule-data/department', 'get'], ['/schedule-data/me', 'get'],
     ['/schedule-data/department/validation', 'get'],
     ['/schedule-data/department/entries', 'patch'], ['/schedule-data/planner/entries', 'patch'],
+    ['/schedule-rules/manageable', 'get'], ['/schedule-rules', 'post'],
+    ['/schedule-rules/{ruleId}', 'patch'], ['/schedule-rules/{ruleId}', 'delete'],
+    ['/schedule-rules/{ruleId}/history', 'get'],
     ['/shift-change-requests', 'post'], ['/shift-change-requests/mine', 'get'],
     ['/shift-change-requests/{id}/accept', 'post'], ['/shift-change-requests/{id}/admin/approve', 'post'],
     ['/wishes/department', 'get'], ['/wishes', 'post'], ['/wishes/{wishId}', 'delete'],
@@ -83,6 +86,22 @@ describe('OpenAPI documentation', () => {
     expect(schemas.ApplyPlannerChangesDto.properties?.changes).toMatchObject({
       type: 'array', items: { $ref: '#/components/schemas/ScheduleCellChangeDto' },
     });
+    expect(schemas.CreateScheduleRuleDto.required).toEqual(
+      expect.arrayContaining([
+        'name',
+        'description',
+        'kind',
+        'scope',
+        'config',
+        'violationMessage',
+      ]),
+    );
+    expect(schemas.UpdateScheduleRuleDto.required).toEqual([
+      'expectedUpdatedAt',
+    ]);
+    expect(schemas.DeleteScheduleRuleDto.required).toEqual([
+      'expectedUpdatedAt',
+    ]);
     expect(schemas.CreateWishDto.properties?.day).toMatchObject({ nullable: true });
     expect(schemas.CreateWishDto.required).not.toContain('day');
     expect(document.paths['/shift-change-requests/{id}/admin/approve'].post?.summary).toContain('does not mutate Shift');
