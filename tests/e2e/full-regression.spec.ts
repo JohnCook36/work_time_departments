@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import ExcelJS from 'exceljs';
 
-const STORAGE_KEY = 'hotel-shift-planner';
+const STORAGE_KEY = 'hotel-shift-planner:user:e2e-admin-user';
 
 function periodKey(): string {
   const now = new Date();

@@ -11,8 +11,9 @@ import { AuthUserContext } from '../../../src/auth/AuthContext';
 import type { AuthUser } from '../../../src/api/auth';
 import { AppThemeProvider } from '../../../src/theme/AppThemeProvider';
 import { AppDialogProvider } from '../../../src/components/dialogs/AppDialogProvider';
+import { plannerStorageKeyForUser } from '../../../src/services/storage/plannerStorage';
 
-const STORAGE_KEY = 'hotel-shift-planner';
+const LEGACY_STORAGE_KEY = 'hotel-shift-planner';
 
 const managementUser: AuthUser = {
   id: 'test-admin-user',
@@ -34,6 +35,8 @@ const managementUser: AuthUser = {
     },
   ],
 };
+
+const STORAGE_KEY = plannerStorageKeyForUser(managementUser.id);
 
 function renderApp() {
   return render(
@@ -179,7 +182,7 @@ describe('App regression flows', () => {
       wishes: {},
       collapsedDepartments: [],
     });
-    localStorage.setItem(STORAGE_KEY, legacyRaw);
+    localStorage.setItem(LEGACY_STORAGE_KEY, legacyRaw);
 
     vi.stubEnv('VITE_SERVER_PLANNER_READ', '1');
     vi.spyOn(plannerApi, 'loadPlannerServerSnapshot').mockResolvedValue(
@@ -194,7 +197,38 @@ describe('App regression flows', () => {
     expect(await screen.findByText('Серверный сотрудник')).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(localStorage.getItem(STORAGE_KEY)).toBe(legacyRaw);
+      expect(localStorage.getItem(LEGACY_STORAGE_KEY)).toBeNull();
+    });
+  });
+
+  it('does not load another account planner cache', async () => {
+    const otherStorageKey = plannerStorageKeyForUser('other-admin-user');
+    localStorage.setItem(
+      otherStorageKey,
+      JSON.stringify({
+        departments: [
+          { id: 'private-department', name: 'Чужой отдел', kind: 'general' },
+        ],
+        employees: [
+          {
+            id: 'private-employee',
+            name: 'Чужой сотрудник',
+            departmentId: 'private-department',
+            employmentRate: 1,
+          },
+        ],
+        schedules: {},
+        wishes: {},
+        collapsedDepartments: [],
+      }),
+    );
+
+    renderApp();
+
+    expect(screen.queryByText('Чужой сотрудник')).not.toBeInTheDocument();
+    expect(localStorage.getItem(otherStorageKey)).not.toBeNull();
+    await waitFor(() => {
+      expect(localStorage.getItem(STORAGE_KEY)).not.toBeNull();
     });
   });
 
@@ -940,7 +974,7 @@ describe('App regression flows', () => {
     expect(screen.queryByText('Недельная норма')).not.toBeInTheDocument();
   });
 
-  it('migrates a legacy single-month schedule and fills department/rate defaults', async () => {
+  it('migrates an account-scoped single-month schedule and fills department/rate defaults', async () => {
     localStorage.setItem(
       STORAGE_KEY,
       JSON.stringify({
