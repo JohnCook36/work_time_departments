@@ -4,6 +4,8 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import {
+  AuditAction,
+  AuditEntityType,
   RoleType,
   ShiftChangeRequestEventType,
   ShiftChangeRequestKind,
@@ -110,6 +112,9 @@ function prismaMock() {
       updateMany: jest.fn(),
     },
     shiftChangeRequestEvent: {
+      create: jest.fn(),
+    },
+    auditLog: {
       create: jest.fn(),
     },
     $transaction: jest.fn(),
@@ -492,6 +497,27 @@ describe('ShiftChangeRequestsService', () => {
         }),
       }),
     );
+    expect(prisma.auditLog.create).toHaveBeenCalledTimes(2);
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        actorUserId: 'admin-DEPARTMENT_ADMIN',
+        action: AuditAction.SHIFT_CHANGE_MANAGER_APPROVED,
+        entityType: AuditEntityType.SHIFT_CHANGE_REQUEST,
+        entityId: 'request-1',
+        departmentId: 'department-a',
+      },
+      select: { id: true },
+    });
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        actorUserId: 'admin-DEPARTMENT_ADMIN',
+        action: AuditAction.SHIFT_CHANGE_MANAGER_APPROVED,
+        entityType: AuditEntityType.SHIFT_CHANGE_REQUEST,
+        entityId: 'request-1',
+        departmentId: 'department-b',
+      },
+      select: { id: true },
+    });
   });
 
   it('allows Super Admin to approve cross-department requests', async () => {
@@ -576,6 +602,16 @@ describe('ShiftChangeRequestsService', () => {
         eventType: ShiftChangeRequestEventType.MANAGER_REJECTED,
         actorUserId: admin.id,
       },
+    });
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        actorUserId: admin.id,
+        action: AuditAction.SHIFT_CHANGE_MANAGER_REJECTED,
+        entityType: AuditEntityType.SHIFT_CHANGE_REQUEST,
+        entityId: 'request-1',
+        departmentId: 'department-a',
+      },
+      select: { id: true },
     });
   });
 });

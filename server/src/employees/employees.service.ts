@@ -5,12 +5,15 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  AuditAction,
+  AuditEntityType,
   EmployeeScheduleMode,
   OnboardingRequestStatus,
   RoleType,
   ShiftChangeRequestStatus,
 } from '@prisma/client';
 
+import { appendAuditLog } from '../audit/audit-log';
 import { AuthUserContext } from '../auth/auth.service';
 import { AuthorizationService } from '../auth/authorization.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -515,6 +518,14 @@ export class EmployeesService {
           },
         });
       }
+
+      await appendAuditLog(tx, {
+        actorUserId: admin.id,
+        action: AuditAction.EMPLOYEE_DEACTIVATED,
+        entityType: AuditEntityType.EMPLOYEE,
+        entityId: existing.id,
+        departmentId: existing.departmentId,
+      });
 
       return {
         status: 'ok' as const,

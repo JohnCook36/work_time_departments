@@ -32,6 +32,7 @@ describe('SchedulesController API validation', () => {
   };
 
   const transaction = {
+    auditLog: { create: jest.fn() },
     department: { findMany: jest.fn() },
     employee: { findMany: jest.fn() },
     schedule: {

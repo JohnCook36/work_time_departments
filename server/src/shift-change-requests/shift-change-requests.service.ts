@@ -6,6 +6,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  AuditAction,
+  AuditEntityType,
   Prisma,
   RoleType,
   ShiftChangeRequestEventType,
@@ -13,6 +15,7 @@ import {
   ShiftChangeRequestStatus,
 } from '@prisma/client';
 
+import { appendAuditLog } from '../audit/audit-log';
 import { AuthUserContext } from '../auth/auth.service';
 import { AuthorizationService } from '../auth/authorization.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -360,6 +363,19 @@ export class ShiftChangeRequestsService {
           },
         );
 
+        for (const departmentId of new Set([
+          request.requesterDepartmentId,
+          request.targetDepartmentId,
+        ])) {
+          await appendAuditLog(tx, {
+            actorUserId: admin.id,
+            action: AuditAction.SHIFT_CHANGE_MANAGER_APPROVED,
+            entityType: AuditEntityType.SHIFT_CHANGE_REQUEST,
+            entityId: request.id,
+            departmentId,
+          });
+        }
+
         return { stale: false as const, request: resolved };
       },
       this.transactionOptions(),
@@ -398,6 +414,19 @@ export class ShiftChangeRequestsService {
             resolvedAt: new Date(),
           },
         );
+
+        for (const departmentId of new Set([
+          request.requesterDepartmentId,
+          request.targetDepartmentId,
+        ])) {
+          await appendAuditLog(tx, {
+            actorUserId: admin.id,
+            action: AuditAction.SHIFT_CHANGE_MANAGER_REJECTED,
+            entityType: AuditEntityType.SHIFT_CHANGE_REQUEST,
+            entityId: request.id,
+            departmentId,
+          });
+        }
 
         return { stale: false as const, request: resolved };
       },

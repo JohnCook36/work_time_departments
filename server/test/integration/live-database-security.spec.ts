@@ -1,5 +1,5 @@
 import type { INestApplication } from '@nestjs/common';
-import { RoleType } from '@prisma/client';
+import { AuditAction, AuditEntityType, RoleType } from '@prisma/client';
 import { Test } from '@nestjs/testing';
 
 import { AppModule } from '../../src/app.module';
@@ -275,5 +275,37 @@ describeLive('live PostgreSQL security boundaries', () => {
       { headers: { cookie } },
     );
     expect(foreignSchedule.status).toBe(403);
+  });
+
+  it('keeps audit rows immutable outside explicit retention mode', async () => {
+    const created = await prisma.auditLog.create({
+      data: {
+        actorUserId: 'audit-actor',
+        action: AuditAction.SCHEDULE_CHANGED,
+        entityType: AuditEntityType.SCHEDULE,
+        entityId: 'schedule-audit-target',
+        departmentId: 'department-a',
+      },
+    });
+
+    await expect(
+      prisma.auditLog.update({
+        where: { id: created.id },
+        data: { entityId: 'tampered' },
+      }),
+    ).rejects.toThrow();
+
+    await expect(
+      prisma.auditLog.delete({
+        where: { id: created.id },
+      }),
+    ).rejects.toThrow();
+
+    expect(
+      await prisma.auditLog.findUniqueOrThrow({ where: { id: created.id } }),
+    ).toMatchObject({
+      entityId: 'schedule-audit-target',
+      actorUserId: 'audit-actor',
+    });
   });
 });

@@ -3,7 +3,12 @@ import {
   ConflictException,
   ForbiddenException,
 } from '@nestjs/common';
-import { DepartmentKind, RoleType } from '@prisma/client';
+import {
+  AuditAction,
+  AuditEntityType,
+  DepartmentKind,
+  RoleType,
+} from '@prisma/client';
 
 import { AuthUserContext } from '../../../src/auth/auth.service';
 import { PrismaService } from '../../../src/prisma/prisma.service';
@@ -48,6 +53,9 @@ describe('DepartmentsService', () => {
     shiftChangeRequest: {
       count: jest.fn(),
     },
+    auditLog: {
+      create: jest.fn(),
+    },
     $transaction: jest.fn(),
   };
   const service = new DepartmentsService(prisma as unknown as PrismaService);
@@ -71,6 +79,7 @@ describe('DepartmentsService', () => {
     prisma.membership.count.mockResolvedValue(0);
     prisma.onboardingRequest.count.mockResolvedValue(0);
     prisma.shiftChangeRequest.count.mockResolvedValue(0);
+    prisma.auditLog.create.mockResolvedValue({ id: 'audit-1' });
     prisma.$transaction.mockImplementation(async (callback) =>
       callback({
         department: {
@@ -91,6 +100,9 @@ describe('DepartmentsService', () => {
         },
         shiftChangeRequest: {
           count: prisma.shiftChangeRequest.count,
+        },
+        auditLog: {
+          create: prisma.auditLog.create,
         },
       }),
     );
@@ -278,6 +290,16 @@ describe('DepartmentsService', () => {
       data: {
         isActive: false,
       },
+    });
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        actorUserId: 'user-1',
+        action: AuditAction.DEPARTMENT_DEACTIVATED,
+        entityType: AuditEntityType.DEPARTMENT,
+        entityId: 'department-a',
+        departmentId: 'department-a',
+      },
+      select: { id: true },
     });
     expect(result).toEqual({
       status: 'ok',

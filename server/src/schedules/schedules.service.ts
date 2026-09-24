@@ -4,8 +4,14 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { EmployeeScheduleMode, Prisma } from '@prisma/client';
+import {
+  AuditAction,
+  AuditEntityType,
+  EmployeeScheduleMode,
+  Prisma,
+} from '@prisma/client';
 
+import { appendAuditLog } from '../audit/audit-log';
 import { AuthUserContext } from '../auth/auth.service';
 import { isRussiaFiveDayWorkingDay } from '../calendar/productionCalendar';
 import { AuthorizationService } from '../auth/authorization.service';
@@ -237,6 +243,16 @@ export class SchedulesService {
           await tx.schedule.update({
             where: { id: schedule.id }, data: { updatedAt: new Date() },
           });
+
+          for (const departmentId of departmentIds) {
+            await appendAuditLog(tx, {
+              actorUserId: admin.id,
+              action: AuditAction.SCHEDULE_CHANGED,
+              entityType: AuditEntityType.SCHEDULE,
+              entityId: schedule.id,
+              departmentId,
+            });
+          }
         }
         return { status: 'ok' as const, created: inserted.count };
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
@@ -559,15 +575,27 @@ export class SchedulesService {
       );
     }
 
-    return this.prisma.$transaction((tx) =>
-      this.applyScheduleChangesInTransaction(
+    return this.prisma.$transaction(async (tx) => {
+      const result = await this.applyScheduleChangesInTransaction(
         tx,
         year,
         month,
         changes,
         employeeIds,
-      ),
-    );
+      );
+
+      if (result.schedule) {
+        await appendAuditLog(tx, {
+          actorUserId: admin.id,
+          action: AuditAction.SCHEDULE_CHANGED,
+          entityType: AuditEntityType.SCHEDULE,
+          entityId: result.schedule.id,
+          departmentId,
+        });
+      }
+
+      return result;
+    });
   }
 
   async applyPlannerScheduleChanges(
@@ -607,13 +635,30 @@ export class SchedulesService {
         employees.map((employee) => employee.departmentId),
       );
 
-      return this.applyScheduleChangesInTransaction(
+      const result = await this.applyScheduleChangesInTransaction(
         tx,
         year,
         month,
         changes,
         employeeIds,
       );
+
+      if (result.schedule) {
+        const departmentIds = Array.from(
+          new Set(employees.map((employee) => employee.departmentId)),
+        );
+        for (const departmentId of departmentIds) {
+          await appendAuditLog(tx, {
+            actorUserId: admin.id,
+            action: AuditAction.SCHEDULE_CHANGED,
+            entityType: AuditEntityType.SCHEDULE,
+            entityId: result.schedule.id,
+            departmentId,
+          });
+        }
+      }
+
+      return result;
     });
   }
 

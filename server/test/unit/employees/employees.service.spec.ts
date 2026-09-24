@@ -1,5 +1,10 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
-import { EmployeeScheduleMode, RoleType } from '@prisma/client';
+import {
+  AuditAction,
+  AuditEntityType,
+  EmployeeScheduleMode,
+  RoleType,
+} from '@prisma/client';
 
 import { AuthUserContext } from '../../../src/auth/auth.service';
 import { EmployeesService } from '../../../src/employees/employees.service';
@@ -46,6 +51,9 @@ describe('EmployeesService', () => {
     authSession: {
       updateMany: jest.fn(),
     },
+    auditLog: {
+      create: jest.fn(),
+    },
     $transaction: jest.fn(),
   };
 
@@ -67,6 +75,7 @@ describe('EmployeesService', () => {
     prisma.user.updateMany.mockResolvedValue({ count: 1 });
     prisma.membership.updateMany.mockResolvedValue({ count: 1 });
     prisma.authSession.updateMany.mockResolvedValue({ count: 1 });
+    prisma.auditLog.create.mockResolvedValue({ id: 'audit-1' });
     prisma.$transaction.mockImplementation(async (callback) =>
       callback({
         employee: {
@@ -88,6 +97,9 @@ describe('EmployeesService', () => {
         },
         authSession: {
           updateMany: prisma.authSession.updateMany,
+        },
+        auditLog: {
+          create: prisma.auditLog.create,
         },
       }),
     );
@@ -616,6 +628,16 @@ describe('EmployeesService', () => {
       },
     });
     expect(prisma.user.updateMany).not.toHaveBeenCalled();
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        actorUserId: 'admin-user',
+        action: AuditAction.EMPLOYEE_DEACTIVATED,
+        entityType: AuditEntityType.EMPLOYEE,
+        entityId: 'employee-a',
+        departmentId: 'department-a',
+      },
+      select: { id: true },
+    });
     expect(result).toEqual({
       status: 'ok',
       employeeId: 'employee-a',

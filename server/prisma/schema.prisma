@@ -62,6 +62,24 @@ enum ShiftChangeRequestEventType {
   MARKED_STALE
 }
 
+enum AuditAction {
+  EMPLOYEE_DEACTIVATED
+  DEPARTMENT_DEACTIVATED
+  SCHEDULE_CHANGED
+  ONBOARDING_APPROVED
+  ONBOARDING_REJECTED
+  SHIFT_CHANGE_MANAGER_APPROVED
+  SHIFT_CHANGE_MANAGER_REJECTED
+}
+
+enum AuditEntityType {
+  EMPLOYEE
+  DEPARTMENT
+  SCHEDULE
+  ONBOARDING_REQUEST
+  SHIFT_CHANGE_REQUEST
+}
+
 model Department {
   id        String         @id @default(cuid())
   name      String
@@ -287,4 +305,19 @@ model ShiftChangeRequestEvent {
   @@index([requestId, createdAt])
   @@index([actorUserId])
   @@index([eventType])
+}
+
+
+model AuditLog {
+  id           String          @id @default(cuid())
+  actorUserId  String
+  action       AuditAction
+  entityType   AuditEntityType
+  entityId     String
+  departmentId String?
+  createdAt    DateTime        @default(now())
+
+  @@index([actorUserId, createdAt])
+  @@index([departmentId, createdAt])
+  @@index([action, createdAt])
 }
