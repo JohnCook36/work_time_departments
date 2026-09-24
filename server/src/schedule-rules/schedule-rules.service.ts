@@ -49,23 +49,6 @@ function requiredText(value: unknown, field: string, maxLength: number): string 
   return normalized;
 }
 
-function optionalText(
-  value: unknown,
-  field: string,
-  maxLength: number,
-): string | null {
-  if (value == null || value === '') return null;
-  if (typeof value !== 'string') {
-    throw new BadRequestException(field + ' must be a string');
-  }
-  const normalized = value.trim();
-  if (!normalized) return null;
-  if (normalized.length > maxLength) {
-    throw new BadRequestException(field + ' is too long');
-  }
-  return normalized;
-}
-
 function enumValue<T extends string>(
   value: unknown,
   field: string,
