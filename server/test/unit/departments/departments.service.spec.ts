@@ -3,7 +3,12 @@ import {
   ConflictException,
   ForbiddenException,
 } from '@nestjs/common';
-import { DepartmentKind, RoleType } from '@prisma/client';
+import {
+  AuditAction,
+  AuditEntityType,
+  DepartmentKind,
+  RoleType,
+} from '@prisma/client';
 
 import { AuthUserContext } from '../../../src/auth/auth.service';
 import { PrismaService } from '../../../src/prisma/prisma.service';
@@ -285,6 +290,16 @@ describe('DepartmentsService', () => {
       data: {
         isActive: false,
       },
+    });
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        actorUserId: 'user-1',
+        action: AuditAction.DEPARTMENT_DEACTIVATED,
+        entityType: AuditEntityType.DEPARTMENT,
+        entityId: 'department-a',
+        departmentId: 'department-a',
+      },
+      select: { id: true },
     });
     expect(result).toEqual({
       status: 'ok',
