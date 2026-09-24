@@ -12,6 +12,7 @@ import { RoleType } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import {
+  hashAuthRequestSource,
   hashOtp,
   hashSessionToken,
   normalizePhoneE164,
@@ -22,6 +23,8 @@ import {
 const OTP_TTL_MS = 5 * 60 * 1000;
 const OTP_REQUEST_COOLDOWN_MS = 60 * 1000;
 const OTP_MAX_ATTEMPTS = 5;
+const DEFAULT_OTP_SOURCE_WINDOW_SECONDS = 10 * 60;
+const DEFAULT_OTP_SOURCE_MAX_REQUESTS = 20;
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 export interface AuthUserContext {
@@ -48,7 +51,10 @@ export interface AuthUserContext {
 export class AuthService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async requestCode(rawPhone: string): Promise<{
+  async requestCode(
+    rawPhone: string,
+    requestSource: string,
+  ): Promise<{
     status: 'sent';
     expiresInSeconds: number;
   }> {
@@ -64,6 +70,8 @@ export class AuthService {
 
     const pepper = this.getOtpPepper();
     const code = this.getDevelopmentOtpCode();
+    const sourceHash = hashAuthRequestSource(requestSource, pepper);
+    const sourceRateLimit = this.getOtpSourceRateLimit();
 
     await this.prisma.$transaction(async (tx) => {
       // Serialize request-code for the same normalized phone across backend instances.
@@ -73,6 +81,13 @@ export class AuthService {
         FROM (
           SELECT pg_advisory_xact_lock(hashtext(${phoneE164}))
         ) AS phone_lock
+      `;
+
+      await tx.$queryRaw<Array<{ locked: number }>>`
+        SELECT 1::int AS locked
+        FROM (
+          SELECT pg_advisory_xact_lock(hashtext(${sourceHash}))
+        ) AS source_lock
       `;
 
       const now = new Date();
@@ -93,10 +108,27 @@ export class AuthService {
         );
       }
 
+      const recentSourceRequests = await tx.authChallenge.count({
+        where: {
+          requestSourceHash: sourceHash,
+          createdAt: {
+            gt: new Date(now.getTime() - sourceRateLimit.windowMs),
+          },
+        },
+      });
+
+      if (recentSourceRequests >= sourceRateLimit.maxRequests) {
+        throw new HttpException(
+          'Too many code requests from this source',
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+
       await tx.authChallenge.create({
         data: {
           phoneE164,
           codeHash: hashOtp(code, pepper),
+          requestSourceHash: sourceHash,
           expiresAt: new Date(now.getTime() + OTP_TTL_MS),
           maxAttempts: OTP_MAX_ATTEMPTS,
         },
@@ -325,6 +357,35 @@ export class AuthService {
     });
 
     return { status: 'ok' };
+  }
+
+  private getOtpSourceRateLimit(): { windowMs: number; maxRequests: number } {
+    const rawWindowSeconds = process.env.AUTH_OTP_SOURCE_WINDOW_SECONDS;
+    const rawMaxRequests = process.env.AUTH_OTP_SOURCE_MAX_REQUESTS;
+    const windowSeconds = rawWindowSeconds
+      ? Number(rawWindowSeconds)
+      : DEFAULT_OTP_SOURCE_WINDOW_SECONDS;
+    const maxRequests = rawMaxRequests
+      ? Number(rawMaxRequests)
+      : DEFAULT_OTP_SOURCE_MAX_REQUESTS;
+
+    if (
+      !Number.isInteger(windowSeconds) ||
+      windowSeconds < 60 ||
+      windowSeconds > 24 * 60 * 60 ||
+      !Number.isInteger(maxRequests) ||
+      maxRequests < 1 ||
+      maxRequests > 1000
+    ) {
+      throw new ServiceUnavailableException(
+        'OTP source rate limit is not configured correctly',
+      );
+    }
+
+    return {
+      windowMs: windowSeconds * 1000,
+      maxRequests,
+    };
   }
 
   private getOtpPepper(): string {
