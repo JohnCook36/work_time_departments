@@ -6,11 +6,14 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  AuditAction,
+  AuditEntityType,
   OnboardingRequestStatus,
   OnboardingRequestType,
   RoleType,
 } from '@prisma/client';
 
+import { appendAuditLog } from '../audit/audit-log';
 import { AuthUserContext } from '../auth/auth.service';
 import { AuthorizationService } from '../auth/authorization.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -437,6 +440,14 @@ export class OnboardingService {
         throw new ConflictException('Onboarding request changed during approval');
       }
 
+      await appendAuditLog(tx, {
+        actorUserId: admin.id,
+        action: AuditAction.ONBOARDING_APPROVED,
+        entityType: AuditEntityType.ONBOARDING_REQUEST,
+        entityId: request.id,
+        departmentId: request.departmentId,
+      });
+
       return {
         request: resolved,
         employee,
@@ -462,25 +473,41 @@ export class OnboardingService {
       throw new ConflictException('Onboarding request is already resolved');
     }
 
-    const rejected = await this.prisma.onboardingRequest.updateMany({
-      where: {
-        id: request.id,
-        status: OnboardingRequestStatus.PENDING,
-      },
-      data: {
-        status: OnboardingRequestStatus.REJECTED,
-        reviewedByUserId: admin.id,
-        reviewedAt: new Date(),
-      },
-    });
+    return this.prisma.$transaction(async (tx) => {
+      const rejected = await tx.onboardingRequest.updateMany({
+        where: {
+          id: request.id,
+          status: OnboardingRequestStatus.PENDING,
+        },
+        data: {
+          status: OnboardingRequestStatus.REJECTED,
+          reviewedByUserId: admin.id,
+          reviewedAt: new Date(),
+        },
+      });
 
-    if (rejected.count !== 1) {
-      throw new ConflictException('Onboarding request is already resolved');
-    }
+      if (rejected.count !== 1) {
+        throw new ConflictException('Onboarding request is already resolved');
+      }
 
-    return this.prisma.onboardingRequest.findUnique({
-      where: { id: request.id },
-      select: this.requestSelect(),
+      const resolved = await tx.onboardingRequest.findUnique({
+        where: { id: request.id },
+        select: this.requestSelect(),
+      });
+
+      if (!resolved) {
+        throw new ConflictException('Onboarding request changed during rejection');
+      }
+
+      await appendAuditLog(tx, {
+        actorUserId: admin.id,
+        action: AuditAction.ONBOARDING_REJECTED,
+        entityType: AuditEntityType.ONBOARDING_REQUEST,
+        entityId: request.id,
+        departmentId: request.departmentId,
+      });
+
+      return resolved;
     });
   }
 
