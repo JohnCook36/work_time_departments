@@ -398,6 +398,10 @@ export function PlannerScreen() {
         !isApplyingBulkSchedule));
 
   const [isSavingFixedWeekdays, setIsSavingFixedWeekdays] = useState(false);
+  const canPublishSchedule =
+    serverPlannerWriteEnabled &&
+    serverPlannerStatus === 'ready' &&
+    departments.length > 0;
   const canSaveFixedWeekdays = serverPlannerWriteEnabled &&
     serverPlannerStatus === 'ready' &&
     departments.length > 0 &&
@@ -678,6 +682,10 @@ export function PlannerScreen() {
           {canManagePlanner && (
             <PlannerManagementScreen
               departments={departments}
+              year={year}
+              monthIndex={month}
+              publicationReadEnabled={serverPlannerReadEnabled}
+              canPublishSchedule={canPublishSchedule}
               employees={employees}
               canCreateEmployee={canCreateEmployee}
               isCreatingEmployee={isCreatingEmployee}
