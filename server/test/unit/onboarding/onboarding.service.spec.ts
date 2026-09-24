@@ -106,3 +106,43 @@ describe('OnboardingService admin departments', () => {
     expect(findMany).not.toHaveBeenCalled();
   });
 });
+
+
+describe('OnboardingService privacy boundary', () => {
+  it('does not select account phone data for manager pending requests', async () => {
+    const findMany = jest.fn().mockResolvedValue([]);
+    const prisma = {
+      onboardingRequest: { findMany },
+    };
+    const authorization = {
+      assertCanAdministerDepartment: jest.fn(),
+    };
+    const service = new OnboardingService(
+      prisma as never,
+      authorization as never,
+    );
+
+    await service.listPendingForDepartment(
+      authUser([
+        {
+          id: 'membership-a',
+          role: RoleType.DEPARTMENT_ADMIN,
+          departmentId: 'department-a',
+        },
+      ]),
+      'department-a',
+    );
+
+    expect(authorization.assertCanAdministerDepartment).toHaveBeenCalledWith(
+      expect.anything(),
+      'department-a',
+    );
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        select: expect.not.objectContaining({
+          user: expect.anything(),
+        }),
+      }),
+    );
+  });
+});

@@ -15,11 +15,25 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: work_time_departments_test
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d work_time_departments_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     defaults:
       run:
         working-directory: server
     env:
-      DATABASE_URL: postgresql://ci:ci@localhost:5432/work_time_departments?schema=public
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/work_time_departments_test?schema=public
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -40,8 +54,19 @@ jobs:
       - name: Validate Prisma schema
         run: npm run prisma:validate
 
+      - name: Apply Prisma migrations
+        run: npx prisma migrate deploy
+
       - name: Test
         run: npm test
+
+      - name: Live PostgreSQL security integration
+        run: npm run test:live-db
+        env:
+          LIVE_DATABASE_TESTS: '1'
+          NODE_ENV: test
+          AUTH_DEV_OTP_CODE: '123456'
+          AUTH_OTP_PEPPER: ci-live-db-otp-pepper-value-at-least-32-characters
 
       - name: Typecheck
         run: npm run typecheck

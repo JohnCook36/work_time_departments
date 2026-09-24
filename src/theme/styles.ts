@@ -361,9 +361,11 @@ export const StickyHeaderCell = styled('th')(({ theme }) => ({
   boxShadow: theme.shadows.sticky,
 }));
 
+const plannerDepartmentHorizontalPadding = 12;
+
 export const DepartmentRowCell = styled('td')<{ $over: boolean }>(({ theme, $over }) => ({
   position: 'relative',
-  padding: '8px 12px',
+  padding: `8px ${plannerDepartmentHorizontalPadding}px`,
   borderTop: '1px solid ' + theme.colors.border,
   borderBottom: '1px solid ' + theme.colors.border,
   background: $over ? theme.colors.departmentDrop : theme.colors.department,
@@ -372,7 +374,7 @@ export const DepartmentRowCell = styled('td')<{ $over: boolean }>(({ theme, $ove
 
 export const DepartmentRowInner = styled('div')(({ theme }) => ({
   position: 'sticky',
-  left: 0,
+  left: plannerDepartmentHorizontalPadding,
   zIndex: 14,
   width: 'max-content',
   maxWidth: 'calc(100vw - 32px)',

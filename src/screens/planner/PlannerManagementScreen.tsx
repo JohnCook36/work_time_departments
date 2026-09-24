@@ -40,6 +40,9 @@ interface PlannerManagementScreenProps {
   isPreparingPrint: boolean;
   onPrint: () => void;
   canBulkEditSchedule: boolean;
+  canSaveFixedWeekdays: boolean;
+  isSavingFixedWeekdays: boolean;
+  onSaveFixedWeekdays: () => void;
   isApplyingBulkSchedule: boolean;
   onFillOffAll: () => void;
   onClearAll: () => void;
@@ -77,6 +80,9 @@ export function PlannerManagementScreen({
   isPreparingPrint,
   onPrint,
   canBulkEditSchedule,
+  canSaveFixedWeekdays,
+  isSavingFixedWeekdays,
+  onSaveFixedWeekdays,
   isApplyingBulkSchedule,
   onFillOffAll,
   onClearAll,
@@ -113,6 +119,9 @@ export function PlannerManagementScreen({
         isPreparingPrint={isPreparingPrint}
         onPrint={onPrint}
         canBulkEditSchedule={canBulkEditSchedule}
+        canSaveFixedWeekdays={canSaveFixedWeekdays}
+        isSavingFixedWeekdays={isSavingFixedWeekdays}
+        onSaveFixedWeekdays={onSaveFixedWeekdays}
         isApplyingBulkSchedule={isApplyingBulkSchedule}
         onFillOffAll={onFillOffAll}
         onClearAll={onClearAll}

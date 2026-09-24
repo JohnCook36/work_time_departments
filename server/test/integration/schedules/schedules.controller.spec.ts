@@ -32,15 +32,19 @@ describe('SchedulesController API validation', () => {
   };
 
   const transaction = {
+    department: { findMany: jest.fn() },
+    employee: { findMany: jest.fn() },
     schedule: {
       findUnique: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      upsert: jest.fn(),
     },
     shift: {
       findMany: jest.fn(),
       deleteMany: jest.fn(),
       upsert: jest.fn(),
+      createMany: jest.fn(),
     },
   };
 
@@ -56,6 +60,7 @@ describe('SchedulesController API validation', () => {
 
   const authorization = {
     assertCanAdministerDepartment: jest.fn(),
+    assertCanAdministerDepartments: jest.fn(),
   };
 
   let app: INestApplication;
@@ -136,6 +141,24 @@ describe('SchedulesController API validation', () => {
     );
     expect(prisma.employee.findMany).not.toHaveBeenCalled();
     expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('validates the fixed 5/2 endpoint and uses server department scope', async () => {
+    const url = endpoint.replace('/department/entries', '/planner/fixed-weekdays');
+    const invalid = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ year: 2026, month: 5, departmentIds: ['department-a', 'department-a'] }),
+    });
+    expect(invalid.status).toBe(400);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+
+    transaction.department.findMany.mockResolvedValue([{ id: 'department-a' }]);
+    transaction.employee.findMany.mockResolvedValue([]);
+    const valid = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ year: 2026, month: 5, departmentIds: ['department-a'] }),
+    });
+    expect(valid.status).toBe(201);
+    expect(await valid.json()).toEqual({ status: 'ok', created: 0 });
+    expect(authorization.assertCanAdministerDepartments).toHaveBeenCalledWith(currentUser, ['department-a']);
   });
 
   it.each([

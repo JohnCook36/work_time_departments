@@ -77,6 +77,27 @@ describe('Routing foundation with real session provider and ErrorBoundary', () =
     expect(window.location.pathname).toBe('/planner');
   });
 
+  it('allows SUPER_ADMIN to open the management planner', async () => {
+    vi.mocked(api.getMe).mockResolvedValue({
+      ...managerUser,
+      memberships: [{ id: 'super-admin', role: 'SUPER_ADMIN', departmentId: null }],
+    });
+    open('/planner');
+    expect(await screen.findByText('Existing application: example-user')).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/planner');
+  });
+
+  it('routes DEPUTY without management permission to the personal schedule', async () => {
+    vi.mocked(api.getMe).mockResolvedValue({
+      ...user,
+      memberships: [{ id: 'deputy', role: 'DEPUTY', departmentId: 'example-department' }],
+    });
+    open('/planner');
+    expect(await screen.findByText('Personal schedule: example-user')).toBeInTheDocument();
+    expect(screen.queryByText('Existing application: example-user')).not.toBeInTheDocument();
+    expect(window.location.pathname).toBe('/my-schedule');
+  });
+
   it('allows management users to open /my-schedule', async () => {
     vi.mocked(api.getMe).mockResolvedValue(managerUser);
     open('/my-schedule');

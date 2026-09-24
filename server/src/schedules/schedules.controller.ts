@@ -1,6 +1,6 @@
 import { ApiTags, ApiOperation, ApiResponse, ApiBadRequestResponse, ApiUnauthorizedResponse, ApiForbiddenResponse, ApiSecurity, ApiConflictResponse, ApiNotFoundResponse, ApiBody, ApiQuery } from '@nestjs/swagger';
 import { departmentScheduleResponse, personalScheduleResponse, scheduleAppliedResponse } from '../openapi.responses';
-import { ApplyPlannerChangesDto, ApplyDepartmentChangesDto } from './schedules.dto';
+import { ApplyPlannerChangesDto, ApplyDepartmentChangesDto, MaterializeFixedWeekdaysDto } from './schedules.dto';
 
 import {
   BadRequestException,
@@ -8,6 +8,7 @@ import {
   Controller,
   Get,
   Patch,
+  Post,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -73,6 +74,22 @@ function requiredChanges(value: unknown): ScheduleCellChange[] {
 @UseGuards(SessionAuthGuard)
 export class SchedulesController {
   constructor(private readonly schedules: SchedulesService) {}
+
+  @ApiOperation({ summary: 'Save missing fixed-weekday shifts for a month from today (UTC); existing cells remain unchanged' })
+  @ApiBody({ type: MaterializeFixedWeekdaysDto })
+  @ApiResponse({ status: 201, schema: { type: 'object', properties: { status: { type: 'string' }, created: { type: 'integer' } } } })
+  @Post('planner/fixed-weekdays')
+  materializeFixedWeekdays(
+    @CurrentUser() user: AuthUserContext,
+    @Body() body: { year?: unknown; month?: unknown; departmentIds?: unknown },
+  ) {
+    return this.schedules.materializeFixedWeekdays(
+      user,
+      requiredBodyInteger(body?.year, 'year'),
+      requiredBodyInteger(body?.month, 'month'),
+      body?.departmentIds as string[],
+    );
+  }
 
   @ApiOperation({ summary: 'Read persisted schedule for a managed department' })
   @ApiResponse({ status: 200, schema: departmentScheduleResponse })

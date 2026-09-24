@@ -39,10 +39,6 @@ describe('AdminOnboardingPanel pending request notification', () => {
         reviewedAt: null,
         createdAt: '2026-09-23T10:00:00.000Z',
         updatedAt: '2026-09-23T10:00:00.000Z',
-        user: {
-          id: 'user-1',
-          phoneE164: '+79990000031',
-        },
         employee: {
           id: 'employee-1',
           displayName: 'Катя Плющ',
@@ -72,6 +68,7 @@ describe('AdminOnboardingPanel pending request notification', () => {
     );
 
     expect(await screen.findByText('Привязка аккаунтов')).toBeInTheDocument();
+    expect(screen.queryByText(/\+7999/)).not.toBeInTheDocument();
     await waitFor(() => {
       expect(
         screen.queryByText('Новая заявка на привязку аккаунта'),

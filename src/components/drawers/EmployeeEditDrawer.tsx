@@ -24,7 +24,7 @@ import {
 import {
   CompactDrawer,
   DrawerActionsGrid,
-  DrawerAlertText,
+  DrawerFieldError,
   DrawerNotice,
   FullRowActionButton,
   FullWidthInput,
@@ -214,11 +214,9 @@ export function EmployeeEditDrawer({
           </FormGroup>
         )}
 
-        {error && (
-          <DrawerAlertText role="alert">
-            {error}
-          </DrawerAlertText>
-        )}
+        <DrawerFieldError role={error ? 'alert' : undefined} aria-live="polite">
+          {error || '\u00a0'}
+        </DrawerFieldError>
 
         <DrawerActionsGrid>
           <ActionButton

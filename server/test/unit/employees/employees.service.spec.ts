@@ -302,6 +302,39 @@ describe('EmployeesService', () => {
     expect(result.updatedAt).toBe('2026-09-19T10:00:00.000Z');
   });
 
+  it('edits fixed hours through the existing server Employee update', async () => {
+    const version = new Date('2026-09-19T09:00:00.000Z');
+    prisma.employee.findUnique
+      .mockResolvedValueOnce({
+        id: 'employee-1', displayName: 'Employee', employmentRate: 1,
+        scheduleMode: EmployeeScheduleMode.FIXED_WEEKDAYS,
+        fixedStartTime: '08:00', fixedEndTime: '17:00',
+        departmentId: 'department-a', isActive: true, updatedAt: version,
+      })
+      .mockResolvedValueOnce({
+        id: 'employee-1', displayName: 'Employee', employmentRate: 1,
+        scheduleMode: EmployeeScheduleMode.FIXED_WEEKDAYS,
+        fixedStartTime: '09:00', fixedEndTime: '18:00',
+        departmentId: 'department-a', position: 0, isActive: true,
+        userId: null, updatedAt: new Date('2026-09-19T10:00:00.000Z'),
+      });
+
+    const result = await service.updateEmployee(admin(), 'employee-1', {
+      fixedStartTime: '09:00', fixedEndTime: '18:00',
+      expectedUpdatedAt: version.toISOString(),
+    });
+
+    expect(authorization.assertCanAdministerDepartment).toHaveBeenCalledWith(expect.anything(), 'department-a');
+    expect(prisma.employee.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        scheduleMode: EmployeeScheduleMode.FIXED_WEEKDAYS,
+        fixedStartTime: '09:00', fixedEndTime: '18:00',
+      }),
+    }));
+    expect(result.fixedStartTime).toBe('09:00');
+    expect(result.fixedEndTime).toBe('18:00');
+  });
+
   it('rejects a stale expectedUpdatedAt before attempting the write', async () => {
     prisma.employee.findUnique.mockResolvedValue({
       id: 'employee-1',

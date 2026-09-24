@@ -46,6 +46,9 @@ interface PlannerControlsToolbarProps {
   isPreparingPrint: boolean;
   onPrint: () => void;
   canBulkEditSchedule: boolean;
+  canSaveFixedWeekdays: boolean;
+  isSavingFixedWeekdays: boolean;
+  onSaveFixedWeekdays: () => void;
   isApplyingBulkSchedule: boolean;
   onFillOffAll: () => void;
   onClearAll: () => void;
@@ -75,6 +78,9 @@ export function PlannerControlsToolbar({
   isPreparingPrint,
   onPrint,
   canBulkEditSchedule,
+  canSaveFixedWeekdays,
+  isSavingFixedWeekdays,
+  onSaveFixedWeekdays,
   isApplyingBulkSchedule,
   onFillOffAll,
   onClearAll,
@@ -164,6 +170,9 @@ export function PlannerControlsToolbar({
           isPreparingPrint={isPreparingPrint}
           onPrint={onPrint}
           canBulkEditSchedule={canBulkEditSchedule}
+          canSaveFixedWeekdays={canSaveFixedWeekdays}
+          isSavingFixedWeekdays={isSavingFixedWeekdays}
+          onSaveFixedWeekdays={onSaveFixedWeekdays}
           isApplyingBulkSchedule={isApplyingBulkSchedule}
           onFillOffAll={onFillOffAll}
           onClearAll={onClearAll}

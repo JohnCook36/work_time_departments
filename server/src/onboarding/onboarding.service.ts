@@ -179,9 +179,21 @@ export class OnboardingService {
       throw new NotFoundException('Pending onboarding request not found');
     }
 
-    return this.prisma.onboardingRequest.update({
-      where: { id: pending.id },
+    const canceled = await this.prisma.onboardingRequest.updateMany({
+      where: {
+        id: pending.id,
+        userId: user.id,
+        status: OnboardingRequestStatus.PENDING,
+      },
       data: { status: OnboardingRequestStatus.CANCELED },
+    });
+
+    if (canceled.count !== 1) {
+      throw new ConflictException('Onboarding request is already resolved');
+    }
+
+    return this.prisma.onboardingRequest.findUnique({
+      where: { id: pending.id },
       select: this.requestSelect(),
     });
   }
@@ -237,12 +249,6 @@ export class OnboardingService {
       orderBy: { createdAt: 'asc' },
       select: {
         ...this.requestSelect(),
-        user: {
-          select: {
-            id: true,
-            phoneE164: true,
-          },
-        },
         employee: {
           select: {
             id: true,
@@ -272,6 +278,35 @@ export class OnboardingService {
     }
 
     return this.prisma.$transaction(async (tx) => {
+      const reviewedAt = new Date();
+      const claimed = await tx.onboardingRequest.updateMany({
+        where: {
+          id: request.id,
+          status: OnboardingRequestStatus.PENDING,
+        },
+        data: {
+          status: OnboardingRequestStatus.APPROVED,
+          reviewedByUserId: admin.id,
+          reviewedAt,
+        },
+      });
+
+      if (claimed.count !== 1) {
+        throw new ConflictException('Onboarding request is already resolved');
+      }
+
+      const department = await tx.department.findFirst({
+        where: {
+          id: request.departmentId,
+          isActive: true,
+        },
+        select: { id: true },
+      });
+
+      if (!department) {
+        throw new ConflictException('Department is not active');
+      }
+
       const requester = await tx.user.findUnique({
         where: { id: request.userId },
         include: { employee: true },
@@ -308,21 +343,50 @@ export class OnboardingService {
           throw new ConflictException('Employee profile is not active');
         }
 
+        if (target.departmentId !== request.departmentId) {
+          throw new ConflictException(
+            'Employee profile moved to another department; submit a new request',
+          );
+        }
+
         if (target.userId) {
           throw new ConflictException(
             'Employee profile is already linked to another account',
           );
         }
 
-        employee = await tx.employee.update({
-          where: { id: target.id },
+        const linked = await tx.employee.updateMany({
+          where: {
+            id: target.id,
+            userId: null,
+            isActive: true,
+            departmentId: request.departmentId,
+          },
           data: { userId: requester.id },
+        });
+
+        if (linked.count !== 1) {
+          throw new ConflictException(
+            'Employee profile changed during approval',
+          );
+        }
+
+        const linkedEmployee = await tx.employee.findUnique({
+          where: { id: target.id },
           select: {
             id: true,
             displayName: true,
             departmentId: true,
           },
         });
+
+        if (!linkedEmployee) {
+          throw new ConflictException(
+            'Employee profile changed during approval',
+          );
+        }
+
+        employee = linkedEmployee;
       } else {
         if (!request.requestedDisplayName) {
           throw new ConflictException(
@@ -364,15 +428,14 @@ export class OnboardingService {
         });
       }
 
-      const resolved = await tx.onboardingRequest.update({
+      const resolved = await tx.onboardingRequest.findUnique({
         where: { id: request.id },
-        data: {
-          status: OnboardingRequestStatus.APPROVED,
-          reviewedByUserId: admin.id,
-          reviewedAt: new Date(),
-        },
         select: this.requestSelect(),
       });
+
+      if (!resolved) {
+        throw new ConflictException('Onboarding request changed during approval');
+      }
 
       return {
         request: resolved,
@@ -399,13 +462,24 @@ export class OnboardingService {
       throw new ConflictException('Onboarding request is already resolved');
     }
 
-    return this.prisma.onboardingRequest.update({
-      where: { id: request.id },
+    const rejected = await this.prisma.onboardingRequest.updateMany({
+      where: {
+        id: request.id,
+        status: OnboardingRequestStatus.PENDING,
+      },
       data: {
         status: OnboardingRequestStatus.REJECTED,
         reviewedByUserId: admin.id,
         reviewedAt: new Date(),
       },
+    });
+
+    if (rejected.count !== 1) {
+      throw new ConflictException('Onboarding request is already resolved');
+    }
+
+    return this.prisma.onboardingRequest.findUnique({
+      where: { id: request.id },
       select: this.requestSelect(),
     });
   }

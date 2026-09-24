@@ -24,7 +24,7 @@ import {
   getVisibleMonthWeekRanges,
 } from '../../services/print/printSchedule';
 import { hasManagementAccess, useAuthUser } from '../../auth/AuthContext';
-import { PlannerServerSnapshot } from '../../api/planner';
+import { PlannerServerSnapshot, saveFixedWeekdaysSchedule } from '../../api/planner';
 import { buildEffectiveSchedule } from '../../domain/schedule/employeeSchedule';
 import { useDepartmentManagement } from '../../hooks/useDepartmentManagement';
 import { useEmployeeManagement } from '../../hooks/useEmployeeManagement';
@@ -397,6 +397,33 @@ export function PlannerScreen() {
         serverPlannerStatus === 'ready' &&
         !isApplyingBulkSchedule));
 
+  const [isSavingFixedWeekdays, setIsSavingFixedWeekdays] = useState(false);
+  const canSaveFixedWeekdays = serverPlannerWriteEnabled &&
+    serverPlannerStatus === 'ready' &&
+    departments.length > 0 &&
+    employees.some((employee) => employee.scheduleMode === 'fixed-weekdays');
+
+  const saveFixedWeekdays = async () => {
+    if (!canSaveFixedWeekdays || isSavingFixedWeekdays) return;
+    setIsSavingFixedWeekdays(true);
+    try {
+      const result = await saveFixedWeekdaysSchedule(
+        year, month + 1, departments.map((department) => department.id)
+      );
+      await refreshServerPlanner();
+      void showMessage(result.created > 0
+        ? `График 5/2 сохранён. Добавлено смен: ${result.created}.`
+        : 'График 5/2 уже сохранён на выбранный месяц.');
+    } catch (error) {
+      void showMessage(error instanceof Error
+        ? `Не удалось сохранить график 5/2: ${error.message}`
+        : 'Не удалось сохранить график 5/2.');
+      await refreshServerPlanner();
+    } finally {
+      setIsSavingFixedWeekdays(false);
+    }
+  };
+
   const getEntry = useCallback(
     (empId: string, day: number): ShiftEntry => {
       return schedule[empId]?.[day] || { type: 'empty' };
@@ -680,6 +707,9 @@ export function PlannerScreen() {
               isPreparingPrint={isPreparingPrint}
               onPrint={() => void handlePrintSchedule()}
               canBulkEditSchedule={canBulkEditSchedule}
+              canSaveFixedWeekdays={canSaveFixedWeekdays}
+              isSavingFixedWeekdays={isSavingFixedWeekdays}
+              onSaveFixedWeekdays={() => void saveFixedWeekdays()}
               isApplyingBulkSchedule={isApplyingBulkSchedule}
               onFillOffAll={() => void fillOffAll()}
               onClearAll={() => void clearAll()}

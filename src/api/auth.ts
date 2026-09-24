@@ -43,10 +43,6 @@ export interface OnboardingRequest {
 }
 
 export interface AdminOnboardingRequest extends OnboardingRequest {
-  user: {
-    id: string;
-    phoneE164: string;
-  };
   employee: {
     id: string;
     displayName: string;

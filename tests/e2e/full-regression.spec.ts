@@ -84,6 +84,20 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
+test('fixed 5/2 edit and schedule tools remain usable on a narrow screen', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await seed(page, state());
+  await page.goto('/');
+  await employeeRow(page).getByTitle('Редактировать сотрудника').click();
+  await page.getByRole('combobox').nth(2).selectOption('fixed-weekdays');
+  await page.getByLabel('Начало рабочего дня').fill('09:00');
+  await page.getByLabel('Окончание рабочего дня').fill('18:00');
+  await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
+  await page.getByRole('button', { name: 'Управление графиком' }).click();
+  await expect(page.getByRole('button', { name: 'Сохранить график 5/2' })).toBeDisabled();
+  await expect(page.getByText('Управление графиком', { exact: true }).last()).toBeVisible();
+});
+
 test('department + employee + 15:00-23:00 produces D 6 / N 1 / total 7', async ({
   page,
 }) => {
@@ -344,5 +358,118 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
     expect(monthlyWorkbook.getWorksheet('График')!.columnCount).toBe(35);
     await page.getByTitle('Закрыть', { exact: true }).click();
     expect(await trigger.boundingBox()).toEqual(before);
+  });
+}
+
+for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+  test(`print popup contains the selected calendar period at ${viewport.width}px`, async ({ page, context }) => {
+    await page.setViewportSize(viewport);
+    await page.clock.setFixedTime(new Date('2026-09-15T12:00:00Z'));
+    await context.addInitScript(() => {
+      window.print = () => { document.documentElement.dataset.printCalled = 'true'; };
+    });
+
+    const data = state({
+      departments: [
+        { id: 'department-2', name: 'Второй отдел', kind: 'general' },
+        { id: 'department-1', name: 'Первый отдел', kind: 'general' },
+      ],
+      employees: [
+        { id: 'employee-1', name: 'Алина E2E', departmentId: 'department-2', employmentRate: 1 },
+        { id: 'employee-2', name: 'Борис E2E', departmentId: 'department-1', employmentRate: 1 },
+      ],
+    });
+    data.schedules = {
+      '2026-08': { 'employee-1': {
+        31: { type: 'shift', shift: { start: '20:00', end: '08:00', code: 'N' } },
+      } },
+      '2026-09': { 'employee-1': {
+        1: { type: 'shift', shift: { start: '08:00', end: '17:00', code: 'E' } },
+        2: { type: 'off' },
+        3: { type: 'error', error: 'Тестовая ошибка' },
+        7: { type: 'shift', shift: { start: '09:00', end: '17:00' } },
+        28: { type: 'shift', shift: { start: '08:00', end: '17:00' } },
+      } },
+      '2026-10': { 'employee-1': {
+        1: { type: 'shift', shift: { start: '10:00', end: '18:00' } },
+        4: { type: 'off' },
+      } },
+    };
+    await seed(page, data);
+    await page.goto('/');
+    const trigger = page.getByRole('button', { name: 'Управление графиком' });
+    const triggerBefore = await trigger.boundingBox();
+    await trigger.click();
+    expect(await trigger.boundingBox()).toEqual(triggerBefore);
+    const printButton = page.getByRole('button', { name: 'Печать' });
+    const select = printButton.locator('xpath=..').getByRole('combobox');
+    await expect(select).toBeInViewport();
+    await expect(printButton).toBeInViewport();
+
+    async function openPopup(rangeKey: string) {
+      await select.selectOption(rangeKey);
+      const popupEvent = page.waitForEvent('popup');
+      await printButton.click();
+      const popup = await popupEvent;
+      await expect(popup.locator('section.week')).toHaveCount(rangeKey === 'month' ? 5 : 1);
+      await expect.poll(() => popup.evaluate(() => document.documentElement.dataset.printCalled)).toBe('true');
+      expect(await popup.evaluate(() => window.opener)).toBeNull();
+      expect(await popup.locator('style').textContent()).toContain('size: A4 landscape');
+      await expect(printButton).toBeInViewport();
+      expect(await trigger.boundingBox()).toEqual(triggerBefore);
+      return popup;
+    }
+
+    const month = await openPopup('month');
+    await expect(month.locator('section.week').first().locator('.week-title')).toContainText('31 авг – 6 сен');
+    await expect(month.locator('section.week').last().locator('.week-title')).toContainText('28 сен – 4 окт');
+    await expect(month.locator('section.week').first().locator('td.employee'))
+      .toHaveText(['Алина E2E', 'Борис E2E']);
+    await month.close();
+
+    const ordinary = await openPopup('week:2026-09-07');
+    await expect(ordinary.locator('th.day-head strong')).toHaveText(['7', '8', '9', '10', '11', '12', '13']);
+    await expect(ordinary.locator('td.employee').first().locator('xpath=..').locator('.hours')).toHaveText('7');
+    await ordinary.close();
+
+    const previous = await openPopup('week:2026-08-31');
+    await expect(previous.locator('th.day-head strong')).toHaveText(['31', '1', '2', '3', '4', '5', '6']);
+    await expect(previous.locator('th.day-head small')).toHaveText(['авг', 'сен', 'сен', 'сен', 'сен', 'сен', 'сен']);
+    const firstRow = previous.locator('td.employee').first().locator('xpath=..');
+    await expect(firstRow.locator('.shift-time')).toHaveText(['20:00-08:00', '08:00-17:00']);
+    await expect(firstRow.locator('.off')).toHaveText('OFF');
+    await expect(firstRow.locator('.error')).toHaveText('⚠');
+    await expect(firstRow.locator('td.shift-cell').nth(4)).toBeEmpty();
+    await expect(firstRow.locator('.hours')).toHaveText('20');
+    await previous.close();
+
+    const next = await openPopup('week:2026-09-28');
+    await expect(next.locator('th.day-head strong')).toHaveText(['28', '29', '30', '1', '2', '3', '4']);
+    await expect(next.locator('th.day-head small')).toHaveText(['сен', 'сен', 'сен', 'окт', 'окт', 'окт', 'окт']);
+    const nextRow = next.locator('td.employee').first().locator('xpath=..');
+    await expect(nextRow.locator('.shift-time')).toHaveText(['08:00-17:00', '10:00-18:00']);
+    await expect(nextRow.locator('.hours')).toHaveText('15');
+    await expect(nextRow.locator('.off')).toHaveText('OFF');
+    await next.close();
+
+    await page.getByTitle('Закрыть', { exact: true }).click();
+    expect(await trigger.boundingBox()).toEqual(triggerBefore);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  });
+
+  test(`blocked print popup shows app feedback without shifting layout at ${viewport.width}px`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => { window.open = () => null; });
+    await seed(page, state());
+    await page.goto('/');
+    const trigger = page.getByRole('button', { name: 'Управление графиком' });
+    const before = await trigger.boundingBox();
+    await trigger.click();
+    await page.getByRole('button', { name: 'Печать' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Печать' });
+    await expect(dialog).toContainText('Браузер заблокировал окно печати');
+    expect(await trigger.boundingBox()).toEqual(before);
+    await dialog.getByRole('button', { name: 'Понятно' }).click();
+    await expect(dialog).toHaveCount(0);
   });
 }
