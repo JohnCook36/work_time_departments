@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 
 import {
+  getDepartmentSchedulePublication,
   getDepartmentSchedulePublications,
   publishDepartmentSchedule,
   SchedulePublicationResponse,
@@ -39,6 +40,7 @@ import {
   PublicationHistoryItem,
   PublicationHistoryList,
   PublicationHistoryMeta,
+  PublicationVersionDetail,
 } from './styles';
 
 interface PrintRange {
@@ -113,6 +115,8 @@ export function PlannerScheduleToolsDrawer({
   >([]);
   const [publicationBusy, setPublicationBusy] = useState(false);
   const [publicationFeedback, setPublicationFeedback] = useState('');
+  const [selectedPublication, setSelectedPublication] =
+    useState<SchedulePublicationResponse | null>(null);
 
   useEffect(() => {
     if (
@@ -130,6 +134,7 @@ export function PlannerScheduleToolsDrawer({
   const loadPublicationHistory = useCallback(async () => {
     if (!publicationReadEnabled || !publicationDepartmentId) {
       setPublicationHistory([]);
+      setSelectedPublication(null);
       return;
     }
 
@@ -141,9 +146,11 @@ export function PlannerScheduleToolsDrawer({
         monthIndex + 1,
       );
       setPublicationHistory(history);
+      setSelectedPublication(null);
       setPublicationFeedback('');
     } catch (error) {
       setPublicationHistory([]);
+      setSelectedPublication(null);
       setPublicationFeedback(
         error instanceof Error
           ? 'Не удалось загрузить историю: ' + error.message
@@ -197,6 +204,38 @@ export function PlannerScheduleToolsDrawer({
         error instanceof Error
           ? 'Не удалось опубликовать: ' + error.message
           : 'Не удалось опубликовать график.',
+      );
+    } finally {
+      setPublicationBusy(false);
+    }
+  };
+
+  const openPublicationVersion = async (version: number) => {
+    if (
+      !publicationReadEnabled ||
+      !publicationDepartmentId ||
+      publicationBusy
+    ) {
+      return;
+    }
+
+    setPublicationBusy(true);
+    setPublicationFeedback('');
+
+    try {
+      const publication = await getDepartmentSchedulePublication(
+        publicationDepartmentId,
+        year,
+        monthIndex + 1,
+        version,
+      );
+      setSelectedPublication(publication);
+    } catch (error) {
+      setSelectedPublication(null);
+      setPublicationFeedback(
+        error instanceof Error
+          ? 'Не удалось открыть версию: ' + error.message
+          : 'Не удалось открыть опубликованную версию.',
       );
     } finally {
       setPublicationBusy(false);
@@ -423,10 +462,59 @@ export function PlannerScheduleToolsDrawer({
                   <PublicationHistoryMeta>
                     {publication.comment || 'Без комментария'}
                   </PublicationHistoryMeta>
+                  <ActionButton
+                    type="button"
+                    onClick={() =>
+                      void openPublicationVersion(publication.version)
+                    }
+                    disabled={publicationBusy}
+                  >
+                    Открыть v{publication.version}
+                  </ActionButton>
                 </PublicationHistoryItem>
               ))
             )}
           </PublicationHistoryList>
+
+          <DrawerSectionTitle>Открытая версия</DrawerSectionTitle>
+          <PublicationVersionDetail>
+            {selectedPublication ? (
+              <>
+                <strong>
+                  v{selectedPublication.version} ·{' '}
+                  {selectedPublication.snapshot.department.name}
+                </strong>
+                <PublicationHistoryMeta>
+                  Сотрудников: {selectedPublication.snapshot.employees.length} ·
+                  смен: {selectedPublication.snapshot.shifts.length}
+                </PublicationHistoryMeta>
+                <PublicationHistoryMeta>
+                  Комментарий: {selectedPublication.comment || 'без комментария'}
+                </PublicationHistoryMeta>
+                {selectedPublication.snapshot.shifts.length === 0 ? (
+                  <PublicationHistoryMeta>
+                    В этой версии сохранённых смен нет.
+                  </PublicationHistoryMeta>
+                ) : (
+                  selectedPublication.snapshot.shifts.map((shift) => (
+                    <PublicationHistoryMeta key={shift.id}>
+                      {shift.date} · {shift.employeeId} ·{' '}
+                      {shift.isOff
+                        ? 'OFF'
+                        : (shift.code ? shift.code + ' ' : '') +
+                          (shift.startTime || '—') +
+                          '–' +
+                          (shift.endTime || '—')}
+                    </PublicationHistoryMeta>
+                  ))
+                )}
+              </>
+            ) : (
+              <PublicationHistoryMeta>
+                Выберите версию в истории, чтобы открыть сохранённый снимок.
+              </PublicationHistoryMeta>
+            )}
+          </PublicationVersionDetail>
         </DrawerSection>
       </CompactDrawer>
     </DrawerOverlay>
