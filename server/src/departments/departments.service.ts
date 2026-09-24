@@ -6,6 +6,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  AuditAction,
+  AuditEntityType,
   DepartmentKind,
   OnboardingRequestStatus,
   Prisma,
@@ -13,6 +15,7 @@ import {
   ShiftChangeRequestStatus,
 } from '@prisma/client';
 
+import { appendAuditLog } from '../audit/audit-log';
 import { AuthUserContext } from '../auth/auth.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -384,6 +387,14 @@ export class DepartmentsService {
             'Department changed during deactivation',
           );
         }
+
+        await appendAuditLog(tx, {
+          actorUserId: user.id,
+          action: AuditAction.DEPARTMENT_DEACTIVATED,
+          entityType: AuditEntityType.DEPARTMENT,
+          entityId: normalizedDepartmentId,
+          departmentId: normalizedDepartmentId,
+        });
 
         return {
           status: 'ok' as const,
