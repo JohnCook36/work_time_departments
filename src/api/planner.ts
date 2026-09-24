@@ -604,3 +604,10 @@ export function reorderPlannerDepartments(input: DepartmentReorderInput) {
     body: JSON.stringify(input),
   });
 }
+
+export function saveFixedWeekdaysSchedule(year: number, month: number, departmentIds: string[]) {
+  return apiRequest<{ status: 'ok'; created: number }>('/schedule-data/planner/fixed-weekdays', {
+    method: 'POST',
+    body: JSON.stringify({ year, month, departmentIds }),
+  });
+}

@@ -4,9 +4,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { EmployeeScheduleMode, Prisma } from '@prisma/client';
 
 import { AuthUserContext } from '../auth/auth.service';
+import { isRussiaFiveDayWorkingDay } from '../calendar/productionCalendar';
 import { AuthorizationService } from '../auth/authorization.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -159,6 +160,96 @@ export class SchedulesService {
     private readonly prisma: PrismaService,
     private readonly authorization: AuthorizationService,
   ) {}
+
+  // Explicit planning command: never called by GET/read/render paths.
+  async materializeFixedWeekdays(
+    admin: AuthUserContext,
+    year: number,
+    month: number,
+    departmentIds: string[],
+  ) {
+    assertPeriod(year, month);
+    if (
+      !Array.isArray(departmentIds) ||
+      departmentIds.length === 0 ||
+      departmentIds.length > 100 ||
+      departmentIds.some((id) => typeof id !== 'string' || !id.trim()) ||
+      new Set(departmentIds).size !== departmentIds.length
+    ) {
+      throw new BadRequestException('departmentIds must contain 1–100 unique department ids');
+    }
+    this.authorization.assertCanAdministerDepartments(admin, departmentIds);
+    const today = new Date();
+    const earliest = new Date(Date.UTC(
+      today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate(),
+    ));
+
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const departments = await tx.department.findMany({
+          where: { id: { in: departmentIds }, isActive: true },
+          select: { id: true },
+        });
+        if (departments.length !== departmentIds.length) {
+          throw new NotFoundException('Department not found');
+        }
+        const employees = await tx.employee.findMany({
+          where: {
+            departmentId: { in: departmentIds },
+            isActive: true,
+            scheduleMode: EmployeeScheduleMode.FIXED_WEEKDAYS,
+          },
+          select: { id: true, fixedStartTime: true, fixedEndTime: true },
+        });
+        const entries: Array<{ employeeId: string; date: Date; startTime: string; endTime: string }> = [];
+        for (const employee of employees) {
+          const { fixedStartTime, fixedEndTime } = employee;
+          if (
+            !fixedStartTime || !fixedEndTime ||
+            !SHIFT_TIME_PATTERN.test(fixedStartTime) ||
+            !SHIFT_TIME_PATTERN.test(fixedEndTime) ||
+            fixedStartTime === fixedEndTime
+          ) {
+            throw new ConflictException('Employee work pattern is invalid; update the employee first');
+          }
+          for (let day = 1; day <= daysInMonth(year, month); day++) {
+            const date = shiftDate(year, month, day);
+            if (date < earliest || !isRussiaFiveDayWorkingDay(year, month - 1, day)) {
+              continue;
+            }
+            entries.push({ employeeId: employee.id, date, startTime: fixedStartTime, endTime: fixedEndTime });
+          }
+        }
+        if (entries.length === 0) return { status: 'ok' as const, created: 0 };
+
+        const schedule = await tx.schedule.upsert({
+          where: { year_month: { year, month } },
+          create: { year, month }, update: {}, select: { id: true },
+        });
+        // PostgreSQL ON CONFLICT DO NOTHING uses the existing unique cell key.
+        // Never update existing rows: explicit OFF, manual shifts and earlier
+        // saved patterns keep their id, times and updatedAt (including history).
+        const inserted = await tx.shift.createMany({
+          data: entries.map((entry) => ({ ...entry, scheduleId: schedule.id })),
+          skipDuplicates: true,
+        });
+        if (inserted.count > 0) {
+          await tx.schedule.update({
+            where: { id: schedule.id }, data: { updatedAt: new Date() },
+          });
+        }
+        return { status: 'ok' as const, created: inserted.count };
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        (error.code === 'P2034' || error.code === 'P2002')
+      ) {
+        throw new ConflictException('График изменился. Обновите данные и повторите сохранение 5/2.');
+      }
+      throw error;
+    }
+  }
 
   async getDepartmentSchedule(
     admin: AuthUserContext,
