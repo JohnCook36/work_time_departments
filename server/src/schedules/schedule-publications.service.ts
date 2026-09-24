@@ -14,6 +14,10 @@ import { appendAuditLog } from '../audit/audit-log';
 import { AuthUserContext } from '../auth/auth.service';
 import { AuthorizationService } from '../auth/authorization.service';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  assertSchedulePublicationRules,
+  SCHEDULE_PUBLICATION_RULES_VERSION,
+} from './schedule-publication-rules';
 
 export interface PublishedEmployeeSnapshot {
   id: string;
@@ -212,7 +216,6 @@ export class SchedulePublicationsService {
     year: number,
     month: number,
     comment?: string | null,
-    rulesVersion?: string | null,
   ) {
     assertPeriod(year, month);
     if (!departmentId.trim()) {
@@ -221,11 +224,6 @@ export class SchedulePublicationsService {
     this.authorization.assertCanAdministerDepartment(admin, departmentId);
 
     const normalizedComment = normalizeOptionalText(comment, 'comment', 500);
-    const normalizedRulesVersion = normalizeOptionalText(
-      rulesVersion,
-      'rulesVersion',
-      100,
-    );
 
     try {
       return await this.prisma.$transaction(
@@ -320,6 +318,8 @@ export class SchedulePublicationsService {
             })),
           };
 
+          assertSchedulePublicationRules(snapshot, year, month);
+
           const latest = await tx.schedulePublication.findFirst({
             where: {
               scheduleId: schedule.id,
@@ -360,7 +360,7 @@ export class SchedulePublicationsService {
               publishedByUserId: admin.id,
               sourceScheduleUpdatedAt: schedule.updatedAt,
               comment: normalizedComment,
-              rulesVersion: normalizedRulesVersion,
+              rulesVersion: SCHEDULE_PUBLICATION_RULES_VERSION,
               snapshot: snapshot as unknown as Prisma.InputJsonValue,
               diff: diff as unknown as Prisma.InputJsonValue,
             },
