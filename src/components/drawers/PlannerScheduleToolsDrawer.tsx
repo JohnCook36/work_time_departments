@@ -82,6 +82,7 @@ interface PlannerScheduleToolsDrawerProps {
   onFillOffAll: () => void;
   onClearAll: () => void;
   onNavigateToValidationIssue: (employeeId: string, date: string) => void;
+  onManageRules: () => void;
   onClose: () => void;
 }
 
@@ -113,6 +114,7 @@ export function PlannerScheduleToolsDrawer({
   onFillOffAll,
   onClearAll,
   onNavigateToValidationIssue,
+  onManageRules,
   onClose,
 }: PlannerScheduleToolsDrawerProps) {
   const excelFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -436,6 +438,20 @@ export function PlannerScheduleToolsDrawer({
               {isApplyingBulkSchedule ? 'Применяю…' : 'Очистить месяц'}
             </ActionButton>
           </DrawerButtonGrid>
+        </DrawerSection>
+
+        <DrawerSection>
+          <DrawerSectionTitle>Правила графика</DrawerSectionTitle>
+          <FullWidthActionButton
+            type="button"
+            onClick={onManageRules}
+            disabled={!publicationReadEnabled}
+          >
+            Управление правилами
+          </FullWidthActionButton>
+          <PublicationHistoryMeta>
+            Создание, приоритет, hard/soft, область действия и история версий.
+          </PublicationHistoryMeta>
         </DrawerSection>
 
         <DrawerSection>
