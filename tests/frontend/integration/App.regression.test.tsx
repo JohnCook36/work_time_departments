@@ -139,7 +139,9 @@ function seedCurrentSchedule(value = '15:00-23:00') {
 describe('App regression flows', () => {
   afterEach(() => {
     vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
   it('loads the backend snapshot and blocks mutations in server read mode', async () => {
@@ -314,6 +316,97 @@ describe('App regression flows', () => {
     expect(
       printOptions.schedules[nextKey]['server-employee'][1],
     ).toEqual({ type: 'off' });
+  });
+
+  it('prints the selected cross-month week from server snapshots instead of stale neighbor storage', async () => {
+    vi.setSystemTime(new Date('2026-09-15T12:00:00Z'));
+    const user = userEvent.setup();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      departments: [{ id: 'server-department', name: 'Серверный отдел', kind: 'fo' }],
+      employees: [{ id: 'server-employee', name: 'Серверный сотрудник', departmentId: 'server-department' }],
+      schedules: {
+        '2026-09': { 'server-employee': { 28: { type: 'off' } } },
+        '2026-10': { 'server-employee': {
+          1: { type: 'shift', shift: { start: '00:00', end: '01:00' } },
+        } },
+      },
+      wishes: {},
+      collapsedDepartments: [],
+    }));
+
+    vi.stubEnv('VITE_SERVER_PLANNER_READ', '1');
+    const fetchSpy = vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      const month = Number(url.searchParams.get('month'));
+      let data: unknown;
+      if (url.pathname === '/departments/manageable') {
+        data = [{
+          id: 'server-department', name: 'Серверный отдел', kind: 'FO', position: 0,
+          updatedAt: '2026-09-01T08:00:00.000Z',
+        }];
+      } else if (url.pathname === '/wishes/department') {
+        data = [];
+      } else if (url.pathname === '/schedule-data/department') {
+        data = {
+          period: { year: 2026, month },
+          schedule: { id: 'schedule-' + month, updatedAt: '2026-09-01T08:00:00.000Z' },
+          department: { id: 'server-department', name: 'Серверный отдел', kind: 'FO' },
+          employees: [{
+            id: 'server-employee', displayName: 'Серверный сотрудник',
+            employmentRate: 1, scheduleMode: 'FLEXIBLE',
+            fixedStartTime: null, fixedEndTime: null, position: 0,
+            updatedAt: '2026-09-01T08:00:00.000Z',
+          }],
+          shifts: (month === 9
+            ? [{ day: 28, startTime: '08:00', endTime: '17:00', isOff: false }]
+            : [
+              { day: 1, startTime: '10:00', endTime: '18:00', isOff: false },
+              { day: 4, startTime: null, endTime: null, isOff: true },
+            ]).map((shift) => ({
+              ...shift,
+              id: 'shift-' + month + '-' + shift.day,
+              employeeId: 'server-employee',
+              date: '2026-' + String(month).padStart(2, '0') + '-' + String(shift.day).padStart(2, '0'),
+              code: null,
+              updatedAt: '2026-09-01T08:00:00.000Z',
+            })),
+        };
+      } else {
+        throw new Error('Unexpected server request: ' + url.href);
+      }
+      return new Response(JSON.stringify(data), { status: 200 });
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+    let html = '';
+    vi.spyOn(window, 'open').mockReturnValue({
+      opener: window,
+      document: {
+        open: vi.fn(),
+        write: vi.fn((content: string) => { html = content; }),
+        close: vi.fn(),
+      },
+    } as unknown as Window);
+
+    renderApp();
+    await screen.findByText('Серверный сотрудник');
+    await user.click(screen.getByRole('button', { name: 'Управление графиком' }));
+    const option = screen.getByRole('option', { name: 'Неделя 28 сен – 4 окт' });
+    await user.selectOptions(option.closest('select')!, 'week:2026-09-28');
+    await user.click(screen.getByRole('button', { name: 'Печать' }));
+
+    await waitFor(() => expect(html).toContain('10:00-18:00'));
+    const scheduleRequests = fetchSpy.mock.calls.map(([input]) => String(input))
+      .filter((url) => url.includes('/schedule-data/department?'));
+    expect(scheduleRequests).toHaveLength(2);
+    expect(scheduleRequests.some((url) => url.includes('year=2026&month=9'))).toBe(true);
+    expect(scheduleRequests.some((url) => url.includes('year=2026&month=10'))).toBe(true);
+    expect(html).toContain('08:00-17:00');
+    expect(html).not.toContain('00:00-01:00');
+    const document = new DOMParser().parseFromString(html, 'text/html');
+    expect(document.querySelectorAll('section.week')).toHaveLength(1);
+    expect(document.querySelectorAll('th.day-head')).toHaveLength(7);
+    expect(document.querySelector('td.employee')?.parentElement?.querySelector('.hours')?.textContent)
+      .toBe('15');
   });
 
   it('enables server-backed Department reorder only for Super Admin', async () => {
