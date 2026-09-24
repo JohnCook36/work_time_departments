@@ -6,7 +6,7 @@ import {
   EmployeeCreateValues,
 } from '../../components/drawers/EmployeeCreateDrawer';
 import { PlannerScheduleToolsDrawer } from '../../components/drawers/PlannerScheduleToolsDrawer';
-import { Department } from '../../domain/models';
+import { Department, Employee } from '../../domain/models';
 import {
   ActionButton,
   ControlsCard,
@@ -24,6 +24,7 @@ export type EmployeeCreateFormValues = EmployeeCreateValues;
 
 interface PlannerControlsToolbarProps {
   departments: Department[];
+  employees: Employee[];
   year: number;
   monthIndex: number;
   publicationReadEnabled: boolean;
@@ -56,10 +57,12 @@ interface PlannerControlsToolbarProps {
   isApplyingBulkSchedule: boolean;
   onFillOffAll: () => void;
   onClearAll: () => void;
+  onNavigateToValidationIssue: (employeeId: string, date: string) => void;
 }
 
 export function PlannerControlsToolbar({
   departments,
+  employees,
   year,
   monthIndex,
   publicationReadEnabled,
@@ -92,6 +95,7 @@ export function PlannerControlsToolbar({
   isApplyingBulkSchedule,
   onFillOffAll,
   onClearAll,
+  onNavigateToValidationIssue,
 }: PlannerControlsToolbarProps) {
   const [showEmployeeCreate, setShowEmployeeCreate] = useState(false);
   const [showScheduleTools, setShowScheduleTools] = useState(false);
@@ -165,6 +169,7 @@ export function PlannerControlsToolbar({
       {showScheduleTools && (
         <PlannerScheduleToolsDrawer
           departments={departments}
+          employees={employees}
           year={year}
           monthIndex={monthIndex}
           publicationReadEnabled={publicationReadEnabled}
@@ -189,6 +194,7 @@ export function PlannerControlsToolbar({
           isApplyingBulkSchedule={isApplyingBulkSchedule}
           onFillOffAll={onFillOffAll}
           onClearAll={onClearAll}
+          onNavigateToValidationIssue={onNavigateToValidationIssue}
           onClose={() => setShowScheduleTools(false)}
         />
       )}
