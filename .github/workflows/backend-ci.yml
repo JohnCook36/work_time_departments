@@ -65,6 +65,7 @@ jobs:
         env:
           LIVE_DATABASE_TESTS: '1'
           NODE_ENV: test
+          AUTH_ALLOW_DEV_OTP: 'true'
           AUTH_DEV_OTP_CODE: '123456'
           AUTH_OTP_PEPPER: ci-live-db-otp-pepper-value-at-least-32-characters
 

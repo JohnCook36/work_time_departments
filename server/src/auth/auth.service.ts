@@ -328,7 +328,10 @@ export class AuthService {
   }
 
   private getDevelopmentOtpCode(): string {
-    if (process.env.NODE_ENV === 'production') {
+    if (
+      process.env.NODE_ENV === 'production' ||
+      process.env.AUTH_ALLOW_DEV_OTP !== 'true'
+    ) {
       throw new ServiceUnavailableException(
         'SMS OTP provider is not configured',
       );
