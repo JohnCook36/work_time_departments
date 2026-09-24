@@ -1,5 +1,5 @@
 import { ApiTags, ApiOperation, ApiResponse, ApiBadRequestResponse, ApiUnauthorizedResponse, ApiForbiddenResponse, ApiSecurity, ApiConflictResponse, ApiNotFoundResponse, ApiBody, ApiQuery } from '@nestjs/swagger';
-import { departmentScheduleResponse, personalScheduleResponse, scheduleAppliedResponse, schedulePublicationListResponse, schedulePublicationResponse } from '../openapi.responses';
+import { departmentScheduleResponse, personalScheduleResponse, scheduleAppliedResponse, schedulePublicationListResponse, schedulePublicationResponse, schedulePublicationValidationResponse } from '../openapi.responses';
 import { ApplyPlannerChangesDto, ApplyDepartmentChangesDto, MaterializeFixedWeekdaysDto, PublishDepartmentScheduleDto } from './schedules.dto';
 
 import {
@@ -167,6 +167,26 @@ export class SchedulesController {
       requiredBodyInteger(body?.year, 'year'),
       requiredBodyInteger(body?.month, 'month'),
       requiredChanges(body?.changes),
+    );
+  }
+
+  @ApiOperation({ summary: 'Validate the current department draft before publication' })
+  @ApiResponse({ status: 200, schema: schedulePublicationValidationResponse })
+  @ApiQuery({ name: 'departmentId', required: true, schema: { type: 'string' } })
+  @ApiQuery({ name: 'year', required: true, schema: { type: 'integer', minimum: 1970, maximum: 9999 } })
+  @ApiQuery({ name: 'month', required: true, schema: { type: 'integer', minimum: 1, maximum: 12 } })
+  @Get('department/validation')
+  validateDepartmentSchedule(
+    @CurrentUser() user: AuthUserContext,
+    @Query('departmentId') departmentId?: string,
+    @Query('year') year?: string,
+    @Query('month') month?: string,
+  ) {
+    return this.publications.validateDepartmentSchedule(
+      user,
+      requiredString(departmentId, 'departmentId'),
+      requiredInteger(year, 'year'),
+      requiredInteger(month, 'month'),
     );
   }
 
