@@ -1,5 +1,10 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
-import { EmployeeScheduleMode, RoleType } from '@prisma/client';
+import {
+  AuditAction,
+  AuditEntityType,
+  EmployeeScheduleMode,
+  RoleType,
+} from '@prisma/client';
 
 import { AuthUserContext } from '../../../src/auth/auth.service';
 import { AuthorizationService } from '../../../src/auth/authorization.service';
@@ -62,6 +67,16 @@ describe('fixed 5/2 schedule persistence', () => {
     expect(saved.has('fixed:2026-05-11')).toBe(false);
     expect(saved.get('fixed:2026-05-04')).toEqual({ id: expect.stringMatching(/^shift-/), startTime: '08:00', endTime: '17:00', isOff: false });
     expect(tx.shift.createMany).toHaveBeenCalledWith(expect.objectContaining({ skipDuplicates: true }));
+    expect(tx.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        actorUserId: admin.id,
+        action: AuditAction.SCHEDULE_CHANGED,
+        entityType: AuditEntityType.SCHEDULE,
+        entityId: 'schedule-1',
+        departmentId,
+      },
+      select: { id: true },
+    });
     const original = new Map(saved);
     expect(await service.materializeFixedWeekdays(admin, 2026, 5, [departmentId])).toEqual({ status: 'ok', created: 0 });
     expect(saved).toEqual(original);
