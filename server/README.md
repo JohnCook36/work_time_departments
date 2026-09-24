@@ -48,7 +48,7 @@ Backend содержит OTP/session foundation:
 - `GET /auth/me`
 - `POST /auth/logout`
 
-Для локальной разработки используется только `AUTH_DEV_OTP_CODE`. Он не возвращается API и не логируется. При `NODE_ENV=production` development OTP отключён, поэтому до production необходимо подключить реального SMS-провайдера.
+Для локальной разработки development OTP работает только при явном `AUTH_ALLOW_DEV_OTP=true` и настроенном `AUTH_DEV_OTP_CODE`. Код не возвращается API и не логируется. При `NODE_ENV=production` development OTP всегда отключён независимо от флага. Если opt-in флаг отсутствует, backend fail-closed и требует реального SMS-провайдера.
 
 `AUTH_OTP_PEPPER` обязателен и должен быть уникальным секретом окружения длиной не менее 32 символов.
 
