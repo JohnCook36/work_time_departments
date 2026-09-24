@@ -102,6 +102,12 @@ describe('OpenAPI documentation', () => {
     const schemas = document.components!.schemas! as Record<string, SchemaObject>;
     expect(schemas.VerifyCodeDto.properties?.code).toMatchObject({ writeOnly: true });
     expect(schemas.VerifyCodeDto.properties?.code).not.toHaveProperty('example');
+    const shiftChangeDocs = JSON.stringify(
+      document.paths['/shift-change-requests/mine'],
+    );
+    expect(shiftChangeDocs).not.toMatch(
+      /requesterUserId|targetUserId|managerUserId|actorUserId/,
+    );
     for (const path of ['/employees?departmentId=example', '/auth/me', '/schedule-data/me?year=2026&month=9']) {
       expect((await fetch(url + path)).status).toBe(401);
     }
