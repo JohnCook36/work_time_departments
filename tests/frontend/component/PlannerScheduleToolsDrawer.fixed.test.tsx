@@ -18,7 +18,7 @@ describe('5/2 action in schedule management', () => {
       isExportingExcel: false, onExportExcel: vi.fn(), printRangeKey: 'month',
       onPrintRangeChange: vi.fn(), printCalendarWeekRanges: [], isPreparingPrint: false,
       onPrint: vi.fn(), canBulkEditSchedule: false, isApplyingBulkSchedule: false,
-      onFillOffAll: vi.fn(), onClearAll: vi.fn(), onNavigateToValidationIssue: vi.fn(), onClose: vi.fn(),
+      onFillOffAll: vi.fn(), onClearAll: vi.fn(), onNavigateToValidationIssue: vi.fn(), onManageRules: vi.fn(), onClose: vi.fn(),
       canSaveFixedWeekdays: true, isSavingFixedWeekdays: false, onSaveFixedWeekdays,
     };
     const { rerender } = render(
