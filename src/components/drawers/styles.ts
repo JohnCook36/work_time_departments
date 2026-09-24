@@ -132,7 +132,7 @@ export const PublicationFeedback = styled('div')(({ theme }) => ({
   minHeight: 34,
   padding: '6px 8px',
   borderRadius: 8,
-  color: theme.colors.muted,
+  color: theme.colors.textMuted,
   fontSize: 12,
   lineHeight: '18px',
 }));
