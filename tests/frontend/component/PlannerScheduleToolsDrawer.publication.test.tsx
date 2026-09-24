@@ -130,7 +130,7 @@ describe('schedule publication controls', () => {
       </ThemeProvider>,
     );
 
-    expect(await screen.findByText(/v1/)).toBeInTheDocument();
+    expect(await screen.findByText(/^v1 ·/)).toBeInTheDocument();
 
     const user = userEvent.setup();
     await user.type(
