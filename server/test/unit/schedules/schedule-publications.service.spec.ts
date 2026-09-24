@@ -37,6 +37,7 @@ describe('SchedulePublicationsService', () => {
   const prisma = {
     department: { findFirst: jest.fn() },
     schedule: { findUnique: jest.fn() },
+    shift: { findMany: jest.fn() },
     schedulePublication: {
       findMany: jest.fn(),
       findFirst: jest.fn(),
@@ -102,6 +103,62 @@ describe('SchedulePublicationsService', () => {
       }),
     );
     transaction.auditLog.create.mockResolvedValue({ id: 'audit-1' });
+    prisma.department.findFirst.mockResolvedValue(department);
+    prisma.schedule.findUnique.mockResolvedValue({ id: 'schedule-1' });
+    prisma.shift.findMany.mockResolvedValue([shift]);
+  });
+
+  it('returns structured validation result without creating a publication', async () => {
+    const currentUser = admin();
+
+    const result = await service.validateDepartmentSchedule(
+      currentUser,
+      'department-a',
+      2026,
+      9,
+    );
+
+    expect(
+      authorization.assertCanAdministerDepartment,
+    ).toHaveBeenCalledWith(currentUser, 'department-a');
+    expect(result).toEqual({
+      departmentId: 'department-a',
+      period: { year: 2026, month: 9 },
+      rulesVersion: SCHEDULE_PUBLICATION_RULES_VERSION,
+      canPublish: true,
+      violations: [],
+    });
+    expect(transaction.schedulePublication.create).not.toHaveBeenCalled();
+    expect(transaction.auditLog.create).not.toHaveBeenCalled();
+  });
+
+  it('returns hard violations and blocks publish readiness for an invalid draft', async () => {
+    prisma.shift.findMany.mockResolvedValue([
+      {
+        ...shift,
+        startTime: '08:00',
+        endTime: '08:00',
+      },
+    ]);
+
+    const result = await service.validateDepartmentSchedule(
+      admin(),
+      'department-a',
+      2026,
+      9,
+    );
+
+    expect(result.canPublish).toBe(false);
+    expect(result.violations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          severity: 'hard',
+          code: 'ZERO_DURATION_SHIFT',
+          employeeId: 'employee-1',
+          date: '2026-09-07',
+        }),
+      ]),
+    );
   });
 
   it('publishes version 1 with author, snapshot, diff and audit event', async () => {
