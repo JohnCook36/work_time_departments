@@ -213,3 +213,98 @@ export const PublicationVersionDetail = styled('div')(({ theme }) => ({
   borderRadius: 10,
   border: '1px solid ' + theme.colors.border,
 }));
+
+
+export const FullWidthTextArea = styled('textarea')(({ theme }) => ({
+  width: '100%',
+  minWidth: 0,
+  minHeight: 72,
+  resize: 'vertical',
+  padding: '10px 12px',
+  borderRadius: 10,
+  border: '1px solid ' + theme.colors.border,
+  background: theme.colors.surface,
+  color: theme.colors.text,
+  font: 'inherit',
+  lineHeight: '20px',
+  ':focus': {
+    outline: 'none',
+    borderColor: theme.colors.primary,
+    boxShadow: '0 0 0 2px ' + theme.colors.focusRing,
+  },
+}));
+
+export const RulesList = styled('div')({
+  display: 'grid',
+  alignContent: 'start',
+  gap: 8,
+  minHeight: 92,
+  maxHeight: 240,
+  overflowY: 'auto',
+});
+
+export const RuleCard = styled('div')(({ theme }) => ({
+  display: 'grid',
+  gap: 7,
+  padding: 10,
+  borderRadius: 10,
+  border: '1px solid ' + theme.colors.border,
+}));
+
+export const RuleMetaRow = styled('div')({
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: 6,
+  alignItems: 'center',
+});
+
+export const RuleBadge = styled('span')<{
+  $tone: 'hard' | 'soft' | 'active' | 'inactive';
+}>(({ theme, $tone }) => ({
+  display: 'inline-flex',
+  alignItems: 'center',
+  minHeight: 20,
+  padding: '1px 7px',
+  borderRadius: 999,
+  background:
+    $tone === 'hard'
+      ? theme.colors.dangerSoft
+      : $tone === 'active'
+        ? theme.colors.successSoft
+        : theme.colors.surfaceElevated,
+  color:
+    $tone === 'hard'
+      ? theme.colors.danger
+      : $tone === 'active'
+        ? theme.colors.success
+        : theme.colors.textMuted,
+  fontSize: 10,
+  fontWeight: 800,
+}));
+
+export const RuleConfigPanel = styled('div')({
+  display: 'grid',
+  gap: 8,
+  minHeight: 78,
+});
+
+export const RuleFeedback = styled('div')(({ theme }) => ({
+  minHeight: 38,
+  padding: '7px 8px',
+  borderRadius: 8,
+  color: theme.colors.textMuted,
+  fontSize: 12,
+  lineHeight: '18px',
+}));
+
+export const RuleHistoryPanel = styled('div')(({ theme }) => ({
+  display: 'grid',
+  alignContent: 'start',
+  gap: 7,
+  minHeight: 72,
+  maxHeight: 190,
+  overflowY: 'auto',
+  padding: 10,
+  borderRadius: 10,
+  border: '1px solid ' + theme.colors.border,
+}));
