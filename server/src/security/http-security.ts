@@ -104,7 +104,12 @@ export function configureHttpSecurity(
 
   if (frontendOrigin) {
     app.enableCors({
-      origin: frontendOrigin,
+      origin: (
+        requestOrigin: string | undefined,
+        callback: (error: Error | null, allow?: boolean) => void,
+      ) => {
+        callback(null, !requestOrigin || requestOrigin === frontendOrigin);
+      },
       credentials: true,
       methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
     });
