@@ -65,7 +65,11 @@ export const schedulePublicationResponse = object({
   publishedByUserId: text,
   sourceScheduleUpdatedAt: timestamp,
   comment: nullable(text),
-  rulesVersion: nullable(text),
+  rulesVersion: {
+    ...nullable(text),
+    description:
+      'Server-owned ruleset identifier. Legacy publications may contain null.',
+  },
   snapshot: jsonObject,
   diff: jsonObject,
   createdAt: timestamp,
