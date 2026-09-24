@@ -48,6 +48,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Required runtime dependency audit
+        # Prisma CLI is a dev/optional peer of @prisma/client and is intentionally
+        # excluded from the production-required dependency gate.
+        run: npm audit --omit=dev --omit=optional --audit-level=high
+
       - name: Generate Prisma client
         run: npm run prisma:generate
 
