@@ -32,6 +32,10 @@ export function toShiftEntry(shift: MyScheduleShift): ShiftEntry {
 export function buildVisibleShifts(
   data: MyScheduleResponse,
 ): Array<MyScheduleShift & { inherited?: boolean }> {
+  if (!data.schedule) {
+    return data.shifts;
+  }
+
   if (
     data.employee.scheduleMode !== 'FIXED_WEEKDAYS' ||
     !data.employee.fixedStartTime ||
