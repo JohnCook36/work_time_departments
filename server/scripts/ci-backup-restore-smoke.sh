@@ -53,7 +53,7 @@ cat "${DUMP_PATH}" | docker exec -i "${container_id}" \
 probe_name="$(
   docker exec "${container_id}" \
     psql -v ON_ERROR_STOP=1 -U "${DB_USER}" -d "${RESTORE_DB}" -Atc \
-    "SELECT \"name\" FROM \"Department\" WHERE \"id\" = '"${PROBE_ID}"'';"
+    "SELECT \"name\" FROM \"Department\" WHERE \"id\" = 'backup-restore-probe';"
 )"
 
 migration_count="$(
