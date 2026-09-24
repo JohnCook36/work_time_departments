@@ -143,10 +143,42 @@ export interface SchedulePublicationResponse {
   sourceScheduleUpdatedAt: string;
   comment: string | null;
   rulesVersion: string | null;
-  snapshot: Record<string, unknown>;
+  snapshot: {
+    department: {
+      id: string;
+      name: string;
+      kind: string;
+    };
+    employees: Array<{
+      id: string;
+      displayName: string;
+      employmentRate: number;
+      scheduleMode: string;
+      fixedStartTime: string | null;
+      fixedEndTime: string | null;
+    }>;
+    shifts: Array<{
+      id: string;
+      employeeId: string;
+      date: string;
+      code: string | null;
+      startTime: string | null;
+      endTime: string | null;
+      isOff: boolean;
+      updatedAt: string;
+    }>;
+  };
   diff: {
-    employees: unknown[];
-    shifts: unknown[];
+    employees: Array<{
+      key: string;
+      before: unknown;
+      after: unknown;
+    }>;
+    shifts: Array<{
+      key: string;
+      before: unknown;
+      after: unknown;
+    }>;
   };
   createdAt: string;
 }
