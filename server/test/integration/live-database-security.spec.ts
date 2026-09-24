@@ -138,6 +138,30 @@ describeLive('live PostgreSQL security boundaries', () => {
     expect(afterLogout.status).toBe(401);
   });
 
+  it('allows only one request-code challenge inside the cooldown under concurrency', async () => {
+    const phone = '+79990000004';
+
+    const send = () =>
+      fetch(baseUrl + '/auth/request-code', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ phone }),
+      });
+
+    const [first, second] = await Promise.all([send(), send()]);
+
+    expect([first.status, second.status].sort((a, b) => a - b)).toEqual([
+      201,
+      429,
+    ]);
+
+    expect(
+      await prisma.authChallenge.count({
+        where: { phoneE164: phone },
+      }),
+    ).toBe(1);
+  });
+
   it('allows only one successful verification when the same OTP is submitted concurrently', async () => {
     const phone = '+79990000002';
     await requestCode(phone);
