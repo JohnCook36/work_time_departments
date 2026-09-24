@@ -157,3 +157,16 @@ export const PublicationHistoryItem = styled('div')(({ theme }) => ({
 export const PublicationHistoryMeta = styled(TinyText)({
   margin: 0,
 });
+
+
+export const PublicationVersionDetail = styled('div')(({ theme }) => ({
+  display: 'grid',
+  alignContent: 'start',
+  gap: 6,
+  minHeight: 56,
+  maxHeight: 200,
+  overflowY: 'auto',
+  padding: 10,
+  borderRadius: 10,
+  border: '1px solid ' + theme.colors.border,
+}));
