@@ -51,6 +51,19 @@ describe('paid-hours calculation', () => {
     });
   });
 
+  it.each([
+    ['21:00', '06:00', 0, 8, 8],
+    ['20:00', '08:00', 3, 8, 11],
+    ['05:00', '14:00', 7, 1, 8],
+    ['14:00', '23:00', 7, 1, 8],
+    ['21:30', '06:00', 0, 7.5, 7.5],
+    ['05:00', '07:00', 0, 1, 1],
+  ])('splits %s–%s at 22:00/06:00 with one break exactly once', (start, end, day, night, total) => {
+    const hours = calculateShiftHours(shift(start, end));
+    expect(hours).toEqual({ day, night, total });
+    expect(hours.day + hours.night).toBe(hours.total);
+  });
+
   it('deducts a one-hour break from an ordinary shift', () => {
     expect(calculateShiftHours(shift('06:00', '14:00'))).toEqual({
       day: 7,
