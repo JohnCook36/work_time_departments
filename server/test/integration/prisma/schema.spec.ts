@@ -99,6 +99,18 @@ describe('Prisma schema invariants', () => {
     expect(shift).toMatch(/employee\s+Employee.+onDelete:\s*Restrict/);
   });
 
+  it('keeps only a hashed OTP request source with a lookup index', () => {
+    const challenge = block('model', 'AuthChallenge');
+
+    expect(challenge).toMatch(
+      /requestSourceHash\s+String\?\s+@db\.VarChar\(64\)/,
+    );
+    expect(challenge).toContain(
+      '@@index([requestSourceHash, createdAt])',
+    );
+    expect(challenge).not.toMatch(/requestIp|ipAddress|forwardedFor/i);
+  });
+
   it('retains indexes used by department, schedule and wish lookups', () => {
     expect(block('model', 'Employee')).toContain('@@index([departmentId])');
     expect(block('model', 'Shift')).toContain('@@index([employeeId])');

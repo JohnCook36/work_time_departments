@@ -9,6 +9,7 @@ import {
   Get,
   Headers,
   Post,
+  Req,
   Res,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -16,6 +17,7 @@ import {
 import { AuthService } from './auth.service';
 import {
   extractSessionToken,
+  resolveAuthRequestSource,
   serializeClearedSessionCookie,
   serializeSessionCookie,
 } from './auth.utils';
@@ -57,8 +59,19 @@ export class AuthController {
   @ApiResponse({ status: 429, description: 'Request cooldown or verification attempt limit.' })
   @ApiResponse({ status: 503, description: 'OTP delivery/configuration unavailable; production SMS is not connected yet.' })
   @Post('request-code')
-  requestCode(@Body() body: { phone?: unknown }) {
-    return this.authService.requestCode(requiredString(body?.phone, 'phone'));
+  requestCode(
+    @Body() body: { phone?: unknown },
+    @Req() request: { socket?: { remoteAddress?: string | null } },
+    @Headers('x-forwarded-for') forwardedFor?: string | string[],
+  ) {
+    return this.authService.requestCode(
+      requiredString(body?.phone, 'phone'),
+      resolveAuthRequestSource(
+        request.socket?.remoteAddress,
+        forwardedFor,
+        process.env.AUTH_TRUST_PROXY_HOPS,
+      ),
+    );
   }
 
   @ApiOperation({ summary: 'Verify code and set the HttpOnly session cookie' })

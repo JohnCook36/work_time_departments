@@ -1,4 +1,5 @@
 import {
+  hashAuthRequestSource,
   hashOtp,
   hashSessionToken,
   normalizePhoneE164,
@@ -7,6 +8,7 @@ import {
   extractSessionToken,
   serializeClearedSessionCookie,
   serializeSessionCookie,
+  resolveAuthRequestSource,
 } from '../../../src/auth/auth.utils';
 
 describe('auth utils', () => {
@@ -31,6 +33,41 @@ describe('auth utils', () => {
 
     expect(safeHashEquals(first, second)).toBe(true);
     expect(safeHashEquals(first, other)).toBe(false);
+  });
+
+  it('hashes auth request sources without storing the raw address', () => {
+    const hash = hashAuthRequestSource('203.0.113.10', 'pepper');
+
+    expect(hash).toHaveLength(64);
+    expect(hash).not.toContain('203.0.113.10');
+    expect(hash).toBe(hashAuthRequestSource('203.0.113.10', 'pepper'));
+  });
+
+  it('uses the direct peer unless trusted proxy hops are explicitly configured', () => {
+    expect(
+      resolveAuthRequestSource(
+        '10.0.0.5',
+        '203.0.113.10, 10.0.0.4',
+        undefined,
+      ),
+    ).toBe('10.0.0.5');
+
+    expect(
+      resolveAuthRequestSource(
+        '10.0.0.5',
+        '203.0.113.10, 10.0.0.4',
+        '2',
+      ),
+    ).toBe('203.0.113.10');
+  });
+
+  it('falls back to the direct peer for invalid or incomplete proxy chains', () => {
+    expect(
+      resolveAuthRequestSource('10.0.0.5', 'spoofed-value', '1'),
+    ).toBe('10.0.0.5');
+    expect(
+      resolveAuthRequestSource('10.0.0.5', '203.0.113.10', '2'),
+    ).toBe('10.0.0.5');
   });
 
   it('hashes session tokens deterministically', () => {
