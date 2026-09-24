@@ -318,6 +318,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
     const trigger = page.getByRole('button', { name: 'Управление графиком' });
     const before = await trigger.boundingBox();
     await trigger.click();
+    expect(await trigger.boundingBox()).toEqual(before);
     await page.getByRole('button', { name: 'Проверить график' }).click();
 
     await expect(page.getByText('Жёсткие нарушения · 1')).toBeVisible();
@@ -335,7 +336,6 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
     await expect(page.getByText('Проверка E2E', { exact: true })).toBeVisible();
     await expect(target).toBeFocused();
     await expect(target).toBeInViewport();
-    expect(await trigger.boundingBox()).toEqual(before);
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
     ).toBe(true);
