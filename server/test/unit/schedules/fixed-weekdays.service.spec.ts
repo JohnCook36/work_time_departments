@@ -35,6 +35,9 @@ describe('fixed 5/2 schedule persistence', () => {
         return { count };
       }),
     },
+    auditLog: {
+      create: jest.fn().mockResolvedValue({ id: 'audit-1' }),
+    },
   };
   const prisma = { $transaction: jest.fn().mockImplementation(async (fn: (client: typeof tx) => Promise<unknown>) => fn(tx)) };
   const service = new SchedulesService(prisma as never, new AuthorizationService());
