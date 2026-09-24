@@ -160,9 +160,11 @@ describe('AuthService OTP verification concurrency', () => {
 describe('AuthService development OTP safety', () => {
   const allowKey = ['AUTH', 'ALLOW', 'DEV', 'OTP'].join('_');
   const codeKey = ['AUTH', 'DEV', 'OTP', 'CODE'].join('_');
+  const pepperKey = ['AUTH', 'OTP', 'PEPPER'].join('_');
   const originalNodeEnv = process.env.NODE_ENV;
   const originalAllow = process.env[allowKey];
   const originalCode = process.env[codeKey];
+  const originalPepper = process.env[pepperKey];
 
   afterEach(() => {
     if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
@@ -173,12 +175,16 @@ describe('AuthService development OTP safety', () => {
 
     if (originalCode === undefined) delete process.env[codeKey];
     else process.env[codeKey] = originalCode;
+
+    if (originalPepper === undefined) delete process.env[pepperKey];
+    else process.env[pepperKey] = originalPepper;
   });
 
   function requestCodeService() {
     const prisma = prismaMock();
     prisma.authChallenge.findFirst.mockResolvedValue(null);
     prisma.authChallenge.create.mockResolvedValue({ id: 'challenge-1' });
+    process.env[pepperKey] = PEPPER;
     process.env[codeKey] = VALID_CODE;
 
     return {
