@@ -584,13 +584,15 @@ export class SchedulesService {
         employeeIds,
       );
 
-      await appendAuditLog(tx, {
-        actorUserId: admin.id,
-        action: AuditAction.SCHEDULE_CHANGED,
-        entityType: AuditEntityType.SCHEDULE,
-        entityId: result.schedule.id,
-        departmentId,
-      });
+      if (result.schedule) {
+        await appendAuditLog(tx, {
+          actorUserId: admin.id,
+          action: AuditAction.SCHEDULE_CHANGED,
+          entityType: AuditEntityType.SCHEDULE,
+          entityId: result.schedule.id,
+          departmentId,
+        });
+      }
 
       return result;
     });
@@ -641,17 +643,19 @@ export class SchedulesService {
         employeeIds,
       );
 
-      const departmentIds = Array.from(
-        new Set(employees.map((employee) => employee.departmentId)),
-      );
-      for (const departmentId of departmentIds) {
-        await appendAuditLog(tx, {
-          actorUserId: admin.id,
-          action: AuditAction.SCHEDULE_CHANGED,
-          entityType: AuditEntityType.SCHEDULE,
-          entityId: result.schedule.id,
-          departmentId,
-        });
+      if (result.schedule) {
+        const departmentIds = Array.from(
+          new Set(employees.map((employee) => employee.departmentId)),
+        );
+        for (const departmentId of departmentIds) {
+          await appendAuditLog(tx, {
+            actorUserId: admin.id,
+            action: AuditAction.SCHEDULE_CHANGED,
+            entityType: AuditEntityType.SCHEDULE,
+            entityId: result.schedule.id,
+            departmentId,
+          });
+        }
       }
 
       return result;
