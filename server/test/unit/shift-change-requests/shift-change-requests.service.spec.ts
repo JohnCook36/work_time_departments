@@ -194,6 +194,16 @@ describe('ShiftChangeRequestsService', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it.each([ShiftChangeRequestKind.SWAP, ShiftChangeRequestKind.COVER])('rejects display-only shift IDs for %s before database requests', async (kind) => {
+    await expect(service.create(requester, {
+      kind, targetEmployeeId: 'target-employee',
+      requesterShiftId: 'default:requester-employee:2026-05-04',
+      ...(kind === ShiftChangeRequestKind.SWAP ? { targetShiftId: 'target-shift' } : {}),
+    })).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.shift.findFirst).not.toHaveBeenCalled();
+    expect(prisma.shiftChangeRequest.create).not.toHaveBeenCalled();
+  });
+
   it('allows the requester to use only their own Shift', async () => {
     mockValidCreate();
     prisma.shift.findFirst.mockReset();

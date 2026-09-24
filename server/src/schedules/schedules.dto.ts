@@ -39,3 +39,14 @@ export class ApplyDepartmentChangesDto extends ApplyPlannerChangesDto {
   @ApiProperty({ type: String })
   departmentId!: string;
 }
+
+export class MaterializeFixedWeekdaysDto {
+  @ApiProperty({ type: 'integer', minimum: 1970, maximum: 9999 })
+  year!: number;
+
+  @ApiProperty({ type: 'integer', minimum: 1, maximum: 12 })
+  month!: number;
+
+  @ApiProperty({ type: [String], minItems: 1, maxItems: 100, description: 'Every department requires existing management permission. DEPUTY is not granted access.' })
+  departmentIds!: string[];
+}

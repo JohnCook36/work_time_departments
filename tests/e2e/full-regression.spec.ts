@@ -84,6 +84,20 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
+test('fixed 5/2 edit and schedule tools remain usable on a narrow screen', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await seed(page, state());
+  await page.goto('/');
+  await employeeRow(page).getByTitle('Редактировать сотрудника').click();
+  await page.getByRole('combobox').nth(2).selectOption('fixed-weekdays');
+  await page.getByLabel('Начало рабочего дня').fill('09:00');
+  await page.getByLabel('Окончание рабочего дня').fill('18:00');
+  await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
+  await page.getByRole('button', { name: 'Управление графиком' }).click();
+  await expect(page.getByRole('button', { name: 'Сохранить график 5/2' })).toBeDisabled();
+  await expect(page.getByText('Управление графиком', { exact: true }).last()).toBeVisible();
+});
+
 test('department + employee + 15:00-23:00 produces D 6 / N 1 / total 7', async ({
   page,
 }) => {

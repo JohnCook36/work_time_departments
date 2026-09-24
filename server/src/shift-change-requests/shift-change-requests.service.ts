@@ -43,6 +43,11 @@ export class ShiftChangeRequestsService {
     input: CreateShiftChangeRequestInput,
   ) {
     const sessionEmployee = this.requireLinkedEmployee(user);
+    for (const id of [input.requesterShiftId, input.targetShiftId]) {
+      if (id !== undefined && (typeof id !== 'string' || !id.trim() || id.startsWith('default:'))) {
+        throw new BadRequestException('Shift change requests require a saved shift');
+      }
+    }
 
     if (input.targetEmployeeId === sessionEmployee.id) {
       throw new BadRequestException(
@@ -90,6 +95,7 @@ export class ShiftChangeRequestsService {
           where: {
             id: input.requesterShiftId,
             employeeId: sessionEmployee.id,
+            isOff: false,
           },
           select: {
             id: true,
@@ -101,6 +107,7 @@ export class ShiftChangeRequestsService {
               where: {
                 id: input.targetShiftId,
                 employeeId: input.targetEmployeeId,
+                isOff: false,
               },
               select: {
                 id: true,

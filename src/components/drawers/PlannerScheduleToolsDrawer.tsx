@@ -47,6 +47,9 @@ interface PlannerScheduleToolsDrawerProps {
   isPreparingPrint: boolean;
   onPrint: () => void;
   canBulkEditSchedule: boolean;
+  canSaveFixedWeekdays: boolean;
+  isSavingFixedWeekdays: boolean;
+  onSaveFixedWeekdays: () => void;
   isApplyingBulkSchedule: boolean;
   onFillOffAll: () => void;
   onClearAll: () => void;
@@ -68,6 +71,9 @@ export function PlannerScheduleToolsDrawer({
   isPreparingPrint,
   onPrint,
   canBulkEditSchedule,
+  canSaveFixedWeekdays,
+  isSavingFixedWeekdays,
+  onSaveFixedWeekdays,
   isApplyingBulkSchedule,
   onFillOffAll,
   onClearAll,
@@ -175,6 +181,14 @@ export function PlannerScheduleToolsDrawer({
 
         <DrawerSection>
           <DrawerSectionTitle>Массовые действия</DrawerSectionTitle>
+
+          <FullWidthActionButton
+            type="button"
+            onClick={onSaveFixedWeekdays}
+            disabled={!canSaveFixedWeekdays || isSavingFixedWeekdays}
+          >
+            {isSavingFixedWeekdays ? 'Сохраняю график 5/2…' : 'Сохранить график 5/2'}
+          </FullWidthActionButton>
 
           <DrawerButtonGrid>
             <ActionButton
