@@ -281,7 +281,7 @@ describe('OnboardingService atomic resolution and stale scope protection', () =>
     const request = pendingLinkRequest();
 
     prisma.onboardingRequest.findFirst.mockResolvedValue(request);
-    tx.onboardingRequest.updateMany.mockResolvedValue({ count: 0 });
+    prisma.onboardingRequest.updateMany.mockResolvedValue({ count: 0 });
 
     const service = new OnboardingService(
       prisma as never,
@@ -312,7 +312,7 @@ describe('OnboardingService atomic resolution and stale scope protection', () =>
     const request = pendingLinkRequest();
 
     prisma.onboardingRequest.findUnique.mockResolvedValue(request);
-    prisma.onboardingRequest.updateMany.mockResolvedValue({ count: 0 });
+    tx.onboardingRequest.updateMany.mockResolvedValue({ count: 0 });
 
     const service = new OnboardingService(
       prisma as never,
