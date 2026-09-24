@@ -40,7 +40,7 @@ export const onboardingResponse = object({
 });
 export const onboardingStatusResponse = nullable(onboardingResponse);
 export const onboardingPendingResponse = object({ ...onboardingResponse.properties,
-  user: object({ id: text, phoneE164: text }), employee: nullable(object({ id: text, displayName: text })),
+  employee: nullable(object({ id: text, displayName: text })),
 });
 export const onboardingApprovedResponse = object({ request: onboardingResponse, employee: employeeSummaryResponse });
 const scheduleVersion = object({ id: text, updatedAt: timestamp });
