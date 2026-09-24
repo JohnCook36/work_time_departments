@@ -136,6 +136,25 @@ describe('ShiftChangeRequestsService', () => {
     );
   });
 
+  it('does not expose account ids in shift-change response selects', async () => {
+    prisma.shiftChangeRequest.findMany.mockResolvedValue([]);
+
+    await service.getMine(requester);
+
+    expect(prisma.shiftChangeRequest.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        select: expect.not.objectContaining({
+          requesterUserId: expect.anything(),
+          targetUserId: expect.anything(),
+          managerUserId: expect.anything(),
+        }),
+      }),
+    );
+
+    const select = prisma.shiftChangeRequest.findMany.mock.calls[0][0].select;
+    expect(select.events.select).not.toHaveProperty('actorUserId');
+  });
+
   function mockValidCreate() {
     prisma.employee.findFirst
       .mockResolvedValueOnce({
