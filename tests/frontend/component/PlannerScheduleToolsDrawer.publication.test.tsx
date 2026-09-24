@@ -174,6 +174,58 @@ describe('schedule publication controls', () => {
     expect(screen.getByText('Опубликована версия v2.')).toBeInTheDocument();
   });
 
+  it('shows hard validation violations, blocks publish and navigates to the problem cell', async () => {
+    getHistory.mockResolvedValue([]);
+    validate.mockResolvedValue({
+      departmentId: 'department-a',
+      period: { year: 2026, month: 9 },
+      rulesVersion: 'schedule-publication-rules-v1',
+      canPublish: false,
+      violations: [
+        {
+          severity: 'hard',
+          code: 'ZERO_DURATION_SHIFT',
+          message: 'Время начала и окончания рабочей смены не может совпадать.',
+          employeeId: 'employee-1',
+          shiftId: 'shift-1',
+          date: '2026-09-07',
+        },
+      ],
+    });
+    const drawerProps = props();
+
+    render(
+      <ThemeProvider theme={getTheme('light')}>
+        <PlannerScheduleToolsDrawer {...drawerProps} />
+      </ThemeProvider>,
+    );
+
+    const user = userEvent.setup();
+    await user.click(
+      screen.getByRole('button', { name: 'Проверить график' }),
+    );
+
+    expect(
+      await screen.findByText(
+        'Время начала и окончания рабочей смены не может совпадать.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Иванов И.И. · 2026-09-07')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Опубликовать версию' }),
+    ).toBeDisabled();
+
+    await user.click(
+      screen.getByRole('button', { name: 'Перейти к ячейке' }),
+    );
+
+    expect(drawerProps.onNavigateToValidationIssue).toHaveBeenCalledWith(
+      'employee-1',
+      '2026-09-07',
+    );
+    expect(drawerProps.onClose).toHaveBeenCalled();
+  });
+
   it('opens an exact immutable version snapshot from history', async () => {
     getHistory.mockResolvedValue([publication(1)]);
     getPublication.mockResolvedValue(publication(1));
