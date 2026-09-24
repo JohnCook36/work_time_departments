@@ -8,6 +8,7 @@ import {
   getDepartmentSchedulePublications,
   publishDepartmentSchedule,
   SchedulePublicationResponse,
+  validateDepartmentSchedule,
 } from '../../../src/api/planner';
 import { PlannerScheduleToolsDrawer } from '../../../src/components/drawers/PlannerScheduleToolsDrawer';
 import { getTheme } from '../../../src/theme/theme';
@@ -16,11 +17,13 @@ vi.mock('../../../src/api/planner', () => ({
   getDepartmentSchedulePublication: vi.fn(),
   getDepartmentSchedulePublications: vi.fn(),
   publishDepartmentSchedule: vi.fn(),
+  validateDepartmentSchedule: vi.fn(),
 }));
 
 const getPublication = vi.mocked(getDepartmentSchedulePublication);
 const getHistory = vi.mocked(getDepartmentSchedulePublications);
 const publish = vi.mocked(publishDepartmentSchedule);
+const validate = vi.mocked(validateDepartmentSchedule);
 
 function publication(version: number): SchedulePublicationResponse {
   return {
@@ -85,6 +88,14 @@ function props() {
     departments: [
       { id: 'department-a', name: 'Front Office', kind: 'general' as const },
     ],
+    employees: [
+      {
+        id: 'employee-1',
+        name: 'Иванов И.И.',
+        departmentId: 'department-a',
+        employmentRate: 1 as const,
+      },
+    ],
     year: 2026,
     monthIndex: 8,
     publicationReadEnabled: true,
@@ -109,6 +120,7 @@ function props() {
     isApplyingBulkSchedule: false,
     onFillOffAll: vi.fn(),
     onClearAll: vi.fn(),
+    onNavigateToValidationIssue: vi.fn(),
     onClose: vi.fn(),
   };
 }
@@ -116,6 +128,13 @@ function props() {
 describe('schedule publication controls', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    validate.mockResolvedValue({
+      departmentId: 'department-a',
+      period: { year: 2026, month: 9 },
+      rulesVersion: 'schedule-publication-rules-v1',
+      canPublish: true,
+      violations: [],
+    });
   });
 
   it('loads history and publishes the selected department month', async () => {
@@ -153,6 +172,58 @@ describe('schedule publication controls', () => {
     expect(await screen.findByText(/^v2 ·/)).toBeInTheDocument();
     expect(screen.getByText('Изменения: смен 2, сотрудников 1')).toBeInTheDocument();
     expect(screen.getByText('Опубликована версия v2.')).toBeInTheDocument();
+  });
+
+  it('shows hard validation violations, blocks publish and navigates to the problem cell', async () => {
+    getHistory.mockResolvedValue([]);
+    validate.mockResolvedValue({
+      departmentId: 'department-a',
+      period: { year: 2026, month: 9 },
+      rulesVersion: 'schedule-publication-rules-v1',
+      canPublish: false,
+      violations: [
+        {
+          severity: 'hard',
+          code: 'ZERO_DURATION_SHIFT',
+          message: 'Время начала и окончания рабочей смены не может совпадать.',
+          employeeId: 'employee-1',
+          shiftId: 'shift-1',
+          date: '2026-09-07',
+        },
+      ],
+    });
+    const drawerProps = props();
+
+    render(
+      <ThemeProvider theme={getTheme('light')}>
+        <PlannerScheduleToolsDrawer {...drawerProps} />
+      </ThemeProvider>,
+    );
+
+    const user = userEvent.setup();
+    await user.click(
+      screen.getByRole('button', { name: 'Проверить график' }),
+    );
+
+    expect(
+      await screen.findByText(
+        'Время начала и окончания рабочей смены не может совпадать.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Иванов И.И. · 2026-09-07')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Опубликовать версию' }),
+    ).toBeDisabled();
+
+    await user.click(
+      screen.getByRole('button', { name: 'Перейти к ячейке' }),
+    );
+
+    expect(drawerProps.onNavigateToValidationIssue).toHaveBeenCalledWith(
+      'employee-1',
+      '2026-09-07',
+    );
+    expect(drawerProps.onClose).toHaveBeenCalled();
   });
 
   it('opens an exact immutable version snapshot from history', async () => {

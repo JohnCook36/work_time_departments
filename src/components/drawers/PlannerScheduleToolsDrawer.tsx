@@ -14,8 +14,10 @@ import {
   getDepartmentSchedulePublications,
   publishDepartmentSchedule,
   SchedulePublicationResponse,
+  SchedulePublicationValidationResponse,
+  validateDepartmentSchedule,
 } from '../../api/planner';
-import { Department } from '../../domain/models';
+import { Department, Employee } from '../../domain/models';
 import {
   ActionButton,
   DrawerHeader,
@@ -41,6 +43,10 @@ import {
   PublicationHistoryList,
   PublicationHistoryMeta,
   PublicationVersionDetail,
+  ValidationBadge,
+  ValidationGroupTitle,
+  ValidationItem,
+  ValidationResultPanel,
 } from './styles';
 
 interface PrintRange {
@@ -50,6 +56,7 @@ interface PrintRange {
 
 interface PlannerScheduleToolsDrawerProps {
   departments: Department[];
+  employees: Employee[];
   year: number;
   monthIndex: number;
   publicationReadEnabled: boolean;
@@ -74,11 +81,13 @@ interface PlannerScheduleToolsDrawerProps {
   isApplyingBulkSchedule: boolean;
   onFillOffAll: () => void;
   onClearAll: () => void;
+  onNavigateToValidationIssue: (employeeId: string, date: string) => void;
   onClose: () => void;
 }
 
 export function PlannerScheduleToolsDrawer({
   departments,
+  employees,
   year,
   monthIndex,
   publicationReadEnabled,
@@ -103,6 +112,7 @@ export function PlannerScheduleToolsDrawer({
   isApplyingBulkSchedule,
   onFillOffAll,
   onClearAll,
+  onNavigateToValidationIssue,
   onClose,
 }: PlannerScheduleToolsDrawerProps) {
   const excelFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -117,6 +127,8 @@ export function PlannerScheduleToolsDrawer({
   const [publicationFeedback, setPublicationFeedback] = useState('');
   const [selectedPublication, setSelectedPublication] =
     useState<SchedulePublicationResponse | null>(null);
+  const [validationResult, setValidationResult] =
+    useState<SchedulePublicationValidationResponse | null>(null);
 
   useEffect(() => {
     if (
@@ -130,6 +142,10 @@ export function PlannerScheduleToolsDrawer({
 
     setPublicationDepartmentId(departments[0]?.id ?? '');
   }, [departments, publicationDepartmentId]);
+
+  useEffect(() => {
+    setValidationResult(null);
+  }, [publicationDepartmentId, year, monthIndex]);
 
   const loadPublicationHistory = useCallback(async () => {
     if (!publicationReadEnabled || !publicationDepartmentId) {
@@ -170,6 +186,42 @@ export function PlannerScheduleToolsDrawer({
     void loadPublicationHistory();
   }, [loadPublicationHistory]);
 
+  const handleValidate = async () => {
+    if (
+      !publicationReadEnabled ||
+      !publicationDepartmentId ||
+      publicationBusy
+    ) {
+      return;
+    }
+
+    setPublicationBusy(true);
+    setPublicationFeedback('');
+
+    try {
+      const result = await validateDepartmentSchedule(
+        publicationDepartmentId,
+        year,
+        monthIndex + 1,
+      );
+      setValidationResult(result);
+      setPublicationFeedback(
+        result.canPublish
+          ? 'Проверка пройдена: жёстких нарушений нет.'
+          : 'Публикация заблокирована: исправьте жёсткие нарушения.',
+      );
+    } catch (error) {
+      setValidationResult(null);
+      setPublicationFeedback(
+        error instanceof Error
+          ? 'Не удалось проверить график: ' + error.message
+          : 'Не удалось проверить график.',
+      );
+    } finally {
+      setPublicationBusy(false);
+    }
+  };
+
   const handlePublish = async () => {
     if (
       !canPublishSchedule ||
@@ -183,6 +235,20 @@ export function PlannerScheduleToolsDrawer({
     setPublicationFeedback('');
 
     try {
+      const validation = await validateDepartmentSchedule(
+        publicationDepartmentId,
+        year,
+        monthIndex + 1,
+      );
+      setValidationResult(validation);
+
+      if (!validation.canPublish) {
+        setPublicationFeedback(
+          'Публикация заблокирована: исправьте жёсткие нарушения.',
+        );
+        return;
+      }
+
       const publication = await publishDepartmentSchedule(
         publicationDepartmentId,
         year,
@@ -413,19 +479,163 @@ export function PlannerScheduleToolsDrawer({
             />
           </FormGroup>
 
-          <FullWidthActionButton
-            type="button"
-            $variant="primary"
-            onClick={() => void handlePublish()}
-            disabled={
-              !canPublishSchedule ||
-              publicationBusy ||
-              !publicationDepartmentId
-            }
-          >
-            <Send size={16} />
-            {publicationBusy ? 'Обновляю…' : 'Опубликовать версию'}
-          </FullWidthActionButton>
+          <DrawerButtonGrid>
+            <ActionButton
+              type="button"
+              onClick={() => void handleValidate()}
+              disabled={
+                !publicationReadEnabled ||
+                publicationBusy ||
+                !publicationDepartmentId
+              }
+            >
+              Проверить график
+            </ActionButton>
+
+            <ActionButton
+              type="button"
+              $variant="primary"
+              onClick={() => void handlePublish()}
+              disabled={
+                !canPublishSchedule ||
+                publicationBusy ||
+                !publicationDepartmentId ||
+                validationResult?.canPublish === false
+              }
+            >
+              <Send size={16} />
+              {publicationBusy ? 'Обновляю…' : 'Опубликовать версию'}
+            </ActionButton>
+          </DrawerButtonGrid>
+
+          <ValidationResultPanel aria-label="Результат проверки графика">
+            {!validationResult ? (
+              <PublicationHistoryMeta>
+                Нажмите «Проверить график», чтобы увидеть ошибки и предупреждения
+                до публикации.
+              </PublicationHistoryMeta>
+            ) : (
+              <>
+                <PublicationHistoryMeta>
+                  Версия правил: {validationResult.rulesVersion}
+                </PublicationHistoryMeta>
+
+                <ValidationGroupTitle>
+                  Жёсткие нарушения ·{' '}
+                  {
+                    validationResult.violations.filter(
+                      (violation) => violation.severity === 'hard',
+                    ).length
+                  }
+                </ValidationGroupTitle>
+
+                {validationResult.violations.filter(
+                  (violation) => violation.severity === 'hard',
+                ).length === 0 ? (
+                  <PublicationHistoryMeta>
+                    Жёстких нарушений нет.
+                  </PublicationHistoryMeta>
+                ) : (
+                  validationResult.violations
+                    .filter((violation) => violation.severity === 'hard')
+                    .map((violation, index) => {
+                      const employee = employees.find(
+                        (item) => item.id === violation.employeeId,
+                      );
+                      return (
+                        <ValidationItem
+                          key={'hard-' + violation.code + '-' + index}
+                        >
+                          <div>
+                            <ValidationBadge $severity="hard">
+                              Ошибка
+                            </ValidationBadge>{' '}
+                            {violation.message}
+                          </div>
+                          <PublicationHistoryMeta>
+                            {employee?.name ||
+                              violation.employeeId ||
+                              'График отдела'}
+                            {violation.date ? ' · ' + violation.date : ''}
+                          </PublicationHistoryMeta>
+                          {violation.employeeId && violation.date && (
+                            <ActionButton
+                              type="button"
+                              onClick={() => {
+                                onNavigateToValidationIssue(
+                                  violation.employeeId!,
+                                  violation.date!,
+                                );
+                                onClose();
+                              }}
+                            >
+                              Перейти к ячейке
+                            </ActionButton>
+                          )}
+                        </ValidationItem>
+                      );
+                    })
+                )}
+
+                <ValidationGroupTitle>
+                  Предупреждения ·{' '}
+                  {
+                    validationResult.violations.filter(
+                      (violation) => violation.severity === 'soft',
+                    ).length
+                  }
+                </ValidationGroupTitle>
+
+                {validationResult.violations.filter(
+                  (violation) => violation.severity === 'soft',
+                ).length === 0 ? (
+                  <PublicationHistoryMeta>
+                    Предупреждений нет.
+                  </PublicationHistoryMeta>
+                ) : (
+                  validationResult.violations
+                    .filter((violation) => violation.severity === 'soft')
+                    .map((violation, index) => {
+                      const employee = employees.find(
+                        (item) => item.id === violation.employeeId,
+                      );
+                      return (
+                        <ValidationItem
+                          key={'soft-' + violation.code + '-' + index}
+                        >
+                          <div>
+                            <ValidationBadge $severity="soft">
+                              Предупреждение
+                            </ValidationBadge>{' '}
+                            {violation.message}
+                          </div>
+                          <PublicationHistoryMeta>
+                            {employee?.name ||
+                              violation.employeeId ||
+                              'График отдела'}
+                            {violation.date ? ' · ' + violation.date : ''}
+                          </PublicationHistoryMeta>
+                          {violation.employeeId && violation.date && (
+                            <ActionButton
+                              type="button"
+                              onClick={() => {
+                                onNavigateToValidationIssue(
+                                  violation.employeeId!,
+                                  violation.date!,
+                                );
+                                onClose();
+                              }}
+                            >
+                              Перейти к ячейке
+                            </ActionButton>
+                          )}
+                        </ValidationItem>
+                      );
+                    })
+                )}
+              </>
+            )}
+          </ValidationResultPanel>
 
           <PublicationFeedback aria-live="polite">
             {publicationFeedback ||

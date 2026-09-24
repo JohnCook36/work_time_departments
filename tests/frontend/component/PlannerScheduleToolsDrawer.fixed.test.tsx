@@ -11,13 +11,14 @@ describe('5/2 action in schedule management', () => {
     const onSaveFixedWeekdays = vi.fn();
     const props = {
       departments: [{ id: 'department-a', name: 'Front Office', kind: 'general' as const }],
+      employees: [],
       year: 2026, monthIndex: 8, publicationReadEnabled: false, canPublishSchedule: false,
       canImportExcel: false, isImportingExcel: false, isApplyingExcelImport: false,
       onExcelFile: vi.fn(), excelRangeKey: 'month', onExcelRangeChange: vi.fn(),
       isExportingExcel: false, onExportExcel: vi.fn(), printRangeKey: 'month',
       onPrintRangeChange: vi.fn(), printCalendarWeekRanges: [], isPreparingPrint: false,
       onPrint: vi.fn(), canBulkEditSchedule: false, isApplyingBulkSchedule: false,
-      onFillOffAll: vi.fn(), onClearAll: vi.fn(), onClose: vi.fn(),
+      onFillOffAll: vi.fn(), onClearAll: vi.fn(), onNavigateToValidationIssue: vi.fn(), onClose: vi.fn(),
       canSaveFixedWeekdays: true, isSavingFixedWeekdays: false, onSaveFixedWeekdays,
     };
     const { rerender } = render(

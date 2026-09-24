@@ -159,6 +159,49 @@ export const PublicationHistoryMeta = styled(TinyText)({
 });
 
 
+export const ValidationResultPanel = styled('div')(({ theme }) => ({
+  display: 'grid',
+  alignContent: 'start',
+  gap: 8,
+  minHeight: 94,
+  maxHeight: 240,
+  overflowY: 'auto',
+  padding: 10,
+  borderRadius: 10,
+  border: '1px solid ' + theme.colors.border,
+}));
+
+export const ValidationGroupTitle = styled('div')(({ theme }) => ({
+  color: theme.colors.text,
+  fontSize: 12,
+  fontWeight: 800,
+}));
+
+export const ValidationItem = styled('div')(({ theme }) => ({
+  display: 'grid',
+  gap: 5,
+  padding: 9,
+  borderRadius: 9,
+  border: '1px solid ' + theme.colors.border,
+  fontSize: 12,
+  lineHeight: '17px',
+}));
+
+export const ValidationBadge = styled('span')<{
+  $severity: 'hard' | 'soft';
+}>(({ theme, $severity }) => ({
+  display: 'inline-flex',
+  alignItems: 'center',
+  minHeight: 20,
+  padding: '1px 6px',
+  borderRadius: 999,
+  background:
+    $severity === 'hard' ? theme.colors.dangerSoft : theme.colors.surfaceElevated,
+  color: $severity === 'hard' ? theme.colors.danger : theme.colors.textMuted,
+  fontSize: 10,
+  fontWeight: 800,
+}));
+
 export const PublicationVersionDetail = styled('div')(({ theme }) => ({
   display: 'grid',
   alignContent: 'start',

@@ -5,7 +5,10 @@ import type { SchedulePublicationSnapshot } from './schedule-publications.servic
 export const SCHEDULE_PUBLICATION_RULES_VERSION =
   'schedule-publication-rules-v1';
 
+export type SchedulePublicationRuleSeverity = 'hard' | 'soft';
+
 export interface SchedulePublicationRuleViolation {
+  severity: SchedulePublicationRuleSeverity;
   code: string;
   message: string;
   employeeId?: string;
@@ -48,8 +51,9 @@ export function validateSchedulePublicationSnapshot(
   for (const employee of snapshot.employees) {
     if (employeeIds.has(employee.id)) {
       violations.push({
+        severity: 'hard',
         code: 'DUPLICATE_EMPLOYEE',
-        message: 'Employee appears more than once in the publication snapshot.',
+        message: 'Сотрудник встречается в проверяемом графике больше одного раза.',
         employeeId: employee.id,
       });
       continue;
@@ -70,9 +74,10 @@ export function validateSchedulePublicationSnapshot(
         employee.fixedStartTime === employee.fixedEndTime
       ) {
         violations.push({
+          severity: 'hard',
           code: 'INVALID_FIXED_WEEKDAYS_PATTERN',
           message:
-            'Fixed-weekday employee must have distinct fixed start/end times in HH:MM format.',
+            'Для графика 5/2 должны быть заданы разные время начала и окончания в формате ЧЧ:ММ.',
           employeeId: employee.id,
         });
       }
@@ -84,9 +89,10 @@ export function validateSchedulePublicationSnapshot(
     const key = shift.employeeId + ':' + shift.date;
     if (shiftKeys.has(key)) {
       violations.push({
+        severity: 'hard',
         code: 'DUPLICATE_SHIFT_CELL',
         message:
-          'Publication snapshot contains more than one shift for the same employee and date.',
+          'На одну дату у сотрудника найдено больше одной сохранённой смены.',
         employeeId: shift.employeeId,
         shiftId: shift.id,
         date: shift.date,
@@ -97,9 +103,10 @@ export function validateSchedulePublicationSnapshot(
 
     if (!employeeIds.has(shift.employeeId)) {
       violations.push({
+        severity: 'hard',
         code: 'UNKNOWN_SHIFT_EMPLOYEE',
         message:
-          'Shift belongs to an employee that is not present in the publication snapshot.',
+          'Смена относится к сотруднику, которого нет в проверяемом отделе.',
         employeeId: shift.employeeId,
         shiftId: shift.id,
         date: shift.date,
@@ -108,8 +115,9 @@ export function validateSchedulePublicationSnapshot(
 
     if (!isSelectedMonthDate(shift.date, year, month)) {
       violations.push({
+        severity: 'hard',
         code: 'SHIFT_OUTSIDE_PERIOD',
-        message: 'Shift date is outside the publication month.',
+        message: 'Дата смены находится за пределами выбранного месяца.',
         employeeId: shift.employeeId,
         shiftId: shift.id,
         date: shift.date,
@@ -123,8 +131,9 @@ export function validateSchedulePublicationSnapshot(
         shift.code !== null
       ) {
         violations.push({
+          severity: 'hard',
           code: 'INVALID_OFF_SHIFT',
-          message: 'OFF shift must not contain time or shift code.',
+          message: 'OFF не должен содержать время или код смены.',
           employeeId: shift.employeeId,
           shiftId: shift.id,
           date: shift.date,
@@ -140,8 +149,9 @@ export function validateSchedulePublicationSnapshot(
       !SHIFT_TIME_PATTERN.test(shift.endTime)
     ) {
       violations.push({
+        severity: 'hard',
         code: 'INVALID_SHIFT_TIME',
-        message: 'Working shift must contain start/end times in HH:MM format.',
+        message: 'У рабочей смены должны быть начало и окончание в формате ЧЧ:ММ.',
         employeeId: shift.employeeId,
         shiftId: shift.id,
         date: shift.date,
@@ -151,8 +161,9 @@ export function validateSchedulePublicationSnapshot(
 
     if (shift.startTime === shift.endTime) {
       violations.push({
+        severity: 'hard',
         code: 'ZERO_DURATION_SHIFT',
-        message: 'Working shift start and end times must be different.',
+        message: 'Время начала и окончания рабочей смены не может совпадать.',
         employeeId: shift.employeeId,
         shiftId: shift.id,
         date: shift.date,
@@ -164,8 +175,9 @@ export function validateSchedulePublicationSnapshot(
       !ALLOWED_SHIFT_CODES.has(shift.code.toUpperCase())
     ) {
       violations.push({
+        severity: 'hard',
         code: 'UNSUPPORTED_SHIFT_CODE',
-        message: 'Working shift contains an unsupported shift code.',
+        message: 'У смены указан неподдерживаемый код.',
         employeeId: shift.employeeId,
         shiftId: shift.id,
         date: shift.date,
@@ -186,12 +198,15 @@ export function assertSchedulePublicationRules(
     year,
     month,
   );
-  if (violations.length === 0) return;
+  const hardViolations = violations.filter(
+    (violation) => violation.severity === 'hard',
+  );
+  if (hardViolations.length === 0) return;
 
   throw new BadRequestException({
     message: 'Schedule failed pre-publication validation',
     code: 'SCHEDULE_PUBLICATION_RULES_FAILED',
     rulesVersion: SCHEDULE_PUBLICATION_RULES_VERSION,
-    violations,
+    violations: hardViolations,
   });
 }

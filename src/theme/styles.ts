@@ -516,6 +516,10 @@ export const ShiftCell = styled('td')<{
     background: backgrounds[$kind],
     cursor: $interactive ? 'pointer' : 'default',
     transition: 'background 120ms ease, box-shadow 120ms ease',
+    ':focus': {
+      outline: 'none',
+      boxShadow: 'inset 0 0 0 2px ' + theme.colors.primary,
+    },
     ...($interactive
       ? {
           ':hover': {

@@ -228,6 +228,120 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
   });
 }
 
+for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+  test(`prepublish validation shows hard/soft sections and navigates to a cell at ${viewport.width}px`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await page.clock.setFixedTime(new Date('2026-09-15T12:00:00Z'));
+    const version = '2026-09-10T10:00:00.000Z';
+
+    async function reply(route: Route, body: unknown, status = 200) {
+      await route.fulfill({
+        status,
+        contentType: 'application/json',
+        headers: {
+          'Access-Control-Allow-Origin': 'http://127.0.0.1:4174',
+          'Access-Control-Allow-Credentials': 'true',
+          'Access-Control-Allow-Headers': 'Content-Type',
+          'Access-Control-Allow-Methods': 'GET, POST, PATCH, OPTIONS',
+        },
+        body: JSON.stringify(body),
+      });
+    }
+
+    await page.route('**/departments/manageable', route => reply(route, [
+      {
+        id: 'department-1',
+        name: 'Front Office',
+        kind: 'FO',
+        position: 0,
+        updatedAt: version,
+      },
+    ]));
+    await page.route('**/wishes/department?**', route => reply(route, []));
+    await page.route('**/schedule-data/department?**', route => reply(route, {
+      period: { year: 2026, month: 9 },
+      schedule: { id: 'schedule-1', updatedAt: version },
+      department: { id: 'department-1', name: 'Front Office', kind: 'FO' },
+      employees: [
+        {
+          id: 'employee-1',
+          displayName: 'Проверка E2E',
+          employmentRate: 1,
+          scheduleMode: 'FLEXIBLE',
+          fixedStartTime: null,
+          fixedEndTime: null,
+          position: 0,
+          updatedAt: version,
+        },
+      ],
+      shifts: [
+        {
+          id: 'shift-1',
+          employeeId: 'employee-1',
+          date: '2026-09-07',
+          code: null,
+          startTime: '08:00',
+          endTime: '08:00',
+          isOff: false,
+          updatedAt: version,
+        },
+      ],
+    }));
+    await page.route('**/schedule-data/department/publications?**', route =>
+      reply(route, []),
+    );
+    await page.route('**/schedule-data/department/validation?**', route =>
+      reply(route, {
+        departmentId: 'department-1',
+        period: { year: 2026, month: 9 },
+        rulesVersion: 'schedule-publication-rules-v1',
+        canPublish: false,
+        violations: [
+          {
+            severity: 'hard',
+            code: 'ZERO_DURATION_SHIFT',
+            message: 'Время начала и окончания рабочей смены не может совпадать.',
+            employeeId: 'employee-1',
+            shiftId: 'shift-1',
+            date: '2026-09-07',
+          },
+        ],
+      }),
+    );
+
+    await page.goto('http://127.0.0.1:4174/planner');
+    await expect(page.getByText('Проверка E2E', { exact: true })).toBeVisible();
+
+    await page.getByTitle('Свернуть отдел').click();
+    await expect(page.getByText('Проверка E2E', { exact: true })).toHaveCount(0);
+
+    const trigger = page.getByRole('button', { name: 'Управление графиком' });
+    const before = await trigger.boundingBox();
+    await trigger.click();
+    expect(await trigger.boundingBox()).toEqual(before);
+    await page.getByRole('button', { name: 'Проверить график' }).click();
+
+    await expect(page.getByText('Жёсткие нарушения · 1')).toBeVisible();
+    await expect(page.getByText('Предупреждения · 0')).toBeVisible();
+    await expect(
+      page.getByText('Время начала и окончания рабочей смены не может совпадать.'),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Опубликовать версию' }),
+    ).toBeDisabled();
+
+    await page.getByRole('button', { name: 'Перейти к ячейке' }).click();
+
+    const target = page.locator('#schedule-cell-employee-1-7');
+    await expect(page.getByText('Проверка E2E', { exact: true })).toBeVisible();
+    await expect(target).toBeFocused();
+    await expect(target).toBeInViewport();
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    ).toBe(true);
+  });
+}
+
 test('department + employee + 15:00-23:00 produces D 6 / N 1 / total 7', async ({
   page,
 }) => {
