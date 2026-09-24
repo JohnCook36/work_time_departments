@@ -182,7 +182,6 @@ export class SchedulesController {
       year?: unknown;
       month?: unknown;
       comment?: unknown;
-      rulesVersion?: unknown;
     },
   ) {
     return this.publications.publishDepartmentSchedule(
@@ -191,7 +190,6 @@ export class SchedulesController {
       requiredBodyInteger(body?.year, 'year'),
       requiredBodyInteger(body?.month, 'month'),
       optionalBodyString(body?.comment, 'comment'),
-      optionalBodyString(body?.rulesVersion, 'rulesVersion'),
     );
   }
 

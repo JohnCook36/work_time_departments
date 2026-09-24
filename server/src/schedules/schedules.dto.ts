@@ -64,12 +64,4 @@ export class PublishDepartmentScheduleDto {
 
   @ApiPropertyOptional({ type: String, maxLength: 500, nullable: true })
   comment?: string | null;
-
-  @ApiPropertyOptional({
-    type: String,
-    maxLength: 100,
-    nullable: true,
-    description: 'Optional immutable ruleset/version identifier used for this publication.',
-  })
-  rulesVersion?: string | null;
 }
