@@ -267,11 +267,29 @@ export function validateManagedScheduleRules(
 export function buildManagedRulesetSnapshot(
   rules: ManagedScheduleRuleSnapshot[],
 ): ManagedRulesetSnapshot {
+  const managedRules = rules.map((rule) => ({
+    id: rule.id,
+    name: rule.name,
+    description: rule.description,
+    kind: rule.kind,
+    scope: rule.scope,
+    scopeValue: rule.scopeValue,
+    departmentId: rule.departmentId,
+    priority: rule.priority,
+    severity: rule.severity,
+    isActive: rule.isActive,
+    config: rule.config,
+    violationMessage: rule.violationMessage,
+    version: rule.version,
+  }));
+
+  managedRules.sort(
+    (a, b) => b.priority - a.priority || a.id.localeCompare(b.id),
+  );
+
   return {
     baselineVersion: SCHEDULE_PUBLICATION_RULES_VERSION,
-    managedRules: [...rules].sort(
-      (a, b) => b.priority - a.priority || a.id.localeCompare(b.id),
-    ),
+    managedRules,
   };
 }
 
