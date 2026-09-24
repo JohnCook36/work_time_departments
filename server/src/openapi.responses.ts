@@ -70,6 +70,11 @@ export const schedulePublicationResponse = object({
     description:
       'Server-owned ruleset identifier. Legacy publications may contain null.',
   },
+  rulesSnapshot: {
+    ...nullable(jsonObject),
+    description:
+      'Immutable managed-rules snapshot used for this publication. Legacy publications may contain null.',
+  },
   snapshot: jsonObject,
   diff: jsonObject,
   createdAt: timestamp,
