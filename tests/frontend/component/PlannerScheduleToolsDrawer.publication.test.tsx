@@ -8,6 +8,7 @@ import {
   getDepartmentSchedulePublications,
   publishDepartmentSchedule,
   SchedulePublicationResponse,
+  validateDepartmentSchedule,
 } from '../../../src/api/planner';
 import { PlannerScheduleToolsDrawer } from '../../../src/components/drawers/PlannerScheduleToolsDrawer';
 import { getTheme } from '../../../src/theme/theme';
@@ -16,11 +17,13 @@ vi.mock('../../../src/api/planner', () => ({
   getDepartmentSchedulePublication: vi.fn(),
   getDepartmentSchedulePublications: vi.fn(),
   publishDepartmentSchedule: vi.fn(),
+  validateDepartmentSchedule: vi.fn(),
 }));
 
 const getPublication = vi.mocked(getDepartmentSchedulePublication);
 const getHistory = vi.mocked(getDepartmentSchedulePublications);
 const publish = vi.mocked(publishDepartmentSchedule);
+const validate = vi.mocked(validateDepartmentSchedule);
 
 function publication(version: number): SchedulePublicationResponse {
   return {
@@ -85,6 +88,14 @@ function props() {
     departments: [
       { id: 'department-a', name: 'Front Office', kind: 'general' as const },
     ],
+    employees: [
+      {
+        id: 'employee-1',
+        name: 'Иванов И.И.',
+        departmentId: 'department-a',
+        employmentRate: 1 as const,
+      },
+    ],
     year: 2026,
     monthIndex: 8,
     publicationReadEnabled: true,
@@ -109,6 +120,7 @@ function props() {
     isApplyingBulkSchedule: false,
     onFillOffAll: vi.fn(),
     onClearAll: vi.fn(),
+    onNavigateToValidationIssue: vi.fn(),
     onClose: vi.fn(),
   };
 }
@@ -116,6 +128,13 @@ function props() {
 describe('schedule publication controls', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    validate.mockResolvedValue({
+      departmentId: 'department-a',
+      period: { year: 2026, month: 9 },
+      rulesVersion: 'schedule-publication-rules-v1',
+      canPublish: true,
+      violations: [],
+    });
   });
 
   it('loads history and publishes the selected department month', async () => {
