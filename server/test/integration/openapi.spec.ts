@@ -51,6 +51,7 @@ describe('OpenAPI documentation', () => {
     ['/employees', 'post'], ['/employees', 'get'], ['/employees/{employeeId}', 'patch'],
     ['/employees/{employeeId}/deactivate', 'patch'], ['/employees/reorder', 'patch'],
     ['/schedule-data/department', 'get'], ['/schedule-data/me', 'get'],
+    ['/schedule-data/department/validation', 'get'],
     ['/schedule-data/department/entries', 'patch'], ['/schedule-data/planner/entries', 'patch'],
     ['/shift-change-requests', 'post'], ['/shift-change-requests/mine', 'get'],
     ['/shift-change-requests/{id}/accept', 'post'], ['/shift-change-requests/{id}/admin/approve', 'post'],
