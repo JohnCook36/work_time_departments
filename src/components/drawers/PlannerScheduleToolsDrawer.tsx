@@ -1,12 +1,20 @@
-import { useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   FileSpreadsheet,
   FileUp,
+  History,
   Printer,
+  Send,
   Trash2,
   X,
 } from 'lucide-react';
 
+import {
+  getDepartmentSchedulePublications,
+  publishDepartmentSchedule,
+  SchedulePublicationResponse,
+} from '../../api/planner';
+import { Department } from '../../domain/models';
 import {
   ActionButton,
   DrawerHeader,
@@ -22,9 +30,15 @@ import {
   CompactDrawer,
   DrawerButtonGrid,
   FullWidthActionButton,
+  FullWidthInput,
+  FullWidthSelect,
   DrawerSection,
   DrawerSectionTitle,
   HiddenFileInput,
+  PublicationFeedback,
+  PublicationHistoryItem,
+  PublicationHistoryList,
+  PublicationHistoryMeta,
 } from './styles';
 
 interface PrintRange {
@@ -33,6 +47,11 @@ interface PrintRange {
 }
 
 interface PlannerScheduleToolsDrawerProps {
+  departments: Department[];
+  year: number;
+  monthIndex: number;
+  publicationReadEnabled: boolean;
+  canPublishSchedule: boolean;
   canImportExcel: boolean;
   isImportingExcel: boolean;
   isApplyingExcelImport: boolean;
@@ -57,6 +76,11 @@ interface PlannerScheduleToolsDrawerProps {
 }
 
 export function PlannerScheduleToolsDrawer({
+  departments,
+  year,
+  monthIndex,
+  publicationReadEnabled,
+  canPublishSchedule,
   canImportExcel,
   isImportingExcel,
   isApplyingExcelImport,
@@ -80,6 +104,104 @@ export function PlannerScheduleToolsDrawer({
   onClose,
 }: PlannerScheduleToolsDrawerProps) {
   const excelFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [publicationDepartmentId, setPublicationDepartmentId] = useState(
+    departments[0]?.id ?? '',
+  );
+  const [publicationComment, setPublicationComment] = useState('');
+  const [publicationHistory, setPublicationHistory] = useState<
+    SchedulePublicationResponse[]
+  >([]);
+  const [publicationBusy, setPublicationBusy] = useState(false);
+  const [publicationFeedback, setPublicationFeedback] = useState('');
+
+  useEffect(() => {
+    if (
+      publicationDepartmentId &&
+      departments.some(
+        (department) => department.id === publicationDepartmentId,
+      )
+    ) {
+      return;
+    }
+
+    setPublicationDepartmentId(departments[0]?.id ?? '');
+  }, [departments, publicationDepartmentId]);
+
+  const loadPublicationHistory = useCallback(async () => {
+    if (!publicationReadEnabled || !publicationDepartmentId) {
+      setPublicationHistory([]);
+      return;
+    }
+
+    setPublicationBusy(true);
+    try {
+      const history = await getDepartmentSchedulePublications(
+        publicationDepartmentId,
+        year,
+        monthIndex + 1,
+      );
+      setPublicationHistory(history);
+      setPublicationFeedback('');
+    } catch (error) {
+      setPublicationHistory([]);
+      setPublicationFeedback(
+        error instanceof Error
+          ? 'Не удалось загрузить историю: ' + error.message
+          : 'Не удалось загрузить историю публикаций.',
+      );
+    } finally {
+      setPublicationBusy(false);
+    }
+  }, [
+    monthIndex,
+    publicationDepartmentId,
+    publicationReadEnabled,
+    year,
+  ]);
+
+  useEffect(() => {
+    void loadPublicationHistory();
+  }, [loadPublicationHistory]);
+
+  const handlePublish = async () => {
+    if (
+      !canPublishSchedule ||
+      !publicationDepartmentId ||
+      publicationBusy
+    ) {
+      return;
+    }
+
+    setPublicationBusy(true);
+    setPublicationFeedback('');
+
+    try {
+      const publication = await publishDepartmentSchedule(
+        publicationDepartmentId,
+        year,
+        monthIndex + 1,
+        publicationComment,
+      );
+      const history = await getDepartmentSchedulePublications(
+        publicationDepartmentId,
+        year,
+        monthIndex + 1,
+      );
+      setPublicationHistory(history);
+      setPublicationComment('');
+      setPublicationFeedback(
+        'Опубликована версия v' + publication.version + '.',
+      );
+    } catch (error) {
+      setPublicationFeedback(
+        error instanceof Error
+          ? 'Не удалось опубликовать: ' + error.message
+          : 'Не удалось опубликовать график.',
+      );
+    } finally {
+      setPublicationBusy(false);
+    }
+  };
 
   return (
     <DrawerOverlay onMouseDown={onClose}>
@@ -88,8 +210,8 @@ export function PlannerScheduleToolsDrawer({
           <div>
             <DrawerTitle>Управление графиком</DrawerTitle>
             <DrawerSubtitle>
-              Импорт, экспорт, печать и массовые действия вынесены из основной
-              панели.
+              Публикация, история версий, импорт, экспорт, печать и массовые
+              действия вынесены из основной панели.
             </DrawerSubtitle>
           </div>
 
@@ -209,6 +331,102 @@ export function PlannerScheduleToolsDrawer({
               {isApplyingBulkSchedule ? 'Применяю…' : 'Очистить месяц'}
             </ActionButton>
           </DrawerButtonGrid>
+        </DrawerSection>
+
+        <DrawerSection>
+          <DrawerSectionTitle>Публикация и версии</DrawerSectionTitle>
+
+          <FormGroup>
+            <FormLabel htmlFor="publication-department">Отдел</FormLabel>
+            <FullWidthSelect
+              id="publication-department"
+              value={publicationDepartmentId}
+              disabled={
+                !publicationReadEnabled ||
+                publicationBusy ||
+                departments.length === 0
+              }
+              onChange={(event) =>
+                setPublicationDepartmentId(event.target.value)
+              }
+            >
+              {departments.map((department) => (
+                <option key={department.id} value={department.id}>
+                  {department.name}
+                </option>
+              ))}
+            </FullWidthSelect>
+          </FormGroup>
+
+          <FormGroup>
+            <FormLabel htmlFor="publication-comment">
+              Комментарий к версии
+            </FormLabel>
+            <FullWidthInput
+              id="publication-comment"
+              value={publicationComment}
+              maxLength={500}
+              disabled={!canPublishSchedule || publicationBusy}
+              placeholder="Например: график утверждён на месяц"
+              onChange={(event) =>
+                setPublicationComment(event.target.value)
+              }
+            />
+          </FormGroup>
+
+          <FullWidthActionButton
+            type="button"
+            $variant="primary"
+            onClick={() => void handlePublish()}
+            disabled={
+              !canPublishSchedule ||
+              publicationBusy ||
+              !publicationDepartmentId
+            }
+          >
+            <Send size={16} />
+            {publicationBusy ? 'Обновляю…' : 'Опубликовать версию'}
+          </FullWidthActionButton>
+
+          <PublicationFeedback aria-live="polite">
+            {publicationFeedback ||
+              (!publicationReadEnabled
+                ? 'История публикаций доступна в серверном режиме.'
+                : ' ')}
+          </PublicationFeedback>
+
+          <DrawerSectionTitle>
+            <History size={15} aria-hidden="true" /> История версий
+          </DrawerSectionTitle>
+
+          <PublicationHistoryList>
+            {publicationHistory.length === 0 ? (
+              <PublicationHistoryMeta>
+                {publicationBusy
+                  ? 'Загружаю историю…'
+                  : 'Опубликованных версий пока нет.'}
+              </PublicationHistoryMeta>
+            ) : (
+              publicationHistory.map((publication) => (
+                <PublicationHistoryItem key={publication.id}>
+                  <strong>
+                    v{publication.version} ·{' '}
+                    {new Date(publication.createdAt).toLocaleString('ru-RU')}
+                  </strong>
+                  <PublicationHistoryMeta>
+                    Автор: {publication.publishedByUserId}
+                  </PublicationHistoryMeta>
+                  <PublicationHistoryMeta>
+                    Изменения: смен {publication.diff.shifts.length},
+                    сотрудников {publication.diff.employees.length}
+                  </PublicationHistoryMeta>
+                  <PublicationHistoryMeta>
+                    {publication.comment || 'Без комментария'}
+                  </PublicationHistoryMeta>
+                </PublicationHistoryItem>
+              ))
+            )}
+          </PublicationHistoryList>
         </DrawerSection>
       </CompactDrawer>
     </DrawerOverlay>
