@@ -74,7 +74,7 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
     try {
       await logout();
       setState('guest');
-    } catch (requestError) {
+    } catch {
       setError(
         'Не удалось завершить сессию на сервере. Локальные данные очищены; повторите выход после восстановления связи.',
       );
