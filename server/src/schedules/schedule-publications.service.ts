@@ -513,6 +513,14 @@ export class SchedulePublicationsService {
             scheduleMode: true,
             fixedStartTime: true,
             fixedEndTime: true,
+            user: {
+              select: {
+                memberships: {
+                  where: { isActive: true },
+                  select: { role: true },
+                },
+              },
+            },
           },
         },
       },
@@ -566,6 +574,9 @@ export class SchedulePublicationsService {
         scheduleMode: employee.scheduleMode,
         fixedStartTime: employee.fixedStartTime,
         fixedEndTime: employee.fixedEndTime,
+        roles:
+          employee.user?.memberships.map((membership) => membership.role) ??
+          [],
       })),
       shifts: shifts.map((shift) => ({
         id: shift.id,
@@ -655,6 +666,7 @@ export class SchedulePublicationsService {
         sourceScheduleUpdatedAt: true,
         comment: true,
         rulesVersion: true,
+        rulesSnapshot: true,
         snapshot: true,
         diff: true,
         createdAt: true,
@@ -700,6 +712,7 @@ export class SchedulePublicationsService {
         sourceScheduleUpdatedAt: true,
         comment: true,
         rulesVersion: true,
+        rulesSnapshot: true,
         snapshot: true,
         diff: true,
         createdAt: true,
