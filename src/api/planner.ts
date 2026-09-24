@@ -134,6 +134,26 @@ export interface ApplyScheduleChangesResponse {
   } | null;
 }
 
+export interface SchedulePublicationViolation {
+  severity: 'hard' | 'soft';
+  code: string;
+  message: string;
+  employeeId: string | null;
+  shiftId: string | null;
+  date: string | null;
+}
+
+export interface SchedulePublicationValidationResponse {
+  departmentId: string;
+  period: {
+    year: number;
+    month: number;
+  };
+  rulesVersion: string;
+  canPublish: boolean;
+  violations: SchedulePublicationViolation[];
+}
+
 export interface SchedulePublicationResponse {
   id: string;
   scheduleId: string;
@@ -569,6 +589,22 @@ export async function loadPlannerServerSnapshot(
     responses,
     departments,
     departmentWishResponses.flat(),
+  );
+}
+
+export function validateDepartmentSchedule(
+  departmentId: string,
+  year: number,
+  month: number,
+) {
+  const params = new URLSearchParams({
+    departmentId,
+    year: String(year),
+    month: String(month),
+  });
+
+  return apiRequest<SchedulePublicationValidationResponse>(
+    '/schedule-data/department/validation?' + params.toString(),
   );
 }
 
