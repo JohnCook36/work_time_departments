@@ -210,6 +210,61 @@ describe('SchedulePublicationsService', () => {
     ]);
   });
 
+  it('preserves the published employment rate and records a later rate change as version diff', async () => {
+    const previousEmployees = [
+      {
+        ...department.employees[0],
+        employmentRate: 0.75,
+      },
+    ];
+    const previousSnapshot = {
+      department: { id: 'department-a', name: 'Front Office', kind: 'FO' },
+      employees: previousEmployees,
+      shifts: [
+        {
+          id: 'shift-1',
+          employeeId: 'employee-1',
+          date: '2026-09-07',
+          code: 'E',
+          startTime: '08:00',
+          endTime: '17:00',
+          isOff: false,
+          updatedAt: '2026-09-01T11:00:00.000Z',
+        },
+      ],
+    };
+
+    transaction.schedulePublication.findFirst.mockResolvedValue({
+      version: 1,
+      snapshot: previousSnapshot,
+    });
+
+    await service.publishDepartmentSchedule(
+      admin(),
+      'department-a',
+      2026,
+      9,
+    );
+
+    const createCall = transaction.schedulePublication.create.mock.calls[0][0];
+    expect(createCall.data.version).toBe(2);
+    expect(createCall.data.snapshot.employees[0]).toEqual(
+      expect.objectContaining({
+        id: 'employee-1',
+        employmentRate: 1,
+      }),
+    );
+    expect(createCall.data.diff.employees).toEqual([
+      expect.objectContaining({
+        key: 'employee-1',
+        before: expect.objectContaining({ employmentRate: 0.75 }),
+        after: expect.objectContaining({ employmentRate: 1 }),
+      }),
+    ]);
+
+    expect(previousSnapshot.employees[0].employmentRate).toBe(0.75);
+  });
+
   it('rejects publishing again when the immutable snapshot did not change', async () => {
     transaction.schedulePublication.findFirst.mockResolvedValue({
       version: 1,

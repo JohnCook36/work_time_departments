@@ -551,7 +551,16 @@ describe('SchedulesService', () => {
       id: 'publication-2',
       updatedAt: '2026-09-05T09:00:00.000Z',
     });
-    expect(result.employee.displayName).toBe('Published Employee');
+    expect(result.employee).toEqual(
+      expect.objectContaining({
+        displayName: 'Published Employee',
+        employmentRate: 1,
+        scheduleMode: 'FIXED_WEEKDAYS',
+        fixedStartTime: '08:00',
+        fixedEndTime: '17:00',
+      }),
+    );
+    expect(result.employee.employmentRate).not.toBe(0.75);
     expect(result.shifts).toEqual([
       expect.objectContaining({
         id: 'shift-1',
