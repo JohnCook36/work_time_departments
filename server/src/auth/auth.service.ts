@@ -53,7 +53,7 @@ export class AuthService {
 
   async requestCode(
     rawPhone: string,
-    requestSource: string,
+    requestSource?: string,
   ): Promise<{
     status: 'sent';
     expiresInSeconds: number;
@@ -70,7 +70,9 @@ export class AuthService {
 
     const pepper = this.getOtpPepper();
     const code = this.getDevelopmentOtpCode();
-    const sourceHash = hashAuthRequestSource(requestSource, pepper);
+    const sourceHash = requestSource
+      ? hashAuthRequestSource(requestSource, pepper)
+      : null;
     const sourceRateLimit = this.getOtpSourceRateLimit();
 
     await this.prisma.$transaction(async (tx) => {
@@ -83,12 +85,14 @@ export class AuthService {
         ) AS phone_lock
       `;
 
-      await tx.$queryRaw<Array<{ locked: number }>>`
-        SELECT 1::int AS locked
-        FROM (
-          SELECT pg_advisory_xact_lock(hashtext(${sourceHash}))
-        ) AS source_lock
-      `;
+      if (sourceHash) {
+        await tx.$queryRaw<Array<{ locked: number }>>`
+          SELECT 1::int AS locked
+          FROM (
+            SELECT pg_advisory_xact_lock(hashtext(${sourceHash}))
+          ) AS source_lock
+        `;
+      }
 
       const now = new Date();
       const recentChallenge = await tx.authChallenge.findFirst({
@@ -108,20 +112,26 @@ export class AuthService {
         );
       }
 
-      const recentSourceRequests = await tx.authChallenge.count({
-        where: {
-          requestSourceHash: sourceHash,
-          createdAt: {
-            gt: new Date(now.getTime() - sourceRateLimit.windowMs),
-          },
-        },
-      });
+      if (sourceHash) {
+        const [sourceUsage] = await tx.$queryRaw<
+          Array<{ requestCount: number }>
+        >`
+          SELECT COUNT(*)::int AS "requestCount"
+          FROM "AuthChallenge"
+          WHERE "requestSourceHash" = ${sourceHash}
+            AND "createdAt" > ${new Date(
+              now.getTime() - sourceRateLimit.windowMs,
+            )}
+        `;
 
-      if (recentSourceRequests >= sourceRateLimit.maxRequests) {
-        throw new HttpException(
-          'Too many code requests from this source',
-          HttpStatus.TOO_MANY_REQUESTS,
-        );
+        if (
+          (sourceUsage?.requestCount ?? 0) >= sourceRateLimit.maxRequests
+        ) {
+          throw new HttpException(
+            'Too many code requests from this source',
+            HttpStatus.TOO_MANY_REQUESTS,
+          );
+        }
       }
 
       await tx.authChallenge.create({
