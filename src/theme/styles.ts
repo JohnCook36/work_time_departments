@@ -372,7 +372,7 @@ export const DepartmentRowCell = styled('td')<{ $over: boolean }>(({ theme, $ove
 
 export const DepartmentRowInner = styled('div')(({ theme }) => ({
   position: 'sticky',
-  left: 0,
+  left: 12,
   zIndex: 14,
   width: 'max-content',
   maxWidth: 'calc(100vw - 32px)',
