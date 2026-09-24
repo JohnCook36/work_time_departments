@@ -1,0 +1,157 @@
+import {
+  HttpException,
+  UnauthorizedException,
+} from '@nestjs/common';
+
+import { AuthService } from '../../../src/auth/auth.service';
+import { hashOtp } from '../../../src/auth/auth.utils';
+import { PrismaService } from '../../../src/prisma/prisma.service';
+
+const PHONE = '+79991234567';
+const VALID_CODE = '123456';
+const PEPPER = 'test-pepper-value-that-is-longer-than-32-characters';
+
+function prismaMock() {
+  const mock = {
+    authChallenge: {
+      findFirst: jest.fn(),
+      findUnique: jest.fn(),
+      updateMany: jest.fn(),
+      create: jest.fn(),
+    },
+    user: {
+      upsert: jest.fn(),
+    },
+    authSession: {
+      create: jest.fn(),
+    },
+    $transaction: jest.fn(),
+  };
+
+  mock.$transaction.mockImplementation(
+    async (callback: (tx: typeof mock) => unknown) => callback(mock),
+  );
+
+  return mock;
+}
+
+function challenge(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'challenge-1',
+    phoneE164: PHONE,
+    codeHash: hashOtp(VALID_CODE, PEPPER),
+    expiresAt: new Date(Date.now() + 60_000),
+    attempts: 0,
+    maxAttempts: 5,
+    consumedAt: null,
+    createdAt: new Date(),
+    ...overrides,
+  };
+}
+
+describe('AuthService OTP verification concurrency', () => {
+  let prisma: ReturnType<typeof prismaMock>;
+  let service: AuthService;
+  const originalPepper = process.env.AUTH_OTP_PEPPER;
+
+  beforeEach(() => {
+    process.env.AUTH_OTP_PEPPER = PEPPER;
+    prisma = prismaMock();
+    service = new AuthService(prisma as unknown as PrismaService);
+
+    prisma.authChallenge.findFirst.mockResolvedValue(challenge());
+    prisma.authChallenge.updateMany.mockResolvedValue({ count: 1 });
+    prisma.user.upsert.mockResolvedValue({
+      id: 'user-1',
+      phoneE164: PHONE,
+      isActive: true,
+      employee: null,
+    });
+    prisma.authSession.create.mockResolvedValue({ id: 'session-1' });
+  });
+
+  afterAll(() => {
+    if (originalPepper === undefined) {
+      delete process.env.AUTH_OTP_PEPPER;
+    } else {
+      process.env.AUTH_OTP_PEPPER = originalPepper;
+    }
+  });
+
+  it('atomically reserves one attempt before checking the supplied code', async () => {
+    await service.verifyCode(PHONE, VALID_CODE);
+
+    expect(prisma.authChallenge.updateMany).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: 'challenge-1',
+          consumedAt: null,
+          attempts: { lt: 5 },
+          expiresAt: { gt: expect.any(Date) },
+        }),
+        data: { attempts: { increment: 1 } },
+      }),
+    );
+  });
+
+  it('rejects when another request consumed the challenge before session creation', async () => {
+    prisma.authChallenge.updateMany
+      .mockResolvedValueOnce({ count: 1 })
+      .mockResolvedValueOnce({ count: 0 });
+
+    await expect(
+      service.verifyCode(PHONE, VALID_CODE),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+
+    expect(prisma.user.upsert).not.toHaveBeenCalled();
+    expect(prisma.authSession.create).not.toHaveBeenCalled();
+  });
+
+  it('returns 429 when the atomic reservation loses the last available attempt', async () => {
+    prisma.authChallenge.updateMany.mockResolvedValueOnce({ count: 0 });
+    prisma.authChallenge.findUnique.mockResolvedValue(
+      challenge({ attempts: 5 }),
+    );
+
+    let error: unknown;
+    try {
+      await service.verifyCode(PHONE, VALID_CODE);
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect(error).toBeInstanceOf(HttpException);
+    expect((error as HttpException).getStatus()).toBe(429);
+    expect(prisma.user.upsert).not.toHaveBeenCalled();
+    expect(prisma.authSession.create).not.toHaveBeenCalled();
+  });
+
+  it('counts an invalid code attempt without consuming the challenge', async () => {
+    await expect(
+      service.verifyCode(PHONE, '654321'),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+
+    expect(prisma.authChallenge.updateMany).toHaveBeenCalledTimes(1);
+    expect(prisma.user.upsert).not.toHaveBeenCalled();
+    expect(prisma.authSession.create).not.toHaveBeenCalled();
+  });
+
+  it('consumes a verified challenge exactly once before creating a session', async () => {
+    await service.verifyCode(PHONE, VALID_CODE);
+
+    expect(prisma.authChallenge.updateMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: 'challenge-1',
+          consumedAt: null,
+          expiresAt: { gt: expect.any(Date) },
+        }),
+        data: { consumedAt: expect.any(Date) },
+      }),
+    );
+    expect(prisma.user.upsert).toHaveBeenCalledTimes(1);
+    expect(prisma.authSession.create).toHaveBeenCalledTimes(1);
+  });
+});
