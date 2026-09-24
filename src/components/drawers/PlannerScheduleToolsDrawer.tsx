@@ -595,18 +595,43 @@ export function PlannerScheduleToolsDrawer({
                 ) : (
                   validationResult.violations
                     .filter((violation) => violation.severity === 'soft')
-                    .map((violation, index) => (
-                      <ValidationItem
-                        key={'soft-' + violation.code + '-' + index}
-                      >
-                        <div>
-                          <ValidationBadge $severity="soft">
-                            Предупреждение
-                          </ValidationBadge>{' '}
-                          {violation.message}
-                        </div>
-                      </ValidationItem>
-                    ))
+                    .map((violation, index) => {
+                      const employee = employees.find(
+                        (item) => item.id === violation.employeeId,
+                      );
+                      return (
+                        <ValidationItem
+                          key={'soft-' + violation.code + '-' + index}
+                        >
+                          <div>
+                            <ValidationBadge $severity="soft">
+                              Предупреждение
+                            </ValidationBadge>{' '}
+                            {violation.message}
+                          </div>
+                          <PublicationHistoryMeta>
+                            {employee?.name ||
+                              violation.employeeId ||
+                              'График отдела'}
+                            {violation.date ? ' · ' + violation.date : ''}
+                          </PublicationHistoryMeta>
+                          {violation.employeeId && violation.date && (
+                            <ActionButton
+                              type="button"
+                              onClick={() => {
+                                onNavigateToValidationIssue(
+                                  violation.employeeId!,
+                                  violation.date!,
+                                );
+                                onClose();
+                              }}
+                            >
+                              Перейти к ячейке
+                            </ActionButton>
+                          )}
+                        </ValidationItem>
+                      );
+                    })
                 )}
               </>
             )}
