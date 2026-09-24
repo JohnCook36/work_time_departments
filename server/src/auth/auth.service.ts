@@ -68,8 +68,11 @@ export class AuthService {
     await this.prisma.$transaction(async (tx) => {
       // Serialize request-code for the same normalized phone across backend instances.
       // A hash collision can only over-serialize unrelated phones; it cannot bypass cooldown.
-      await tx.$queryRaw`
-        SELECT pg_advisory_xact_lock(hashtext(${phoneE164}))
+      await tx.$queryRaw<Array<{ locked: number }>>`
+        SELECT 1::int AS locked
+        FROM (
+          SELECT pg_advisory_xact_lock(hashtext(${phoneE164}))
+        ) AS phone_lock
       `;
 
       const now = new Date();
