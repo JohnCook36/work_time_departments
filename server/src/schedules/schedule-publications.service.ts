@@ -17,6 +17,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import {
   assertSchedulePublicationRules,
   SCHEDULE_PUBLICATION_RULES_VERSION,
+  validateSchedulePublicationSnapshot,
 } from './schedule-publication-rules';
 
 export interface PublishedEmployeeSnapshot {
@@ -403,6 +404,120 @@ export class SchedulePublicationsService {
 
       throw error;
     }
+  }
+
+  async validateDepartmentSchedule(
+    admin: AuthUserContext,
+    departmentId: string,
+    year: number,
+    month: number,
+  ) {
+    assertPeriod(year, month);
+    if (!departmentId.trim()) {
+      throw new BadRequestException('departmentId is required');
+    }
+    this.authorization.assertCanAdministerDepartment(admin, departmentId);
+
+    const department = await this.prisma.department.findFirst({
+      where: {
+        id: departmentId,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        name: true,
+        kind: true,
+        employees: {
+          where: { isActive: true },
+          orderBy: [{ position: 'asc' }, { displayName: 'asc' }],
+          select: {
+            id: true,
+            displayName: true,
+            employmentRate: true,
+            scheduleMode: true,
+            fixedStartTime: true,
+            fixedEndTime: true,
+          },
+        },
+      },
+    });
+
+    if (!department) {
+      throw new NotFoundException('Department not found');
+    }
+
+    const schedule = await this.prisma.schedule.findUnique({
+      where: {
+        year_month: { year, month },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    const employeeIds = department.employees.map((employee) => employee.id);
+    const shifts =
+      !schedule || employeeIds.length === 0
+        ? []
+        : await this.prisma.shift.findMany({
+            where: {
+              scheduleId: schedule.id,
+              employeeId: { in: employeeIds },
+            },
+            orderBy: [{ employeeId: 'asc' }, { date: 'asc' }],
+            select: {
+              id: true,
+              employeeId: true,
+              date: true,
+              code: true,
+              startTime: true,
+              endTime: true,
+              isOff: true,
+              updatedAt: true,
+            },
+          });
+
+    const snapshot: SchedulePublicationSnapshot = {
+      department: {
+        id: department.id,
+        name: department.name,
+        kind: department.kind,
+      },
+      employees: department.employees.map((employee) => ({
+        id: employee.id,
+        displayName: employee.displayName,
+        employmentRate: employee.employmentRate,
+        scheduleMode: employee.scheduleMode,
+        fixedStartTime: employee.fixedStartTime,
+        fixedEndTime: employee.fixedEndTime,
+      })),
+      shifts: shifts.map((shift) => ({
+        id: shift.id,
+        employeeId: shift.employeeId,
+        date: dateOnly(shift.date),
+        code: shift.code,
+        startTime: shift.startTime,
+        endTime: shift.endTime,
+        isOff: shift.isOff,
+        updatedAt: shift.updatedAt.toISOString(),
+      })),
+    };
+
+    const violations = validateSchedulePublicationSnapshot(
+      snapshot,
+      year,
+      month,
+    );
+
+    return {
+      departmentId,
+      period: { year, month },
+      rulesVersion: SCHEDULE_PUBLICATION_RULES_VERSION,
+      canPublish: !violations.some(
+        (violation) => violation.severity === 'hard',
+      ),
+      violations,
+    };
   }
 
   async listDepartmentPublications(
