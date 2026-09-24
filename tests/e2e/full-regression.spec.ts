@@ -198,6 +198,36 @@ test('fixed 5/2 edit and schedule tools remain usable on a narrow screen', async
   await expect(page.getByText('Управление графиком', { exact: true }).last()).toBeVisible();
 });
 
+for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+  test(`publication history drawer stays usable at ${viewport.width}px`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await seed(page, state());
+    await page.goto('/planner');
+
+    const trigger = page.getByRole('button', { name: 'Управление графиком' });
+    const before = await trigger.boundingBox();
+    await trigger.click();
+
+    expect(await trigger.boundingBox()).toEqual(before);
+    await expect(page.getByText('Публикация и версии', { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Опубликовать версию' }),
+    ).toBeDisabled();
+    await expect(
+      page.getByText('История публикаций доступна в серверном режиме.'),
+    ).toBeVisible();
+    await expect(
+      page.getByText(
+        'Выберите версию в истории, чтобы открыть сохранённый снимок.',
+      ),
+    ).toBeVisible();
+
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    ).toBe(true);
+  });
+}
+
 test('department + employee + 15:00-23:00 produces D 6 / N 1 / total 7', async ({
   page,
 }) => {
