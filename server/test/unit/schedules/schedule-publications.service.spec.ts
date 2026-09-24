@@ -1,5 +1,12 @@
 import { ConflictException } from '@nestjs/common';
-import { AuditAction, AuditEntityType, RoleType } from '@prisma/client';
+import {
+  AuditAction,
+  AuditEntityType,
+  RoleType,
+  ScheduleRuleKind,
+  ScheduleRuleScope,
+  ScheduleRuleSeverity,
+} from '@prisma/client';
 
 import { AuthUserContext } from '../../../src/auth/auth.service';
 import {
@@ -27,10 +34,12 @@ describe('SchedulePublicationsService', () => {
     department: { findFirst: jest.fn() },
     schedule: { upsert: jest.fn() },
     shift: { findMany: jest.fn() },
+    scheduleRule: { findMany: jest.fn() },
     schedulePublication: {
       findFirst: jest.fn(),
       create: jest.fn(),
     },
+    scheduleRule: { findMany: jest.fn() },
     auditLog: { create: jest.fn() },
   };
 
@@ -69,9 +78,26 @@ describe('SchedulePublicationsService', () => {
         scheduleMode: 'FIXED_WEEKDAYS',
         fixedStartTime: '08:00',
         fixedEndTime: '17:00',
+        user: {
+          memberships: [
+            {
+              role: RoleType.EMPLOYEE,
+            },
+          ],
+        },
       },
     ],
   };
+
+  const publishedEmployees = department.employees.map((employee) => ({
+    id: employee.id,
+    displayName: employee.displayName,
+    employmentRate: employee.employmentRate,
+    scheduleMode: employee.scheduleMode,
+    fixedStartTime: employee.fixedStartTime,
+    fixedEndTime: employee.fixedEndTime,
+    roles: employee.user.memberships.map((membership) => membership.role),
+  }));
 
   const shift = {
     id: 'shift-1',
@@ -93,6 +119,7 @@ describe('SchedulePublicationsService', () => {
     });
     transaction.shift.findMany.mockResolvedValue([shift]);
     transaction.schedulePublication.findFirst.mockResolvedValue(null);
+    transaction.scheduleRule.findMany.mockResolvedValue([]);
     transaction.schedulePublication.create.mockImplementation(
       async ({ data }: { data: Record<string, unknown> }) => ({
         id: 'publication-1',
@@ -106,6 +133,7 @@ describe('SchedulePublicationsService', () => {
     prisma.department.findFirst.mockResolvedValue(department);
     prisma.schedule.findUnique.mockResolvedValue({ id: 'schedule-1' });
     prisma.shift.findMany.mockResolvedValue([shift]);
+    prisma.scheduleRule.findMany.mockResolvedValue([]);
   });
 
   it('returns structured validation result without creating a publication', async () => {
@@ -184,6 +212,10 @@ describe('SchedulePublicationsService', () => {
           publishedByUserId: 'user-admin',
           comment: 'Утверждено',
           rulesVersion: SCHEDULE_PUBLICATION_RULES_VERSION,
+          rulesSnapshot: {
+            baselineVersion: SCHEDULE_PUBLICATION_RULES_VERSION,
+            managedRules: [],
+          },
         }),
       }),
     );
@@ -230,6 +262,56 @@ describe('SchedulePublicationsService', () => {
     );
   });
 
+  it('stores an immutable managed-rules snapshot and derived rules version', async () => {
+    transaction.scheduleRule.findMany.mockResolvedValue([
+      {
+        id: 'rule-max-fo',
+        name: 'Максимум FO',
+        description: 'Не больше пяти сотрудников одновременно',
+        kind: ScheduleRuleKind.MAX_CONCURRENT_EMPLOYEES,
+        scope: ScheduleRuleScope.DEPARTMENT,
+        scopeValue: null,
+        departmentId: 'department-a',
+        priority: 100,
+        severity: ScheduleRuleSeverity.HARD,
+        isActive: true,
+        isDeleted: false,
+        config: { maxConcurrent: 5 },
+        violationMessage: 'Превышен лимит.',
+        version: 3,
+        createdByUserId: 'user-admin',
+        updatedByUserId: 'user-admin',
+        createdAt: new Date('2026-09-20T10:00:00.000Z'),
+        updatedAt: new Date('2026-09-24T10:00:00.000Z'),
+      },
+    ]);
+
+    await service.publishDepartmentSchedule(
+      admin(),
+      'department-a',
+      2026,
+      9,
+    );
+
+    const createCall = transaction.schedulePublication.create.mock.calls[0][0];
+    expect(createCall.data.rulesVersion).toMatch(
+      /^schedule-publication-rules-v1\+managed-[a-f0-9]{16}$/,
+    );
+    expect(createCall.data.rulesSnapshot).toEqual({
+      baselineVersion: SCHEDULE_PUBLICATION_RULES_VERSION,
+      managedRules: [
+        expect.objectContaining({
+          id: 'rule-max-fo',
+          version: 3,
+          config: { maxConcurrent: 5 },
+        }),
+      ],
+    });
+    expect(createCall.data.rulesSnapshot.managedRules[0]).not.toHaveProperty(
+      'updatedAt',
+    );
+  });
+
   it('blocks publication before create/audit when hard publication rules fail', async () => {
     transaction.shift.findMany.mockResolvedValue([
       {
@@ -269,7 +351,7 @@ describe('SchedulePublicationsService', () => {
       version: 1,
       snapshot: {
         department: { id: 'department-a', name: 'Front Office', kind: 'FO' },
-        employees: department.employees,
+        employees: publishedEmployees,
         shifts: [
           {
             id: 'shift-1',
@@ -306,7 +388,7 @@ describe('SchedulePublicationsService', () => {
   it('preserves the published employment rate and records a later rate change as version diff', async () => {
     const previousEmployees = [
       {
-        ...department.employees[0],
+        ...publishedEmployees[0],
         employmentRate: 0.75,
       },
     ];
@@ -363,7 +445,7 @@ describe('SchedulePublicationsService', () => {
       version: 1,
       snapshot: {
         department: { id: 'department-a', name: 'Front Office', kind: 'FO' },
-        employees: department.employees,
+        employees: publishedEmployees,
         shifts: [
           {
             id: 'shift-1',
