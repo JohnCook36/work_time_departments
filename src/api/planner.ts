@@ -576,6 +576,24 @@ export function getDepartmentSchedulePublications(
   );
 }
 
+export function getDepartmentSchedulePublication(
+  departmentId: string,
+  year: number,
+  month: number,
+  version: number,
+) {
+  const params = new URLSearchParams({
+    departmentId,
+    year: String(year),
+    month: String(month),
+    version: String(version),
+  });
+
+  return apiRequest<SchedulePublicationResponse>(
+    '/schedule-data/department/publication?' + params.toString(),
+  );
+}
+
 export function applyDepartmentScheduleChanges(
   departmentId: string,
   year: number,
