@@ -162,6 +162,24 @@ describeLive('live PostgreSQL security boundaries', () => {
     ).toBe(1);
   });
 
+  it('limits successful request-code sends from one source across different phones', async () => {
+    const statuses: number[] = [];
+
+    for (let index = 0; index < 21; index += 1) {
+      const phone = '+79991' + String(index).padStart(6, '0');
+      const response = await fetch(baseUrl + '/auth/request-code', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ phone }),
+      });
+      statuses.push(response.status);
+    }
+
+    expect(statuses.slice(0, 20)).toEqual(Array(20).fill(201));
+    expect(statuses[20]).toBe(429);
+    expect(await prisma.authChallenge.count()).toBe(20);
+  });
+
   it('allows only one successful verification when the same OTP is submitted concurrently', async () => {
     const phone = '+79990000002';
     await requestCode(phone);
