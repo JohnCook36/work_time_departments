@@ -5,6 +5,7 @@ import { AppModule } from '../../src/app.module';
 import { SESSION_COOKIE_NAME } from '../../src/auth/auth.utils';
 import { setupOpenApi } from '../../src/openapi';
 import { PrismaService } from '../../src/prisma/prisma.service';
+import { configureHttpSecurity } from '../../src/security/http-security';
 
 const { version } = require('../../package.json') as { version: string };
 
@@ -17,6 +18,10 @@ describe('OpenAPI documentation', () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(PrismaService).useValue({}).compile();
     app = moduleRef.createNestApplication();
+    configureHttpSecurity(app, {
+      frontendOrigin: 'http://frontend.test',
+      nodeEnv: 'test',
+    });
     document = setupOpenApi(app);
     await app.listen(0, '127.0.0.1');
     url = await app.getUrl();
@@ -86,6 +91,8 @@ describe('OpenAPI documentation', () => {
     const ui = await fetch(url + '/docs');
     expect(ui.status).toBe(200);
     expect(ui.headers.get('content-type')).toContain('text/html');
+    expect(ui.headers.get('x-frame-options')).toBe('DENY');
+    expect(ui.headers.get('x-content-type-options')).toBe('nosniff');
     expect(await ui.text()).toContain('swagger-ui');
     const script = await fetch(url + '/docs/swagger-ui-init.js');
     expect(script.status).toBe(200);
@@ -102,6 +109,9 @@ describe('OpenAPI documentation', () => {
     const schemas = document.components!.schemas! as Record<string, SchemaObject>;
     expect(schemas.VerifyCodeDto.properties?.code).toMatchObject({ writeOnly: true });
     expect(schemas.VerifyCodeDto.properties?.code).not.toHaveProperty('example');
+    expect(
+      JSON.stringify(document.paths['/onboarding/admin/pending']),
+    ).not.toContain('phoneE164');
     const shiftChangeDocs = JSON.stringify(
       document.paths['/shift-change-requests/mine'],
     );
