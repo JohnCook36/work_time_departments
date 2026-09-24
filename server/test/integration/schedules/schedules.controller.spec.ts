@@ -65,6 +65,10 @@ describe('SchedulesController API validation', () => {
     assertCanAdministerDepartments: jest.fn(),
   };
 
+  const publications = {
+    validateDepartmentSchedule: jest.fn(),
+  };
+
   let app: INestApplication;
   let endpoint: string;
 
@@ -73,7 +77,7 @@ describe('SchedulesController API validation', () => {
       controllers: [SchedulesController],
       providers: [
         SchedulesService,
-        { provide: SchedulePublicationsService, useValue: {} },
+        { provide: SchedulePublicationsService, useValue: publications },
         { provide: PrismaService, useValue: prisma },
         { provide: AuthorizationService, useValue: authorization },
       ],
@@ -133,6 +137,51 @@ describe('SchedulesController API validation', () => {
       }),
     });
   }
+
+  it('exposes scoped prepublish validation over HTTP', async () => {
+    publications.validateDepartmentSchedule.mockResolvedValue({
+      departmentId: 'department-a',
+      period: { year: 2026, month: 9 },
+      rulesVersion: 'schedule-publication-rules-v1',
+      canPublish: false,
+      violations: [
+        {
+          severity: 'hard',
+          code: 'ZERO_DURATION_SHIFT',
+          message: 'Время начала и окончания рабочей смены не может совпадать.',
+          employeeId: 'employee-1',
+          shiftId: 'shift-1',
+          date: '2026-09-07',
+        },
+      ],
+    });
+
+    const url = endpoint.replace(
+      '/department/entries',
+      '/department/validation?departmentId=department-a&year=2026&month=9',
+    );
+    const response = await fetch(url);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual(
+      expect.objectContaining({
+        departmentId: 'department-a',
+        canPublish: false,
+        violations: [
+          expect.objectContaining({
+            severity: 'hard',
+            code: 'ZERO_DURATION_SHIFT',
+          }),
+        ],
+      }),
+    );
+    expect(publications.validateDepartmentSchedule).toHaveBeenCalledWith(
+      currentUser,
+      'department-a',
+      2026,
+      9,
+    );
+  });
 
   it('rejects a zero-duration shift through PATCH schedule-data', async () => {
     const response = await patchShift('08:00', '08:00');
