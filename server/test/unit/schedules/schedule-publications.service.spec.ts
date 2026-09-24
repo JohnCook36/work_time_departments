@@ -263,24 +263,24 @@ describe('SchedulePublicationsService', () => {
   });
 
   it('includes managed hard rules in publication readiness and blocks publish', async () => {
-    prisma.scheduleRule.findMany.mockResolvedValue([
-      {
-        id: 'rule-opening',
-        name: 'Открытие',
-        description: 'К 07:00 нужен сотрудник',
-        kind: ScheduleRuleKind.MIN_STAFF_AT_TIME,
-        scope: ScheduleRuleScope.DEPARTMENT,
-        scopeValue: null,
-        departmentId: 'department-a',
-        priority: 200,
-        severity: ScheduleRuleSeverity.HARD,
-        isActive: true,
-        isDeleted: false,
-        config: { time: '07:00', minStaff: 1 },
-        violationMessage: 'Нет сотрудника к 07:00.',
-        version: 1,
-      },
-    ]);
+    const managedRule = {
+      id: 'rule-opening',
+      name: 'Открытие',
+      description: 'К 07:00 нужен сотрудник',
+      kind: ScheduleRuleKind.MIN_STAFF_AT_TIME,
+      scope: ScheduleRuleScope.DEPARTMENT,
+      scopeValue: null,
+      departmentId: 'department-a',
+      priority: 200,
+      severity: ScheduleRuleSeverity.HARD,
+      isActive: true,
+      isDeleted: false,
+      config: { time: '07:00', minStaff: 1 },
+      violationMessage: 'Нет сотрудника к 07:00.',
+      version: 1,
+    };
+    prisma.scheduleRule.findMany.mockResolvedValue([managedRule]);
+    transaction.scheduleRule.findMany.mockResolvedValue([managedRule]);
 
     const validation = await service.validateDepartmentSchedule(
       admin(),
@@ -300,12 +300,6 @@ describe('SchedulePublicationsService', () => {
           code: 'MANAGED_MIN_STAFF_AT_TIME',
         }),
       ]),
-    );
-
-    transaction.scheduleRule.findMany.mockResolvedValue(
-      prisma.scheduleRule.findMany.mock.results[0]?.value
-        ? await prisma.scheduleRule.findMany.mock.results[0].value
-        : [],
     );
 
     await expect(
