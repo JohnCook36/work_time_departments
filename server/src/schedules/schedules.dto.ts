@@ -50,3 +50,26 @@ export class MaterializeFixedWeekdaysDto {
   @ApiProperty({ type: [String], minItems: 1, maxItems: 100, description: 'Every department requires existing management permission. DEPUTY is not granted access.' })
   departmentIds!: string[];
 }
+
+
+export class PublishDepartmentScheduleDto {
+  @ApiProperty({ type: String })
+  departmentId!: string;
+
+  @ApiProperty({ type: 'integer', minimum: 1970, maximum: 9999 })
+  year!: number;
+
+  @ApiProperty({ type: 'integer', minimum: 1, maximum: 12 })
+  month!: number;
+
+  @ApiPropertyOptional({ type: String, maxLength: 500, nullable: true })
+  comment?: string | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    maxLength: 100,
+    nullable: true,
+    description: 'Optional immutable ruleset/version identifier used for this publication.',
+  })
+  rulesVersion?: string | null;
+}
