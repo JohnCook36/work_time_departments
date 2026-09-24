@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { loadEnvFile } from 'node:process';
 
 import { AppModule } from './app.module';
+import { configureHttpSecurity } from './security/http-security';
 import { setupOpenApi } from './openapi';
 
 function loadRuntimeEnvironment(): void {
@@ -19,15 +20,11 @@ async function bootstrap(): Promise<void> {
 
   const app = await NestFactory.create(AppModule);
   const port = Number(process.env.PORT ?? 3000);
-  const frontendOrigin = process.env.FRONTEND_ORIGIN?.trim();
 
-  if (frontendOrigin) {
-    app.enableCors({
-      origin: frontendOrigin,
-      credentials: true,
-      methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
-    });
-  }
+  configureHttpSecurity(app, {
+    frontendOrigin: process.env.FRONTEND_ORIGIN,
+    nodeEnv: process.env.NODE_ENV,
+  });
 
   setupOpenApi(app);
   await app.listen(port);
