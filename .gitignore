@@ -8,3 +8,7 @@ test-results/
 *.log
 .env
 .env.local
+
+# Database backup artifacts may contain PII/secrets.
+*.dump
+*.backup
