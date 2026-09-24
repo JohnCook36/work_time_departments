@@ -112,6 +112,9 @@ function prismaMock() {
     shiftChangeRequestEvent: {
       create: jest.fn(),
     },
+    auditLog: {
+      create: jest.fn(),
+    },
     $transaction: jest.fn(),
   };
 
