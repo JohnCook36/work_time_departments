@@ -361,15 +361,38 @@ export class OnboardingService {
           );
         }
 
-        employee = await tx.employee.update({
-          where: { id: target.id },
+        const linked = await tx.employee.updateMany({
+          where: {
+            id: target.id,
+            userId: null,
+            isActive: true,
+            departmentId: request.departmentId,
+          },
           data: { userId: requester.id },
+        });
+
+        if (linked.count !== 1) {
+          throw new ConflictException(
+            'Employee profile changed during approval',
+          );
+        }
+
+        const linkedEmployee = await tx.employee.findUnique({
+          where: { id: target.id },
           select: {
             id: true,
             displayName: true,
             departmentId: true,
           },
         });
+
+        if (!linkedEmployee) {
+          throw new ConflictException(
+            'Employee profile changed during approval',
+          );
+        }
+
+        employee = linkedEmployee;
       } else {
         if (!request.requestedDisplayName) {
           throw new ConflictException(
