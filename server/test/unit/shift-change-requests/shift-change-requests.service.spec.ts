@@ -82,6 +82,14 @@ function requestRecord(
     updatedAt: snapshotTime,
     requesterShift: { updatedAt: snapshotTime },
     targetShift: { updatedAt: snapshotTime },
+    requesterEmployee: {
+      departmentId: 'department-a',
+      isActive: true,
+    },
+    targetEmployee: {
+      departmentId: 'department-a',
+      isActive: true,
+    },
     ...overrides,
   };
 }
@@ -331,6 +339,59 @@ describe('ShiftChangeRequestsService', () => {
         actorUserId: 'requester-user',
       },
     });
+  });
+
+  it('hides pending manager requests when current employee scope moved away', async () => {
+    prisma.shiftChangeRequest.findMany.mockResolvedValue([]);
+
+    await service.getPendingForAdmin(
+      adminUser(RoleType.DEPARTMENT_ADMIN, ['department-a']),
+    );
+
+    expect(prisma.shiftChangeRequest.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          requesterDepartmentId: { in: ['department-a'] },
+          targetDepartmentId: { in: ['department-a'] },
+          requesterEmployee: {
+            departmentId: { in: ['department-a'] },
+            isActive: true,
+          },
+          targetEmployee: {
+            departmentId: { in: ['department-a'] },
+            isActive: true,
+          },
+        }),
+      }),
+    );
+  });
+
+  it('marks manager approval stale when an employee moved departments', async () => {
+    prisma.shiftChangeRequest.findUnique.mockResolvedValueOnce(
+      requestRecord(ShiftChangeRequestStatus.PENDING_MANAGER, {
+        requesterEmployee: {
+          departmentId: 'department-b',
+          isActive: true,
+        },
+      }),
+    );
+    prisma.shiftChangeRequest.updateMany.mockResolvedValue({ count: 1 });
+    prisma.shiftChangeRequestEvent.create.mockResolvedValue({ id: 'event-1' });
+
+    await expect(
+      service.approve(
+        adminUser(RoleType.DEPARTMENT_ADMIN, ['department-a']),
+        'request-1',
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(prisma.shiftChangeRequest.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: ShiftChangeRequestStatus.STALE,
+        }),
+      }),
+    );
   });
 
   it('allows manager approval only after target acceptance', async () => {
