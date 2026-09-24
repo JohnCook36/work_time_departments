@@ -139,7 +139,11 @@ export const PublicationFeedback = styled('div')(({ theme }) => ({
 
 export const PublicationHistoryList = styled('div')({
   display: 'grid',
+  alignContent: 'start',
   gap: 8,
+  minHeight: 44,
+  maxHeight: 180,
+  overflowY: 'auto',
 });
 
 export const PublicationHistoryItem = styled('div')(({ theme }) => ({
