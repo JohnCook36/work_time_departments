@@ -1,5 +1,12 @@
 import type { INestApplication } from '@nestjs/common';
-import { AuditAction, AuditEntityType, RoleType } from '@prisma/client';
+import {
+  AuditAction,
+  AuditEntityType,
+  RoleType,
+  ScheduleRuleKind,
+  ScheduleRuleScope,
+  ScheduleRuleSeverity,
+} from '@prisma/client';
 import { Test } from '@nestjs/testing';
 
 import { AppModule } from '../../src/app.module';
@@ -28,6 +35,13 @@ describeLive('live PostgreSQL security boundaries', () => {
   let baseUrl: string;
 
   async function clearDatabase(): Promise<void> {
+    await prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(
+        "SET LOCAL app.schedule_rule_retention_mode = 'on'",
+      );
+      await tx.scheduleRuleVersion.deleteMany();
+      await tx.scheduleRule.deleteMany();
+    });
     await prisma.$transaction(async (tx) => {
       await tx.$executeRawUnsafe(
         "SET LOCAL app.schedule_publication_retention_mode = 'on'",
@@ -334,6 +348,63 @@ describeLive('live PostgreSQL security boundaries', () => {
       id: publication.id,
       version: 1,
       comment: null,
+    });
+  });
+
+  it('keeps schedule rule versions immutable outside explicit retention mode', async () => {
+    const department = await prisma.department.create({
+      data: { name: 'Rules department' },
+    });
+    const user = await prisma.user.create({
+      data: { phoneE164: '+79990000992' },
+    });
+    const rule = await prisma.scheduleRule.create({
+      data: {
+        name: 'Immutable rule',
+        description: 'Immutable version test',
+        kind: ScheduleRuleKind.MAX_CONCURRENT_EMPLOYEES,
+        scope: ScheduleRuleScope.DEPARTMENT,
+        departmentId: department.id,
+        severity: ScheduleRuleSeverity.HARD,
+        config: { maxConcurrent: 5 },
+        violationMessage: 'Too many employees',
+        createdByUserId: user.id,
+        updatedByUserId: user.id,
+      },
+    });
+    const version = await prisma.scheduleRuleVersion.create({
+      data: {
+        ruleId: rule.id,
+        version: 1,
+        snapshot: {
+          id: rule.id,
+          version: 1,
+          config: { maxConcurrent: 5 },
+        },
+        changedByUserId: user.id,
+      },
+    });
+
+    await expect(
+      prisma.scheduleRuleVersion.update({
+        where: { id: version.id },
+        data: { snapshot: { tampered: true } },
+      }),
+    ).rejects.toThrow();
+
+    await expect(
+      prisma.scheduleRuleVersion.delete({
+        where: { id: version.id },
+      }),
+    ).rejects.toThrow();
+
+    expect(
+      await prisma.scheduleRuleVersion.findUniqueOrThrow({
+        where: { id: version.id },
+      }),
+    ).toMatchObject({
+      version: 1,
+      changedByUserId: user.id,
     });
   });
 
