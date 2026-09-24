@@ -25,6 +25,7 @@ function prismaMock() {
     authSession: {
       create: jest.fn(),
     },
+    $queryRaw: jest.fn(),
     $transaction: jest.fn(),
   };
 
@@ -184,6 +185,7 @@ describe('AuthService development OTP safety', () => {
     const prisma = prismaMock();
     prisma.authChallenge.findFirst.mockResolvedValue(null);
     prisma.authChallenge.create.mockResolvedValue({ id: 'challenge-1' });
+    prisma.$queryRaw.mockResolvedValue([]);
     process.env[pepperKey] = PEPPER;
     process.env[codeKey] = VALID_CODE;
 
@@ -213,7 +215,27 @@ describe('AuthService development OTP safety', () => {
       status: 'sent',
       expiresInSeconds: 300,
     });
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
     expect(prisma.authChallenge.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns 429 without creating another challenge inside the locked cooldown', async () => {
+    process.env.NODE_ENV = 'development';
+    process.env[allowKey] = 'true';
+    const { service, prisma } = requestCodeService();
+    prisma.authChallenge.findFirst.mockResolvedValue(challenge());
+
+    let error: unknown;
+    try {
+      await service.requestCode(PHONE);
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect(error).toBeInstanceOf(HttpException);
+    expect((error as HttpException).getStatus()).toBe(429);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(prisma.authChallenge.create).not.toHaveBeenCalled();
   });
 
   it('always rejects dev OTP in production even when opt-in is set', async () => {

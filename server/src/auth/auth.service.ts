@@ -65,30 +65,42 @@ export class AuthService {
     const pepper = this.getOtpPepper();
     const code = this.getDevelopmentOtpCode();
 
-    const recentChallenge = await this.prisma.authChallenge.findFirst({
-      where: {
-        phoneE164,
-        createdAt: {
-          gt: new Date(Date.now() - OTP_REQUEST_COOLDOWN_MS),
+    await this.prisma.$transaction(async (tx) => {
+      // Serialize request-code for the same normalized phone across backend instances.
+      // A hash collision can only over-serialize unrelated phones; it cannot bypass cooldown.
+      await tx.$queryRaw<Array<{ locked: number }>>`
+        SELECT 1::int AS locked
+        FROM (
+          SELECT pg_advisory_xact_lock(hashtext(${phoneE164}))
+        ) AS phone_lock
+      `;
+
+      const now = new Date();
+      const recentChallenge = await tx.authChallenge.findFirst({
+        where: {
+          phoneE164,
+          createdAt: {
+            gt: new Date(now.getTime() - OTP_REQUEST_COOLDOWN_MS),
+          },
         },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+        orderBy: { createdAt: 'desc' },
+      });
 
-    if (recentChallenge) {
-      throw new HttpException(
-        'Please wait before requesting another code',
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
-    }
+      if (recentChallenge) {
+        throw new HttpException(
+          'Please wait before requesting another code',
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
 
-    await this.prisma.authChallenge.create({
-      data: {
-        phoneE164,
-        codeHash: hashOtp(code, pepper),
-        expiresAt: new Date(Date.now() + OTP_TTL_MS),
-        maxAttempts: OTP_MAX_ATTEMPTS,
-      },
+      await tx.authChallenge.create({
+        data: {
+          phoneE164,
+          codeHash: hashOtp(code, pepper),
+          expiresAt: new Date(now.getTime() + OTP_TTL_MS),
+          maxAttempts: OTP_MAX_ATTEMPTS,
+        },
+      });
     });
 
     return {
