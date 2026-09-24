@@ -1,6 +1,6 @@
 import { ApiTags, ApiOperation, ApiResponse, ApiBadRequestResponse, ApiUnauthorizedResponse, ApiForbiddenResponse, ApiSecurity, ApiConflictResponse, ApiNotFoundResponse, ApiBody, ApiQuery } from '@nestjs/swagger';
-import { departmentScheduleResponse, personalScheduleResponse, scheduleAppliedResponse } from '../openapi.responses';
-import { ApplyPlannerChangesDto, ApplyDepartmentChangesDto, MaterializeFixedWeekdaysDto } from './schedules.dto';
+import { departmentScheduleResponse, personalScheduleResponse, scheduleAppliedResponse, schedulePublicationListResponse, schedulePublicationResponse } from '../openapi.responses';
+import { ApplyPlannerChangesDto, ApplyDepartmentChangesDto, MaterializeFixedWeekdaysDto, PublishDepartmentScheduleDto } from './schedules.dto';
 
 import {
   BadRequestException,
@@ -16,6 +16,7 @@ import {
 import { AuthUserContext } from '../auth/auth.service';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { SessionAuthGuard } from '../auth/session-auth.guard';
+import { SchedulePublicationsService } from './schedule-publications.service';
 import {
   ScheduleCellChange,
   SchedulesService,
@@ -54,6 +55,17 @@ function requiredBodyInteger(value: unknown, field: string): number {
   return value;
 }
 
+function optionalBodyString(
+  value: unknown,
+  field: string,
+): string | undefined {
+  if (value == null) return undefined;
+  if (typeof value !== 'string') {
+    throw new BadRequestException(field + ' must be a string');
+  }
+  return value;
+}
+
 function requiredChanges(value: unknown): ScheduleCellChange[] {
   if (!Array.isArray(value)) {
     throw new BadRequestException('changes must be an array');
@@ -73,7 +85,10 @@ function requiredChanges(value: unknown): ScheduleCellChange[] {
 @Controller('schedule-data')
 @UseGuards(SessionAuthGuard)
 export class SchedulesController {
-  constructor(private readonly schedules: SchedulesService) {}
+  constructor(
+    private readonly schedules: SchedulesService,
+    private readonly publications: SchedulePublicationsService,
+  ) {}
 
   @ApiOperation({ summary: 'Save missing fixed-weekday shifts for a month from today (UTC); existing cells remain unchanged' })
   @ApiBody({ type: MaterializeFixedWeekdaysDto })
@@ -152,6 +167,74 @@ export class SchedulesController {
       requiredBodyInteger(body?.year, 'year'),
       requiredBodyInteger(body?.month, 'month'),
       requiredChanges(body?.changes),
+    );
+  }
+
+  @ApiOperation({ summary: 'Publish an immutable department schedule version from the current draft' })
+  @ApiBody({ type: PublishDepartmentScheduleDto })
+  @ApiResponse({ status: 201, schema: schedulePublicationResponse })
+  @Post('department/publish')
+  publishDepartmentSchedule(
+    @CurrentUser() user: AuthUserContext,
+    @Body()
+    body: {
+      departmentId?: unknown;
+      year?: unknown;
+      month?: unknown;
+      comment?: unknown;
+      rulesVersion?: unknown;
+    },
+  ) {
+    return this.publications.publishDepartmentSchedule(
+      user,
+      requiredBodyString(body?.departmentId, 'departmentId'),
+      requiredBodyInteger(body?.year, 'year'),
+      requiredBodyInteger(body?.month, 'month'),
+      optionalBodyString(body?.comment, 'comment'),
+      optionalBodyString(body?.rulesVersion, 'rulesVersion'),
+    );
+  }
+
+  @ApiOperation({ summary: 'List immutable published versions for a managed department and month' })
+  @ApiResponse({ status: 200, schema: schedulePublicationListResponse })
+  @ApiQuery({ name: 'departmentId', required: true, schema: { type: 'string' } })
+  @ApiQuery({ name: 'year', required: true, schema: { type: 'integer', minimum: 1970, maximum: 9999 } })
+  @ApiQuery({ name: 'month', required: true, schema: { type: 'integer', minimum: 1, maximum: 12 } })
+  @Get('department/publications')
+  listDepartmentPublications(
+    @CurrentUser() user: AuthUserContext,
+    @Query('departmentId') departmentId?: string,
+    @Query('year') year?: string,
+    @Query('month') month?: string,
+  ) {
+    return this.publications.listDepartmentPublications(
+      user,
+      requiredString(departmentId, 'departmentId'),
+      requiredInteger(year, 'year'),
+      requiredInteger(month, 'month'),
+    );
+  }
+
+  @ApiOperation({ summary: 'Read one immutable published department schedule version' })
+  @ApiResponse({ status: 200, schema: schedulePublicationResponse })
+  @ApiQuery({ name: 'departmentId', required: true, schema: { type: 'string' } })
+  @ApiQuery({ name: 'year', required: true, schema: { type: 'integer', minimum: 1970, maximum: 9999 } })
+  @ApiQuery({ name: 'month', required: true, schema: { type: 'integer', minimum: 1, maximum: 12 } })
+  @ApiQuery({ name: 'version', required: true, schema: { type: 'integer', minimum: 1 } })
+  @Get('department/publication')
+  getDepartmentPublication(
+    @CurrentUser() user: AuthUserContext,
+    @Query('departmentId') departmentId?: string,
+    @Query('year') year?: string,
+    @Query('month') month?: string,
+    @Query('version') version?: string,
+  ) {
+    return this.publications.getDepartmentPublication(
+      user,
+      requiredString(departmentId, 'departmentId'),
+      requiredInteger(year, 'year'),
+      requiredInteger(month, 'month'),
+      requiredInteger(version, 'version'),
     );
   }
 
