@@ -516,7 +516,12 @@ export class SchedulePublicationsService {
       canPublish: !violations.some(
         (violation) => violation.severity === 'hard',
       ),
-      violations,
+      violations: violations.map((violation) => ({
+        ...violation,
+        employeeId: violation.employeeId ?? null,
+        shiftId: violation.shiftId ?? null,
+        date: violation.date ?? null,
+      })),
     };
   }
 
