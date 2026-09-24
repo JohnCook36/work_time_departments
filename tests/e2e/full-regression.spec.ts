@@ -626,6 +626,150 @@ test('employment rate changes the weekly norm', async ({ page }) => {
   await expect(normRow.getByText('40 / 20')).toBeVisible();
 });
 
+for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+  test(`server-backed weekly norm rate persists through reload at ${viewport.width}px`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await page.clock.setFixedTime(new Date('2026-09-15T12:00:00Z'));
+    await page.addInitScript(key => {
+      localStorage.setItem(key, JSON.stringify({
+        departments: [{ id: 'stale', name: 'Устаревший отдел', kind: 'general' }],
+        employees: [{ id: 'stale-employee', name: 'Устаревший сотрудник', departmentId: 'stale', employmentRate: 0.5 }],
+        schedules: {}, wishes: {}, collapsedDepartments: [],
+      }));
+    }, STORAGE_KEY);
+
+    let rate: 1 | 0.75 | 0.5 = 1;
+    let version = '2026-09-10T10:00:00.000Z';
+    let snapshotReads = 0;
+    const updates: Array<{ employmentRate: number; expectedUpdatedAt: string }> = [];
+    const shifts = [7, 8, 9, 10, 11].map(day => ({
+      id: `shift-day-${day}`, employeeId: 'employee-1',
+      date: `2026-09-${String(day).padStart(2, '0')}`, code: null,
+      startTime: '08:00', endTime: '17:00', isOff: false, updatedAt: version,
+    }));
+    shifts.push({ id: 'shift-night-14', employeeId: 'employee-1', date: '2026-09-14',
+      code: null, startTime: '20:00', endTime: '08:00', isOff: false, updatedAt: version });
+    shifts.push({ id: 'shift-n-15', employeeId: 'employee-1', date: '2026-09-15',
+      code: 'N', startTime: '20:00', endTime: '08:00', isOff: false, updatedAt: version });
+    shifts.push({ id: 'shift-off-16', employeeId: 'employee-1', date: '2026-09-16',
+      code: null, startTime: null, endTime: null, isOff: true, updatedAt: version });
+
+    const reply = (route: Route, body: unknown, status = 200) => route.fulfill({
+      status, contentType: 'application/json',
+      headers: {
+        'Access-Control-Allow-Origin': 'http://127.0.0.1:4174',
+        'Access-Control-Allow-Credentials': 'true',
+        'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Allow-Methods': 'GET, PATCH, OPTIONS',
+      },
+      body: JSON.stringify(body),
+    });
+    await page.route('**/departments/manageable', route => reply(route, [
+      { id: 'department-1', name: 'Тестовый отдел', kind: 'GENERAL', position: 0, updatedAt: version },
+    ]));
+    await page.route('**/wishes/department?**', route => reply(route, []));
+    await page.route('**/schedule-data/department?**', route => {
+      snapshotReads++;
+      return reply(route, {
+        period: { year: 2026, month: 9 },
+        schedule: { id: 'schedule-1', updatedAt: version },
+        department: { id: 'department-1', name: 'Тестовый отдел', kind: 'GENERAL' },
+        employees: [
+          { id: 'employee-1', displayName: 'Норма E2E 1', employmentRate: rate,
+            scheduleMode: 'FLEXIBLE', fixedStartTime: null, fixedEndTime: null,
+            position: 0, updatedAt: version },
+          { id: 'employee-2', displayName: 'Норма E2E 2', employmentRate: 1,
+            scheduleMode: 'FLEXIBLE', fixedStartTime: null, fixedEndTime: null,
+            position: 1, updatedAt: version },
+        ],
+        shifts,
+      });
+    });
+    await page.route('**/employees/employee-1', route => {
+      if (route.request().method() === 'OPTIONS') return reply(route, {}, 204);
+      const body = route.request().postDataJSON() as { employmentRate: 1 | 0.75 | 0.5; expectedUpdatedAt: string };
+      updates.push(body);
+      if (body.expectedUpdatedAt !== version) return reply(route, { message: 'Conflict' }, 409);
+      rate = body.employmentRate;
+      version = `2026-09-10T10:00:0${updates.length}.000Z`;
+      return reply(route, { id: 'employee-1', displayName: 'Норма E2E 1', employmentRate: rate,
+        scheduleMode: 'FLEXIBLE', fixedStartTime: null, fixedEndTime: null,
+        departmentId: 'department-1', position: 0, isActive: true, isLinked: false,
+        updatedAt: version });
+    });
+
+    await page.goto('http://127.0.0.1:4174/planner');
+    await expect(page.getByText('Норма E2E 1', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('Устаревший сотрудник')).toHaveCount(0);
+    await page.getByRole('button', { name: 'День / ночь' }).click();
+    const panel = page.getByText('Недельная норма', { exact: true }).locator('xpath=ancestor::section');
+    const row = panel.getByRole('cell', { name: 'Норма E2E 1' }).locator('xpath=ancestor::tr');
+    const weeklyScroll = panel.locator('table').locator('xpath=..');
+    const rateSelect = row.getByTitle('Ставка сотрудника');
+    await expect(panel.getByRole('columnheader', { name: 'Сотрудник' })).toBeVisible();
+    await expect(panel.getByRole('columnheader', { name: 'Ставка' })).toBeVisible();
+    await expect(panel.getByRole('columnheader', { name: 'Неделя 7–13' })).toBeVisible();
+    await expect(panel.getByRole('cell', { name: 'Норма E2E 2' })).toBeVisible();
+    await expect(rateSelect).toHaveValue('1');
+    await expect(row.locator('td').nth(2)).toContainText('0 / 32');
+    await expect(row.locator('td').nth(3)).toContainText('40 / 40');
+    await expect(row.locator('td').nth(3)).toContainText('0 ч');
+    await expect(row.locator('td').nth(4)).toContainText('23 / 40');
+    await expect(row.locator('td').nth(4)).toContainText('-17 ч');
+    await expect(row.locator('td').nth(6)).toContainText('0 / 24');
+    await panel.scrollIntoViewIfNeeded();
+    const panelY = await panel.evaluate(element => element.getBoundingClientRect().top + scrollY);
+    const weeklyDimensions = await weeklyScroll.evaluate(element => ({
+      clientWidth: element.clientWidth, scrollWidth: element.scrollWidth,
+    }));
+    if (viewport.width === 390) {
+      expect(weeklyDimensions.scrollWidth).toBeGreaterThan(weeklyDimensions.clientWidth + 300);
+      const beforeX = (await row.locator('td').first().boundingBox())!.x;
+      await weeklyScroll.evaluate(element => { element.scrollLeft = element.scrollWidth; });
+      await expect.poll(() => weeklyScroll.evaluate(element => element.scrollLeft)).toBeGreaterThan(300);
+      expect(Math.abs((await row.locator('td').first().boundingBox())!.x - beforeX)).toBeLessThanOrEqual(3);
+      await expect(panel.getByRole('columnheader', { name: 'Неделя 28–30' })).toBeInViewport();
+      await weeklyScroll.evaluate(element => { element.scrollLeft = 0; });
+    } else {
+      const plannerScroll = page.locator('table:has(tfoot)').locator('xpath=..');
+      await plannerScroll.evaluate(element => { element.scrollLeft = 500; });
+      await expect.poll(() => plannerScroll.evaluate(element => element.scrollLeft)).toBeGreaterThan(300);
+    }
+
+    for (const [nextRate, fullWeek, secondWeek, firstWeek, lastWeek, fullDelta, secondDelta] of [
+      [0.75, '40 / 30', '23 / 30', '0 / 24', '0 / 18', '+10 ч', '-7 ч'],
+      [0.5, '40 / 20', '23 / 20', '0 / 16', '0 / 12', '+20 ч', '+3 ч'],
+      [1, '40 / 40', '23 / 40', '0 / 32', '0 / 24', '0 ч', '-17 ч'],
+    ] as const) {
+      await rateSelect.selectOption(String(nextRate));
+      await expect.poll(() => updates.length).toBeGreaterThanOrEqual(
+        nextRate === 0.75 ? 1 : nextRate === 0.5 ? 2 : 3,
+      );
+      await expect(rateSelect).toHaveValue(String(nextRate));
+      await expect(row.locator('td').nth(2)).toContainText(firstWeek);
+      await expect(row.locator('td').nth(3)).toContainText(fullWeek);
+      await expect(row.locator('td').nth(3)).toContainText(fullDelta);
+      await expect(row.locator('td').nth(4)).toContainText(secondWeek);
+      await expect(row.locator('td').nth(4)).toContainText(secondDelta);
+      await expect(row.locator('td').nth(6)).toContainText(lastWeek);
+      await page.reload();
+      await page.getByRole('button', { name: 'День / ночь' }).click();
+      await expect(panel).toBeVisible();
+      await expect(rateSelect).toHaveValue(String(nextRate));
+      await expect(row.locator('td').nth(3)).toContainText(fullWeek);
+      await expect(page.getByText('Устаревший сотрудник')).toHaveCount(0);
+    }
+    expect(updates).toEqual([
+      { employmentRate: 0.75, expectedUpdatedAt: '2026-09-10T10:00:00.000Z' },
+      { employmentRate: 0.5, expectedUpdatedAt: '2026-09-10T10:00:01.000Z' },
+      { employmentRate: 1, expectedUpdatedAt: '2026-09-10T10:00:02.000Z' },
+    ]);
+    expect(snapshotReads).toBeGreaterThanOrEqual(7);
+    expect(Math.abs((await panel.evaluate(element => element.getBoundingClientRect().top + scrollY)) - panelY)).toBeLessThanOrEqual(3);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  });
+}
+
 for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844 }]) {
   test(`weekly Excel download and stable drawer at ${viewport.width}px`, async ({ page }) => {
     await page.setViewportSize(viewport);

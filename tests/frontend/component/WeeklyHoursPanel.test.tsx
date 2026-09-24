@@ -94,4 +94,42 @@ describe('WeeklyHoursPanel', () => {
     expect(screen.getByText('+8 ч')).toBeInTheDocument();
   });
 
+  it('counts paid day, overnight and N shifts, including weekend work, while ignoring OFF and empty', () => {
+    renderPanel(1, vi.fn(), {
+      employee: {
+        14: { type: 'shift', shift: { start: '08:00', end: '17:00' } },
+        15: { type: 'shift', shift: { start: '20:00', end: '08:00' } },
+        16: { type: 'shift', shift: { start: '20:00', end: '08:00', code: 'N' } },
+        17: { type: 'off' },
+        19: { type: 'shift', shift: { start: '08:00', end: '17:00' } },
+      },
+    });
+
+    expect(screen.getByText('39 / 40')).toBeInTheDocument();
+    expect(screen.getByText('-1 ч')).toBeInTheDocument();
+  });
+
+  it('renders exact balance as 0, without a negative sign', () => {
+    renderPanel(1, vi.fn(), {
+      employee: Object.fromEntries([14, 15, 16, 17, 18].map(day => [
+        day, { type: 'shift' as const, shift: { start: '08:00', end: '17:00' } },
+      ])),
+    });
+
+    expect(screen.getByText('40 / 40')).toBeInTheDocument();
+    expect(screen.getByText('0 ч')).toBeInTheDocument();
+    expect(screen.queryByText('-0 ч')).not.toBeInTheDocument();
+  });
+
+  it('rounds fractional paid facts and deltas without floating noise', () => {
+    renderPanel(0.75, vi.fn(), {
+      employee: Object.fromEntries([14, 15, 16, 17].map(day => [
+        day, { type: 'shift' as const, shift: { start: '08:01', end: '17:00' } },
+      ])),
+    });
+
+    expect(screen.getByText('31.92 / 30')).toBeInTheDocument();
+    expect(screen.getByText('+1.92 ч')).toBeInTheDocument();
+  });
+
 });
