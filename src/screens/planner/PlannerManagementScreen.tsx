@@ -16,6 +16,10 @@ interface PrintRange {
 
 interface PlannerManagementScreenProps {
   departments: Department[];
+  year: number;
+  monthIndex: number;
+  publicationReadEnabled: boolean;
+  canPublishSchedule: boolean;
   employees: Employee[];
   canCreateEmployee: boolean;
   isCreatingEmployee: boolean;
@@ -56,6 +60,10 @@ interface PlannerManagementScreenProps {
 
 export function PlannerManagementScreen({
   departments,
+  year,
+  monthIndex,
+  publicationReadEnabled,
+  canPublishSchedule,
   employees,
   canCreateEmployee,
   isCreatingEmployee,
@@ -97,6 +105,10 @@ export function PlannerManagementScreen({
     <>
       <PlannerControlsToolbar
         departments={departments}
+        year={year}
+        monthIndex={monthIndex}
+        publicationReadEnabled={publicationReadEnabled}
+        canPublishSchedule={canPublishSchedule}
         canCreateEmployee={canCreateEmployee}
         isCreatingEmployee={isCreatingEmployee}
         onAddEmployee={onAddEmployee}
