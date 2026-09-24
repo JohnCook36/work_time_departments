@@ -237,12 +237,6 @@ export class OnboardingService {
       orderBy: { createdAt: 'asc' },
       select: {
         ...this.requestSelect(),
-        user: {
-          select: {
-            id: true,
-            phoneE164: true,
-          },
-        },
         employee: {
           select: {
             id: true,
