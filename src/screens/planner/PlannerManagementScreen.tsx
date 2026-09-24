@@ -50,6 +50,7 @@ interface PlannerManagementScreenProps {
   isApplyingBulkSchedule: boolean;
   onFillOffAll: () => void;
   onClearAll: () => void;
+  onNavigateToValidationIssue: (employeeId: string, date: string) => void;
   newDepartmentName: string;
   onNewDepartmentNameChange: (value: string) => void;
   mutatingDepartmentId: string | null;
@@ -94,6 +95,7 @@ export function PlannerManagementScreen({
   isApplyingBulkSchedule,
   onFillOffAll,
   onClearAll,
+  onNavigateToValidationIssue,
   newDepartmentName,
   onNewDepartmentNameChange,
   mutatingDepartmentId,
@@ -105,6 +107,7 @@ export function PlannerManagementScreen({
     <>
       <PlannerControlsToolbar
         departments={departments}
+        employees={employees}
         year={year}
         monthIndex={monthIndex}
         publicationReadEnabled={publicationReadEnabled}
@@ -137,6 +140,7 @@ export function PlannerManagementScreen({
         isApplyingBulkSchedule={isApplyingBulkSchedule}
         onFillOffAll={onFillOffAll}
         onClearAll={onClearAll}
+        onNavigateToValidationIssue={onNavigateToValidationIssue}
       />
 
       <PlannerDepartmentPanel
