@@ -59,6 +59,9 @@ function createPrismaMock() {
       findFirst: jest.fn(),
       create: jest.fn(),
     },
+    auditLog: {
+      create: jest.fn(),
+    },
   };
 
   const prisma = {
