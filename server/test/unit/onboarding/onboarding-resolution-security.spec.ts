@@ -52,7 +52,7 @@ function createPrismaMock() {
     },
     employee: {
       findUnique: jest.fn(),
-      update: jest.fn(),
+      updateMany: jest.fn(),
       create: jest.fn(),
     },
     membership: {
@@ -105,7 +105,49 @@ describe('OnboardingService atomic resolution and stale scope protection', () =>
       'Employee profile moved to another department',
     );
 
-    expect(tx.employee.update).not.toHaveBeenCalled();
+    expect(tx.employee.updateMany).not.toHaveBeenCalled();
+    expect(tx.membership.create).not.toHaveBeenCalled();
+  });
+
+  it('does not let concurrent approvals claim the same employee twice', async () => {
+    const { prisma, tx } = createPrismaMock();
+    const request = pendingLinkRequest();
+
+    prisma.onboardingRequest.findUnique.mockResolvedValue(request);
+    tx.onboardingRequest.updateMany.mockResolvedValue({ count: 1 });
+    tx.department.findFirst.mockResolvedValue({ id: 'department-a' });
+    tx.user.findUnique.mockResolvedValue({
+      id: 'requester-user',
+      isActive: true,
+      employee: null,
+    });
+    tx.employee.findUnique.mockResolvedValue({
+      id: 'employee-1',
+      displayName: 'Target employee',
+      departmentId: 'department-a',
+      userId: null,
+      isActive: true,
+    });
+    tx.employee.updateMany.mockResolvedValue({ count: 0 });
+
+    const service = new OnboardingService(
+      prisma as never,
+      new AuthorizationService(),
+    );
+
+    await expect(service.approve(admin, request.id)).rejects.toThrow(
+      'Employee profile changed during approval',
+    );
+
+    expect(tx.employee.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'employee-1',
+        userId: null,
+        isActive: true,
+        departmentId: 'department-a',
+      },
+      data: { userId: 'requester-user' },
+    });
     expect(tx.membership.create).not.toHaveBeenCalled();
   });
 
