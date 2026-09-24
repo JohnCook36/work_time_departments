@@ -79,3 +79,6 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: PostgreSQL backup/restore smoke
+        run: bash scripts/ci-backup-restore-smoke.sh
