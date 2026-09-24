@@ -179,6 +179,39 @@ describe('Routing foundation with real session provider and ErrorBoundary', () =
     expect(window.location.pathname).toBe('/login');
   });
 
+  it('purges private browser data and blocks private UI when server logout fails', async () => {
+    vi.mocked(api.getMe).mockResolvedValueOnce({ ...user, employee: null });
+    vi.spyOn(api, 'logout').mockRejectedValue(new Error('Соединение недоступно'));
+    localStorage.setItem(
+      'hotel-shift-planner:user:' + encodeURIComponent(user.id),
+      JSON.stringify({ employees: [{ id: 'private-employee' }] }),
+    );
+    localStorage.setItem(
+      'hotel-shift-planner',
+      JSON.stringify({ employees: [{ id: 'legacy-private-employee' }] }),
+    );
+
+    open('/onboarding');
+    fireEvent.click(await screen.findByRole('button', { name: 'Выйти' }));
+
+    expect(
+      await screen.findByRole('heading', { name: 'Backend недоступен' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Не удалось завершить сессию на сервере. Локальные данные очищены; повторите выход после восстановления связи.',
+      ),
+    ).toBeInTheDocument();
+    expect(api.logout).toHaveBeenCalledOnce();
+    expect(
+      localStorage.getItem(
+        'hotel-shift-planner:user:' + encodeURIComponent(user.id),
+      ),
+    ).toBeNull();
+    expect(localStorage.getItem('hotel-shift-planner')).toBeNull();
+    expect(screen.queryByText('Нет профиля в графике?')).not.toBeInTheDocument();
+  });
+
   const pending: api.OnboardingRequest = {
     id: 'request', type: 'LINK_EXISTING', status: 'PENDING', departmentId: 'department',
     employeeId: 'employee', requestedDisplayName: null, reviewedAt: null,
