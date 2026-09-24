@@ -107,7 +107,7 @@ describe('schedule publication controls', () => {
       );
     });
 
-    expect(await screen.findByText(/v2/)).toBeInTheDocument();
+    expect(await screen.findByText(/^v2 ·/)).toBeInTheDocument();
     expect(screen.getByText('Изменения: смен 2, сотрудников 1')).toBeInTheDocument();
     expect(screen.getByText('Опубликована версия v2.')).toBeInTheDocument();
   });
