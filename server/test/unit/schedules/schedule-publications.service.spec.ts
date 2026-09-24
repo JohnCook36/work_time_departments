@@ -2,6 +2,9 @@ import { ConflictException } from '@nestjs/common';
 import { AuditAction, AuditEntityType, RoleType } from '@prisma/client';
 
 import { AuthUserContext } from '../../../src/auth/auth.service';
+import {
+  SCHEDULE_PUBLICATION_RULES_VERSION,
+} from '../../../src/schedules/schedule-publication-rules';
 import { SchedulePublicationsService } from '../../../src/schedules/schedule-publications.service';
 
 function admin(): AuthUserContext {
@@ -110,7 +113,6 @@ describe('SchedulePublicationsService', () => {
       2026,
       9,
       'Утверждено',
-      'rules-1',
     );
 
     expect(
@@ -124,7 +126,7 @@ describe('SchedulePublicationsService', () => {
           version: 1,
           publishedByUserId: 'user-admin',
           comment: 'Утверждено',
-          rulesVersion: 'rules-1',
+          rulesVersion: SCHEDULE_PUBLICATION_RULES_VERSION,
         }),
       }),
     );
@@ -169,6 +171,40 @@ describe('SchedulePublicationsService', () => {
         publishedByUserId: 'user-admin',
       }),
     );
+  });
+
+  it('blocks publication before create/audit when hard publication rules fail', async () => {
+    transaction.shift.findMany.mockResolvedValue([
+      {
+        ...shift,
+        startTime: '08:00',
+        endTime: '08:00',
+      },
+    ]);
+
+    await expect(
+      service.publishDepartmentSchedule(
+        admin(),
+        'department-a',
+        2026,
+        9,
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'SCHEDULE_PUBLICATION_RULES_FAILED',
+        rulesVersion: SCHEDULE_PUBLICATION_RULES_VERSION,
+        violations: expect.arrayContaining([
+          expect.objectContaining({
+            code: 'ZERO_DURATION_SHIFT',
+            shiftId: 'shift-1',
+          }),
+        ]),
+      }),
+    });
+
+    expect(transaction.schedulePublication.findFirst).not.toHaveBeenCalled();
+    expect(transaction.schedulePublication.create).not.toHaveBeenCalled();
+    expect(transaction.auditLog.create).not.toHaveBeenCalled();
   });
 
   it('creates the next immutable version with a cell diff', async () => {
