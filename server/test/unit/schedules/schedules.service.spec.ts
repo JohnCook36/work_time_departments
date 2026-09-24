@@ -41,6 +41,9 @@ describe('SchedulesService', () => {
     employee: {
       findMany: jest.fn(),
     },
+    auditLog: {
+      create: jest.fn(),
+    },
   };
 
   const prisma = {
@@ -83,6 +86,7 @@ describe('SchedulesService', () => {
       id: 'schedule-1',
       updatedAt: new Date('2026-09-01T12:00:00.000Z'),
     });
+    transaction.auditLog.create.mockResolvedValue({ id: 'audit-1' });
   });
 
   it('checks department scope before returning department schedule', async () => {
