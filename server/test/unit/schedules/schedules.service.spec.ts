@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
-import { RoleType } from '@prisma/client';
+import { AuditAction, AuditEntityType, RoleType } from '@prisma/client';
 
 import { AuthUserContext } from '../../../src/auth/auth.service';
 import { SchedulesService } from '../../../src/schedules/schedules.service';
@@ -195,6 +195,16 @@ describe('SchedulesService', () => {
         }),
       }),
     );
+    expect(transaction.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        actorUserId: currentUser.id,
+        action: AuditAction.SCHEDULE_CHANGED,
+        entityType: AuditEntityType.SCHEDULE,
+        entityId: 'schedule-1',
+        departmentId: 'department-a',
+      },
+      select: { id: true },
+    });
     expect(result).toEqual(
       expect.objectContaining({
         status: 'ok',
