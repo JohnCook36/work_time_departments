@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page, type Route } from '@playwright/test';
 import ExcelJS from 'exceljs';
 
 const STORAGE_KEY = 'hotel-shift-planner:user:e2e-admin-user';
@@ -47,6 +47,17 @@ async function seed(page: Page, data: ReturnType<typeof state>) {
   );
 }
 
+async function excelFile(rows: Array<Array<string>>) {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('График');
+  rows.forEach((row) => worksheet.addRow(row));
+  return {
+    name: 'synthetic-import.xlsx',
+    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    buffer: Buffer.from(await workbook.xlsx.writeBuffer()),
+  };
+}
+
 function employeeRow(page: Page, name = 'E2E Сотрудник') {
   return page.getByText(name, { exact: true }).locator('xpath=ancestor::tr');
 }
@@ -57,7 +68,7 @@ test.beforeEach(async ({ page }) => {
       status: 200,
       contentType: 'application/json',
       headers: {
-        'Access-Control-Allow-Origin': 'http://127.0.0.1:4173',
+        'Access-Control-Allow-Origin': route.request().headers().origin || 'http://127.0.0.1:4173',
         'Access-Control-Allow-Credentials': 'true',
       },
       body: JSON.stringify({
@@ -273,6 +284,235 @@ test('Excel preview protects a cell and allows confirmed overwrite', async ({ pa
 
   await expect(employeeRow(page).getByTitle('15:00–23:00')).toBeVisible();
 });
+
+for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+  test(`Excel import acceptance for multiple employees and warnings at ${viewport.width}px`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await page.clock.setFixedTime(new Date('2026-09-15T12:00:00Z'));
+    await seed(page, state({
+      departments: [
+        { id: 'department-1', name: 'Первый отдел', kind: 'general' },
+        { id: 'department-2', name: 'Второй отдел', kind: 'general' },
+      ],
+      employees: [
+        { id: 'alice', name: 'Алина E2E', departmentId: 'department-1', employmentRate: 1 },
+        { id: 'duplicate-a', name: 'Дубль E2E', departmentId: 'department-1', employmentRate: 1 },
+        { id: 'bob', name: 'Борис E2E', departmentId: 'department-2', employmentRate: 1 },
+        { id: 'duplicate-b', name: 'Дубль E2E', departmentId: 'department-2', employmentRate: 1 },
+      ],
+      schedule: { alice: { 1: { type: 'shift', shift: { start: '07:00', end: '16:00' } } } },
+    }));
+    await page.goto('/');
+    const trigger = page.getByRole('button', { name: 'Управление графиком' });
+    const before = await trigger.boundingBox();
+    await trigger.click();
+    expect(await trigger.boundingBox()).toEqual(before);
+    const file = await excelFile([
+      ['Сотрудник', '1', '2', '3', '4', '5', '6'],
+      ['Борис E2E', '', '20:00-08:00', 'OFF', '', '', ''],
+      ['Неизвестный E2E', '08:00-17:00', '', '', '', '', ''],
+      ['Дубль E2E', '', '', '', '08:00-17:00', '', ''],
+      ['Алина E2E', '09:00-18:00', '08:00-17:00', '25:00-17:00', '08:00', 'ошибочный текст', ''],
+    ]);
+    const input = page.locator('input[type="file"]');
+    await input.setInputFiles(file);
+    const preview = page.locator('aside').filter({ hasText: 'Предпросмотр импорта' });
+    await expect(preview).toBeVisible();
+    await expect(preview.getByText('Не найдены в текущем графике')).toBeVisible();
+    await expect(preview.getByText('Неоднозначное совпадение сотрудников')).toBeVisible();
+    await expect(preview.getByText('Некорректные смены', { exact: true })).toBeVisible();
+    await expect(preview).toContainText('25:00-17:00');
+    await expect(preview).toContainText('08:00');
+    await expect(preview).toContainText('ошибочный текст');
+    await expect(preview).toContainText('Неизвестный E2E');
+    await expect(preview).toContainText('Дубль E2E');
+    await expect(preview).toContainText('Конфликтов с текущим графиком');
+    const overwrite = preview.getByRole('checkbox', { name: /Перезаписывать заполненные ячейки/ });
+    await expect(overwrite).not.toBeChecked();
+    await overwrite.scrollIntoViewIfNeeded();
+    await expect(overwrite).toBeInViewport();
+    const apply = preview.getByRole('button', { name: 'Применить импорт' });
+    await apply.scrollIntoViewIfNeeded();
+    await expect(apply).toBeInViewport();
+    expect(await preview.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(2);
+    expect(await trigger.boundingBox()).toEqual(before);
+    await apply.click();
+    const result = page.getByRole('dialog', { name: 'Сообщение' });
+    await expect(result).toContainText('Импортировано смен: 3');
+    await expect(result).toContainText('Защищено заполненных ячеек: 1');
+    await result.getByRole('button', { name: 'Понятно' }).click();
+    await expect(employeeRow(page, 'Алина E2E').locator('td').nth(1)).toContainText('07:00–16:00');
+    await expect(employeeRow(page, 'Алина E2E').locator('td').nth(2)).toContainText('08:00–17:00');
+    await expect(employeeRow(page, 'Борис E2E').locator('td').nth(2)).toContainText('20:00–08:00');
+    await expect(employeeRow(page, 'Борис E2E').locator('td').nth(3)).toContainText('OFF');
+    await expect(employeeRow(page, 'Дубль E2E').first().locator('td').nth(4))
+      .not.toContainText('08:00–17:00');
+    expect(await trigger.boundingBox()).toEqual(before);
+
+    await input.setInputFiles(await excelFile([
+      ['Сотрудник', '1', '2'],
+      ['Алина E2E', '15:00-23:00', ''],
+    ]));
+    const overwritePreview = page.locator('aside').filter({ hasText: 'Предпросмотр импорта' });
+    await overwritePreview.getByRole('checkbox', { name: /Перезаписывать заполненные ячейки/ }).check();
+    await overwritePreview.getByRole('button', { name: 'Применить импорт' }).click();
+    await expect(result).toContainText('Импортировано смен: 1');
+    await result.getByRole('button', { name: 'Понятно' }).click();
+    await expect(employeeRow(page, 'Алина E2E').locator('td').nth(1)).toContainText('15:00–23:00');
+    await expect(employeeRow(page, 'Алина E2E').locator('td').nth(2)).toContainText('08:00–17:00');
+    await expect(employeeRow(page, 'Борис E2E').locator('td').nth(3)).toContainText('OFF');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  });
+}
+
+for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+  test(`server-backed Excel import is atomic and survives reload at ${viewport.width}px`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await page.clock.setFixedTime(new Date('2026-09-15T12:00:00Z'));
+    await page.addInitScript(({ ownKey }) => {
+      localStorage.setItem(ownKey, JSON.stringify({
+        departments: [{ id: 'stale-department', name: 'Старый локальный отдел', kind: 'general' }],
+        employees: [{ id: 'stale-employee', name: 'Старый локальный сотрудник', departmentId: 'stale-department' }],
+        schedules: {}, wishes: {}, collapsedDepartments: [],
+      }));
+      localStorage.setItem('hotel-shift-planner:user:other-account', JSON.stringify({
+        departments: [{ id: 'foreign-department', name: 'Чужой отдел', kind: 'general' }],
+        employees: [{ id: 'foreign-employee', name: 'Чужой сотрудник', departmentId: 'foreign-department' }],
+        schedules: {}, wishes: {}, collapsedDepartments: [],
+      }));
+    }, { ownKey: STORAGE_KEY });
+
+    const timestamp = '2026-09-10T10:00:00.000Z';
+    type ServerShift = {
+      id: string; employeeId: string; date: string; code: string | null;
+      startTime: string | null; endTime: string | null; isOff: boolean; updatedAt: string;
+    };
+    type Change = {
+      employeeId: string; day: number; type: 'shift' | 'off' | 'empty';
+      startTime?: string; endTime?: string; code?: string | null; expectedUpdatedAt: string | null;
+    };
+    const shifts: Record<string, ServerShift[]> = {
+      'department-1': [{
+        id: 'shift-alice-1', employeeId: 'alice', date: '2026-09-01', code: null,
+        startTime: '07:00', endTime: '16:00', isOff: false, updatedAt: timestamp,
+      }],
+      'department-2': [{
+        id: 'shift-bob-2', employeeId: 'bob', date: '2026-09-02', code: null,
+        startTime: null, endTime: null, isOff: true, updatedAt: timestamp,
+      }],
+    };
+    const batchRequests: Array<{ year: number; month: number; changes: Change[] }> = [];
+    async function respond(route: Route, data: unknown, status = 200) {
+      await route.fulfill({
+        status,
+        contentType: 'application/json',
+        headers: {
+          'Access-Control-Allow-Origin': 'http://127.0.0.1:4174',
+          'Access-Control-Allow-Credentials': 'true',
+          'Access-Control-Allow-Headers': 'Content-Type',
+          'Access-Control-Allow-Methods': 'GET, PATCH, OPTIONS',
+        },
+        body: JSON.stringify(data),
+      });
+    }
+    await page.route('**/departments/manageable', (route) => respond(route, [
+      { id: 'department-1', name: 'Первый отдел', kind: 'GENERAL', position: 0, updatedAt: timestamp },
+      { id: 'department-2', name: 'Второй отдел', kind: 'GENERAL', position: 1, updatedAt: timestamp },
+    ]));
+    await page.route('**/wishes/department?**', (route) => respond(route, []));
+    await page.route('**/schedule-data/department?**', (route) => {
+      const url = new URL(route.request().url());
+      const departmentId = url.searchParams.get('departmentId')!;
+      const employeeId = departmentId === 'department-1' ? 'alice' : 'bob';
+      return respond(route, {
+        period: { year: Number(url.searchParams.get('year')), month: Number(url.searchParams.get('month')) },
+        schedule: { id: 'schedule-' + departmentId, updatedAt: timestamp },
+        department: { id: departmentId, name: departmentId === 'department-1' ? 'Первый отдел' : 'Второй отдел', kind: 'GENERAL' },
+        employees: [{
+          id: employeeId, displayName: employeeId === 'alice' ? 'Алина E2E' : 'Борис E2E',
+          employmentRate: 1, scheduleMode: 'FLEXIBLE', fixedStartTime: null,
+          fixedEndTime: null, position: 0, updatedAt: timestamp,
+        }],
+        shifts: shifts[departmentId],
+      });
+    });
+    await page.route('**/schedule-data/planner/entries', async (route) => {
+      if (route.request().method() === 'OPTIONS') return respond(route, {}, 204);
+      const body = route.request().postDataJSON() as { year: number; month: number; changes: Change[] };
+      batchRequests.push(body);
+      if (batchRequests.length === 1) {
+        return respond(route, { message: 'Конфликт версии графика' }, 409);
+      }
+      for (const change of body.changes) {
+        const departmentId = change.employeeId === 'alice' ? 'department-1' : 'department-2';
+        const date = '2026-09-' + String(change.day).padStart(2, '0');
+        const existing = shifts[departmentId].find((shift) => shift.employeeId === change.employeeId && shift.date === date);
+        if (existing) {
+          existing.startTime = change.startTime || null;
+          existing.endTime = change.endTime || null;
+          existing.isOff = change.type === 'off';
+        } else {
+          shifts[departmentId].push({
+            id: 'shift-' + change.employeeId + '-' + change.day,
+            employeeId: change.employeeId, date, code: change.code || null,
+            startTime: change.startTime || null, endTime: change.endTime || null,
+            isOff: change.type === 'off', updatedAt: timestamp,
+          });
+        }
+      }
+      return respond(route, { status: 'ok', applied: body.changes.length, schedule: null });
+    });
+
+    await page.goto('http://127.0.0.1:4174/');
+    await expect(employeeRow(page, 'Алина E2E')).toBeVisible();
+    await expect(employeeRow(page, 'Борис E2E')).toBeVisible();
+    await expect(page.getByText('Старый локальный сотрудник')).toHaveCount(0);
+    await expect(page.getByText('Чужой сотрудник')).toHaveCount(0);
+    const trigger = page.getByRole('button', { name: 'Управление графиком' });
+    const before = await trigger.boundingBox();
+    await trigger.click();
+    await expect(page.getByRole('button', { name: 'Импорт Excel' })).toBeEnabled();
+    await page.locator('input[type="file"]').setInputFiles(await excelFile([
+      ['Сотрудник', '1', '2', '3'],
+      ['Борис E2E', '', '20:00-08:00', ''],
+      ['Алина E2E', '08:00-17:00', '', 'OFF'],
+    ]));
+    const preview = page.locator('aside').filter({ hasText: 'Предпросмотр импорта' });
+    await expect(preview).toBeVisible();
+    await preview.getByRole('checkbox', { name: /Перезаписывать заполненные ячейки/ }).check();
+    expect(await preview.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(2);
+    await preview.getByRole('button', { name: 'Применить импорт' }).click();
+    const feedback = page.getByRole('dialog', { name: 'Сообщение' });
+    await expect(feedback).toContainText('Не удалось применить импорт: Конфликт версии графика');
+    expect(batchRequests).toHaveLength(1);
+    expect(batchRequests[0].changes).toEqual([
+      { employeeId: 'bob', day: 2, type: 'shift', startTime: '20:00', endTime: '08:00', code: null, expectedUpdatedAt: timestamp },
+      { employeeId: 'alice', day: 1, type: 'shift', startTime: '08:00', endTime: '17:00', code: null, expectedUpdatedAt: timestamp },
+      { employeeId: 'alice', day: 3, type: 'off', expectedUpdatedAt: null },
+    ]);
+    expect(batchRequests[0].year).toBe(2026);
+    expect(batchRequests[0].month).toBe(9);
+    await feedback.getByRole('button', { name: 'Понятно' }).click();
+    await expect(employeeRow(page, 'Алина E2E').locator('td').nth(1)).toContainText('07:00–16:00');
+    await expect(employeeRow(page, 'Борис E2E').locator('td').nth(2)).toContainText('OFF');
+    await expect(employeeRow(page, 'Алина E2E').locator('td').nth(3)).not.toContainText('OFF');
+    await expect(preview).toBeVisible();
+    await preview.getByRole('button', { name: 'Применить импорт' }).click();
+    await expect(feedback).toContainText('Импортировано смен: 3');
+    expect(batchRequests).toHaveLength(2);
+    await feedback.getByRole('button', { name: 'Понятно' }).click();
+    await expect(employeeRow(page, 'Алина E2E').locator('td').nth(1)).toContainText('08:00–17:00');
+    await expect(employeeRow(page, 'Алина E2E').locator('td').nth(3)).toContainText('OFF');
+    await expect(employeeRow(page, 'Борис E2E').locator('td').nth(2)).toContainText('20:00–08:00');
+    expect(await trigger.boundingBox()).toEqual(before);
+    await page.reload();
+    await expect(employeeRow(page, 'Алина E2E').locator('td').nth(1)).toContainText('08:00–17:00');
+    await expect(employeeRow(page, 'Борис E2E').locator('td').nth(2)).toContainText('20:00–08:00');
+    await expect(page.getByText('Старый локальный сотрудник')).toHaveCount(0);
+    await expect(page.getByText('Чужой сотрудник')).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  });
+}
 
 test('employment rate changes the weekly norm', async ({ page }) => {
   const weekSchedule: Record<number, unknown> = {};
