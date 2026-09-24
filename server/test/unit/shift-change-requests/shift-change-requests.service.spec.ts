@@ -422,6 +422,10 @@ describe('ShiftChangeRequestsService', () => {
     prisma.shiftChangeRequest.findUnique.mockResolvedValue(
       requestRecord(ShiftChangeRequestStatus.PENDING_MANAGER, {
         targetDepartmentId: 'department-b',
+        targetEmployee: {
+          departmentId: 'department-b',
+          isActive: true,
+        },
       }),
     );
 
@@ -437,6 +441,10 @@ describe('ShiftChangeRequestsService', () => {
     mockTransition(
       requestRecord(ShiftChangeRequestStatus.PENDING_MANAGER, {
         targetDepartmentId: 'department-b',
+        targetEmployee: {
+          departmentId: 'department-b',
+          isActive: true,
+        },
       }),
     );
 
@@ -461,6 +469,10 @@ describe('ShiftChangeRequestsService', () => {
     mockTransition(
       requestRecord(ShiftChangeRequestStatus.PENDING_MANAGER, {
         targetDepartmentId: 'department-b',
+        targetEmployee: {
+          departmentId: 'department-b',
+          isActive: true,
+        },
       }),
     );
     const superAdmin = adminUser(RoleType.SUPER_ADMIN, [null]);
