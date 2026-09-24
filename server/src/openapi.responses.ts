@@ -58,10 +58,10 @@ export const scheduleAppliedResponse = object({ ...okResponse.properties, applie
 export const wishResponse = object({ id: text, employeeId: text, year: integer, month: integer, day: nullable(integer), text, createdAt: timestamp, updatedAt: timestamp });
 export const shiftChangeResponse = object({
   id: text, kind: enumeration(ShiftChangeRequestKind), status: enumeration(ShiftChangeRequestStatus),
-  requesterUserId: text, requesterEmployeeId: text, requesterDepartmentId: text,
-  targetUserId: text, targetEmployeeId: text, targetDepartmentId: text,
+  requesterEmployeeId: text, requesterDepartmentId: text,
+  targetEmployeeId: text, targetDepartmentId: text,
   requesterShiftId: text, targetShiftId: nullable(text), requesterShiftUpdatedAt: timestamp, targetShiftUpdatedAt: nullable(timestamp),
-  managerUserId: nullable(text), resolvedAt: nullable(timestamp), createdAt: timestamp, updatedAt: timestamp,
-  events: arrayOf(object({ id: text, eventType: enumeration(ShiftChangeRequestEventType), actorUserId: text,
+  resolvedAt: nullable(timestamp), createdAt: timestamp, updatedAt: timestamp,
+  events: arrayOf(object({ id: text, eventType: enumeration(ShiftChangeRequestEventType),
     metadata: { nullable: true, description: 'Optional JSON audit metadata.', oneOf: [{ type: 'object', additionalProperties: true }, { type: 'array', items: {} }, { type: 'string' }, { type: 'number' }, { type: 'boolean' }] }, createdAt: timestamp })),
 });
