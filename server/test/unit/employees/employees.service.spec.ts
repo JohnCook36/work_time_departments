@@ -253,6 +253,46 @@ describe('EmployeesService', () => {
     );
   });
 
+  it('blocks moving an employee while an active shift-change request exists', async () => {
+    const expectedUpdatedAt = new Date('2026-09-19T09:00:00.000Z');
+    prisma.employee.findUnique.mockResolvedValueOnce({
+      id: 'employee-1',
+      displayName: 'Employee',
+      employmentRate: 1,
+      scheduleMode: EmployeeScheduleMode.FLEXIBLE,
+      fixedStartTime: null,
+      fixedEndTime: null,
+      departmentId: 'department-a',
+      isActive: true,
+      updatedAt: expectedUpdatedAt,
+    });
+    prisma.department.findFirst.mockResolvedValue({ id: 'department-b' });
+    prisma.shiftChangeRequest.count.mockResolvedValue(1);
+
+    await expect(
+      service.updateEmployee(admin(), 'employee-1', {
+        departmentId: 'department-b',
+        expectedUpdatedAt: expectedUpdatedAt.toISOString(),
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(prisma.shiftChangeRequest.count).toHaveBeenCalledWith({
+      where: {
+        status: {
+          in: [
+            'PENDING_TARGET',
+            'PENDING_MANAGER',
+          ],
+        },
+        OR: [
+          { requesterEmployeeId: 'employee-1' },
+          { targetEmployeeId: 'employee-1' },
+        ],
+      },
+    });
+    expect(prisma.employee.updateMany).not.toHaveBeenCalled();
+  });
+
   it('updates an employee when expectedUpdatedAt is current', async () => {
     const expectedUpdatedAt = new Date('2026-09-19T09:00:00.000Z');
     prisma.employee.findUnique
