@@ -362,6 +362,13 @@ function SortableEmployeeRow({
           return (
             <ShiftCell
               key={day}
+              id={
+                'schedule-cell-' +
+                encodeURIComponent(employee.id) +
+                '-' +
+                day
+              }
+              tabIndex={-1}
               $kind={kind}
               $weekend={isWeekend}
               $interactive={scheduleEditable && scheduleView === 'schedule'}
