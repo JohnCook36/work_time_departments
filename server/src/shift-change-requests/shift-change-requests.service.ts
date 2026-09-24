@@ -28,6 +28,8 @@ type TransitionRequest = Prisma.ShiftChangeRequestGetPayload<{
   include: {
     requesterShift: { select: { updatedAt: true } };
     targetShift: { select: { updatedAt: true } };
+    requesterEmployee: { select: { departmentId: true; isActive: true } };
+    targetEmployee: { select: { departmentId: true; isActive: true } };
   };
 }>;
 
@@ -215,6 +217,14 @@ export class ShiftChangeRequestsService {
           : {
               requesterDepartmentId: { in: departmentIds },
               targetDepartmentId: { in: departmentIds },
+              requesterEmployee: {
+                departmentId: { in: departmentIds },
+                isActive: true,
+              },
+              targetEmployee: {
+                departmentId: { in: departmentIds },
+                isActive: true,
+              },
             }),
       },
       orderBy: { createdAt: 'asc' },
@@ -252,7 +262,7 @@ export class ShiftChangeRequestsService {
 
     if (result.stale) {
       throw new ConflictException(
-        'Shift change request is stale because a source shift changed',
+        'Shift change request is stale because an employee or source shift changed',
       );
     }
 
@@ -358,13 +368,18 @@ export class ShiftChangeRequestsService {
   }
 
   async managerReject(admin: AuthUserContext, requestId: string) {
-    return this.prisma.$transaction(
+    const result = await this.prisma.$transaction(
       async (tx) => {
         const request = await this.getForTransition(tx, requestId);
         this.assertManagerScope(admin, request);
         this.assertStatus(request, ShiftChangeRequestStatus.PENDING_MANAGER);
 
-        return this.transition(
+        if (this.isStale(request)) {
+          await this.markStale(tx, request, admin.id);
+          return { stale: true as const };
+        }
+
+        const resolved = await this.transition(
           tx,
           request,
           [ShiftChangeRequestStatus.PENDING_MANAGER],
@@ -376,9 +391,19 @@ export class ShiftChangeRequestsService {
             resolvedAt: new Date(),
           },
         );
+
+        return { stale: false as const, request: resolved };
       },
       this.transactionOptions(),
     );
+
+    if (result.stale) {
+      throw new ConflictException(
+        'Shift change request is stale because an employee or source shift changed',
+      );
+    }
+
+    return result.request;
   }
 
   private requireLinkedEmployee(user: AuthUserContext) {
@@ -406,6 +431,12 @@ export class ShiftChangeRequestsService {
       include: {
         requesterShift: { select: { updatedAt: true } },
         targetShift: { select: { updatedAt: true } },
+        requesterEmployee: {
+          select: { departmentId: true, isActive: true },
+        },
+        targetEmployee: {
+          select: { departmentId: true, isActive: true },
+        },
       },
     });
 
@@ -459,6 +490,15 @@ export class ShiftChangeRequestsService {
   }
 
   private isStale(request: TransitionRequest): boolean {
+    if (
+      !request.requesterEmployee.isActive ||
+      !request.targetEmployee.isActive ||
+      request.requesterEmployee.departmentId !== request.requesterDepartmentId ||
+      request.targetEmployee.departmentId !== request.targetDepartmentId
+    ) {
+      return true;
+    }
+
     if (
       request.requesterShift.updatedAt.getTime() !==
       request.requesterShiftUpdatedAt.getTime()
