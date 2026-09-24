@@ -1,7 +1,9 @@
 import ExcelJS from 'exceljs';
-import { Department, Employee, ScheduleData, ShiftEntry } from '../../domain/models';
+import { Department, Employee, ScheduleData, SchedulePeriodsData, ShiftEntry } from '../../domain/models';
 import { calculateShiftHours } from '../../domain/schedule/shiftHours';
-import { DAY_NAMES_SHORT, getDayOfWeek, MONTH_NAMES } from '../../utils/calendar';
+import { DAY_NAMES_SHORT, getDayOfWeek } from '../../utils/calendar';
+
+import { getPrintWeekRanges, PrintCalendarDay } from '../print/printSchedule';
 
 type ExcelWorkbook = InstanceType<typeof ExcelJS.Workbook>;
 type Worksheet = ReturnType<ExcelWorkbook['addWorksheet']>;
@@ -14,6 +16,8 @@ interface ExportScheduleOptions {
   year: number;
   month: number;
   daysInMonth: number;
+  rangeKey?: string;
+  schedules?: SchedulePeriodsData;
 }
 
 function getEntry(
@@ -95,7 +99,8 @@ function styleHeader(
   row: Row,
   year: number,
   month: number,
-  daysInMonth: number
+  daysInMonth: number,
+  calendarDays?: PrintCalendarDay[]
 ) {
   row.height = 30;
   row.font = { bold: true, color: { argb: 'FFFFFFFF' } };
@@ -120,7 +125,8 @@ function styleHeader(
 
     if (columnNumber >= 2 && columnNumber <= daysInMonth + 1) {
       const day = columnNumber - 1;
-      const dayOfWeek = getDayOfWeek(year, month, day);
+      const date = calendarDays?.[day - 1] ?? { year, month, day };
+      const dayOfWeek = getDayOfWeek(date.year, date.month, date.day);
       if (dayOfWeek === 0 || dayOfWeek === 6) {
         cell.fill = {
           type: 'pattern',
@@ -156,7 +162,8 @@ function styleDataRow(
   row: Row,
   year: number,
   month: number,
-  daysInMonth: number
+  daysInMonth: number,
+  calendarDays?: PrintCalendarDay[]
 ) {
   row.alignment = {
     horizontal: 'center',
@@ -181,7 +188,8 @@ function styleDataRow(
 
     if (columnNumber >= 2 && columnNumber <= daysInMonth + 1) {
       const day = columnNumber - 1;
-      const dayOfWeek = getDayOfWeek(year, month, day);
+      const date = calendarDays?.[day - 1] ?? { year, month, day };
+      const dayOfWeek = getDayOfWeek(date.year, date.month, date.day);
       if (dayOfWeek === 0 || dayOfWeek === 6) {
         cell.fill = {
           type: 'pattern',
@@ -196,12 +204,16 @@ function styleDataRow(
 function buildHeaders(
   year: number,
   month: number,
-  daysInMonth: number
+  daysInMonth: number,
+  calendarDays?: PrintCalendarDay[]
 ): string[] {
   const dayHeaders = Array.from({ length: daysInMonth }, (_, index) => {
     const day = index + 1;
-    const dayOfWeek = getDayOfWeek(year, month, day);
-    return DAY_NAMES_SHORT[dayOfWeek] + '\n' + day;
+    const date = calendarDays?.[day - 1] ?? { year, month, day };
+    const dayOfWeek = getDayOfWeek(date.year, date.month, date.day);
+    return DAY_NAMES_SHORT[dayOfWeek] + '\n' + (calendarDays
+      ? String(date.day).padStart(2, '0') + '.' + String(date.month + 1).padStart(2, '0') + '.' + date.year
+      : day);
   });
 
   return ['Сотрудник', ...dayHeaders, 'Днев.', 'Ночн.', 'Итого', 'Дней'];
@@ -215,7 +227,8 @@ function addDepartmentRows(
   year: number,
   month: number,
   daysInMonth: number,
-  mode: 'schedule' | 'hours'
+  mode: 'schedule' | 'hours',
+  calendarDays?: PrintCalendarDay[]
 ) {
   const totalColumns = daysInMonth + 5;
 
@@ -261,7 +274,7 @@ function addDepartmentRows(
         totals.workDays,
       ]);
       employeeRow.height = mode === 'hours' ? 42 : 24;
-      styleDataRow(employeeRow, year, month, daysInMonth);
+      styleDataRow(employeeRow, year, month, daysInMonth, calendarDays);
 
     });
   });
@@ -359,24 +372,45 @@ function downloadWorkbook(buffer: unknown, fileName: string) {
   URL.revokeObjectURL(url);
 }
 
-export async function exportScheduleToExcel({
+export function buildScheduleWorkbook({
   departments,
   employees,
   schedule,
   year,
   month,
   daysInMonth,
-}: ExportScheduleOptions): Promise<void> {
+  rangeKey = 'month',
+  schedules = {},
+}: ExportScheduleOptions): ExcelWorkbook {
+  let calendarDays: PrintCalendarDay[] | undefined;
+  if (rangeKey !== 'month') {
+    calendarDays = getPrintWeekRanges(year, month).find((range) => range.key === rangeKey)?.days;
+    if (!calendarDays) throw new Error('Неизвестный период экспорта');
+    // Project full calendar dates into output columns; reuse the monthly formatter
+    // and the application's calculation engine for both export ranges.
+    const selectedSchedule: ScheduleData = {};
+    for (const employee of employees) {
+      selectedSchedule[employee.id] = {};
+      calendarDays.forEach((date, index) => {
+        const source = date.year === year && date.month === month
+          ? schedule
+          : schedules[date.year + '-' + String(date.month + 1).padStart(2, '0')] || {};
+        selectedSchedule[employee.id][index + 1] = getEntry(source, employee.id, date.day);
+      });
+    }
+    schedule = selectedSchedule;
+    daysInMonth = calendarDays.length;
+  }
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'Work time departments';
   workbook.created = new Date();
 
-  const headers = buildHeaders(year, month, daysInMonth);
+  const headers = buildHeaders(year, month, daysInMonth, calendarDays);
 
   const scheduleSheet = workbook.addWorksheet('График');
   applyWorkbookSheetLayout(scheduleSheet, daysInMonth);
   const scheduleHeader = scheduleSheet.addRow(headers);
-  styleHeader(scheduleHeader, year, month, daysInMonth);
+  styleHeader(scheduleHeader, year, month, daysInMonth, calendarDays);
   addDepartmentRows(
     scheduleSheet,
     departments,
@@ -385,7 +419,8 @@ export async function exportScheduleToExcel({
     year,
     month,
     daysInMonth,
-    'schedule'
+    'schedule',
+    calendarDays
   );
   addDailyTotals(
     scheduleSheet,
@@ -398,7 +433,7 @@ export async function exportScheduleToExcel({
   const hoursSheet = workbook.addWorksheet('Часы');
   applyWorkbookSheetLayout(hoursSheet, daysInMonth);
   const hoursHeader = hoursSheet.addRow(headers);
-  styleHeader(hoursHeader, year, month, daysInMonth);
+  styleHeader(hoursHeader, year, month, daysInMonth, calendarDays);
   addDepartmentRows(
     hoursSheet,
     departments,
@@ -407,7 +442,8 @@ export async function exportScheduleToExcel({
     year,
     month,
     daysInMonth,
-    'hours'
+    'hours',
+    calendarDays
   );
   addDailyTotals(
     hoursSheet,
@@ -417,10 +453,19 @@ export async function exportScheduleToExcel({
     'hours'
   );
 
+  return workbook;
+}
+
+export async function exportScheduleToExcel(options: ExportScheduleOptions): Promise<void> {
+  const workbook = buildScheduleWorkbook(options);
+  const { year, month, rangeKey = 'month' } = options;
   const buffer = await workbook.xlsx.writeBuffer();
   const period = String(month + 1).padStart(2, '0');
-  const fileName =
-    'work-time-departments_' + year + '-' + period + '.xlsx';
-
-  downloadWorkbook(buffer, fileName);
+  let suffix = year + '-' + period;
+  if (rangeKey !== 'month') {
+    const last = getPrintWeekRanges(year, month).find((range) => range.key === rangeKey)!.days[6];
+    const endDate = last.year + '-' + String(last.month + 1).padStart(2, '0') + '-' + String(last.day).padStart(2, '0');
+    suffix = rangeKey.replace(':', '-') + '_to_' + endDate;
+  }
+  downloadWorkbook(buffer, 'work-time-departments_' + suffix + '.xlsx');
 }

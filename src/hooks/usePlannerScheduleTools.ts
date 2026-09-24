@@ -70,11 +70,13 @@ export function usePlannerScheduleTools({
   const [excelImportPreview, setExcelImportPreview] =
     useState<ExcelImportPreview | null>(null);
   const [overwriteExcelCells, setOverwriteExcelCells] = useState(false);
+  const [excelRangeKey, setExcelRangeKey] = useState('month');
   const [printRangeKey, setPrintRangeKey] = useState('month');
   const [isPreparingPrint, setIsPreparingPrint] = useState(false);
 
   useEffect(() => {
     setPrintRangeKey('month');
+    setExcelRangeKey('month');
   }, [year, month]);
 
   const handleExportExcel = useCallback(async () => {
@@ -82,6 +84,25 @@ export function usePlannerScheduleTools({
 
     try {
       setIsExportingExcel(true);
+      let exportPeriods: SchedulePeriodsData = {};
+      if (excelRangeKey !== 'month') {
+        // In server mode only fetched snapshots are authoritative for adjacent months.
+        const sourcePeriods: SchedulePeriodsData = serverPlannerReadEnabled
+          ? { [periodKey]: rawSchedule }
+          : { ...schedules, [periodKey]: rawSchedule };
+        if (serverPlannerReadEnabled) {
+          const adjacentPeriods = getRequiredPrintPeriods(year, month, excelRangeKey)
+            .filter((period) => period.year !== year || period.month !== month);
+          const snapshots = await Promise.all(adjacentPeriods.map(async (period) => ({
+            period,
+            snapshot: await loadPlannerServerSnapshot(period.year, period.month + 1),
+          })));
+          snapshots.forEach(({ period, snapshot }) => {
+            sourcePeriods[period.year + '-' + String(period.month + 1).padStart(2, '0')] = snapshot.schedule;
+          });
+        }
+        exportPeriods = buildEffectiveSchedulePeriods(employees, sourcePeriods, year, month);
+      }
       await exportScheduleToExcel({
         departments,
         employees,
@@ -89,6 +110,8 @@ export function usePlannerScheduleTools({
         year,
         month,
         daysInMonth,
+        rangeKey: excelRangeKey,
+        schedules: exportPeriods,
       });
     } catch (error) {
       console.error('Excel export failed', error);
@@ -101,6 +124,12 @@ export function usePlannerScheduleTools({
     departments,
     employees,
     isExportingExcel,
+    excelRangeKey,
+    periodKey,
+    rawSchedule,
+    schedules,
+    serverPlannerReadEnabled,
+    showMessage,
     month,
     schedule,
     year,
@@ -348,6 +377,8 @@ export function usePlannerScheduleTools({
   }, []);
 
   return {
+    excelRangeKey,
+    setExcelRangeKey,
     isExportingExcel,
     isImportingExcel,
     isApplyingExcelImport,
