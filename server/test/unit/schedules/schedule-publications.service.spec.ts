@@ -39,7 +39,6 @@ describe('SchedulePublicationsService', () => {
       findFirst: jest.fn(),
       create: jest.fn(),
     },
-    scheduleRule: { findMany: jest.fn() },
     auditLog: { create: jest.fn() },
   };
 
@@ -47,6 +46,7 @@ describe('SchedulePublicationsService', () => {
     department: { findFirst: jest.fn() },
     schedule: { findUnique: jest.fn() },
     shift: { findMany: jest.fn() },
+    scheduleRule: { findMany: jest.fn() },
     schedulePublication: {
       findMany: jest.fn(),
       findFirst: jest.fn(),
