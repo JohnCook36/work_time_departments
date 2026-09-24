@@ -46,6 +46,9 @@ describe('EmployeesService', () => {
     authSession: {
       updateMany: jest.fn(),
     },
+    auditLog: {
+      create: jest.fn(),
+    },
     $transaction: jest.fn(),
   };
 
@@ -67,6 +70,7 @@ describe('EmployeesService', () => {
     prisma.user.updateMany.mockResolvedValue({ count: 1 });
     prisma.membership.updateMany.mockResolvedValue({ count: 1 });
     prisma.authSession.updateMany.mockResolvedValue({ count: 1 });
+    prisma.auditLog.create.mockResolvedValue({ id: 'audit-1' });
     prisma.$transaction.mockImplementation(async (callback) =>
       callback({
         employee: {
@@ -88,6 +92,9 @@ describe('EmployeesService', () => {
         },
         authSession: {
           updateMany: prisma.authSession.updateMany,
+        },
+        auditLog: {
+          create: prisma.auditLog.create,
         },
       }),
     );
