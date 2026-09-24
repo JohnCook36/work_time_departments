@@ -8,6 +8,7 @@ import { MembershipsModule } from './memberships/memberships.module';
 import { OnboardingModule } from './onboarding/onboarding.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { SchedulesModule } from './schedules/schedules.module';
+import { ScheduleRulesModule } from './schedule-rules/schedule-rules.module';
 import { ShiftsModule } from './shifts/shifts.module';
 import { ShiftChangeRequestsModule } from './shift-change-requests/shift-change-requests.module';
 import { UsersModule } from './users/users.module';
@@ -24,6 +25,7 @@ import { WishesModule } from './wishes/wishes.module';
     MembershipsModule,
     OnboardingModule,
     SchedulesModule,
+    ScheduleRulesModule,
     ShiftsModule,
     ShiftChangeRequestsModule,
     WishesModule,
