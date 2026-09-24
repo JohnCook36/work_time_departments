@@ -1,5 +1,7 @@
 import { ConflictException } from '@nestjs/common';
 import {
+  AuditAction,
+  AuditEntityType,
   OnboardingRequestStatus,
   OnboardingRequestType,
   RoleType,
@@ -187,12 +189,99 @@ describe('OnboardingService atomic resolution and stale scope protection', () =>
     expect(tx.user.findUnique).not.toHaveBeenCalled();
   });
 
+  it('writes an audit event when approval succeeds', async () => {
+    const { prisma, tx } = createPrismaMock();
+    const request = pendingLinkRequest();
+    const approved = {
+      ...request,
+      status: OnboardingRequestStatus.APPROVED,
+      reviewedByUserId: admin.id,
+      reviewedAt: new Date('2026-09-24T10:05:00.000Z'),
+    };
+
+    prisma.onboardingRequest.findUnique.mockResolvedValue(request);
+    tx.onboardingRequest.updateMany.mockResolvedValue({ count: 1 });
+    tx.department.findFirst.mockResolvedValue({ id: 'department-a' });
+    tx.user.findUnique.mockResolvedValue({
+      id: 'requester-user',
+      isActive: true,
+      employee: null,
+    });
+    tx.employee.findUnique
+      .mockResolvedValueOnce({
+        id: 'employee-1',
+        displayName: 'Target employee',
+        departmentId: 'department-a',
+        userId: null,
+        isActive: true,
+      })
+      .mockResolvedValueOnce({
+        id: 'employee-1',
+        displayName: 'Target employee',
+        departmentId: 'department-a',
+      });
+    tx.employee.updateMany.mockResolvedValue({ count: 1 });
+    tx.membership.findFirst.mockResolvedValue({ id: 'membership-1' });
+    tx.onboardingRequest.findUnique.mockResolvedValue(approved);
+
+    const service = new OnboardingService(
+      prisma as never,
+      new AuthorizationService(),
+    );
+
+    await service.approve(admin, request.id);
+
+    expect(tx.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        actorUserId: admin.id,
+        action: AuditAction.ONBOARDING_APPROVED,
+        entityType: AuditEntityType.ONBOARDING_REQUEST,
+        entityId: request.id,
+        departmentId: request.departmentId,
+      },
+      select: { id: true },
+    });
+  });
+
+  it('writes an audit event when rejection succeeds', async () => {
+    const { prisma, tx } = createPrismaMock();
+    const request = pendingLinkRequest();
+    const rejectedRequest = {
+      ...request,
+      status: OnboardingRequestStatus.REJECTED,
+      reviewedByUserId: admin.id,
+      reviewedAt: new Date('2026-09-24T10:05:00.000Z'),
+    };
+
+    prisma.onboardingRequest.findUnique.mockResolvedValue(request);
+    tx.onboardingRequest.updateMany.mockResolvedValue({ count: 1 });
+    tx.onboardingRequest.findUnique.mockResolvedValue(rejectedRequest);
+
+    const service = new OnboardingService(
+      prisma as never,
+      new AuthorizationService(),
+    );
+
+    await service.reject(admin, request.id);
+
+    expect(tx.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        actorUserId: admin.id,
+        action: AuditAction.ONBOARDING_REJECTED,
+        entityType: AuditEntityType.ONBOARDING_REQUEST,
+        entityId: request.id,
+        departmentId: request.departmentId,
+      },
+      select: { id: true },
+    });
+  });
+
   it('does not let cancel overwrite a request resolved concurrently', async () => {
     const { prisma } = createPrismaMock();
     const request = pendingLinkRequest();
 
     prisma.onboardingRequest.findFirst.mockResolvedValue(request);
-    prisma.onboardingRequest.updateMany.mockResolvedValue({ count: 0 });
+    tx.onboardingRequest.updateMany.mockResolvedValue({ count: 0 });
 
     const service = new OnboardingService(
       prisma as never,
@@ -219,7 +308,7 @@ describe('OnboardingService atomic resolution and stale scope protection', () =>
   });
 
   it('does not let reject overwrite a request resolved concurrently', async () => {
-    const { prisma } = createPrismaMock();
+    const { prisma, tx } = createPrismaMock();
     const request = pendingLinkRequest();
 
     prisma.onboardingRequest.findUnique.mockResolvedValue(request);
@@ -234,7 +323,7 @@ describe('OnboardingService atomic resolution and stale scope protection', () =>
       ConflictException,
     );
 
-    expect(prisma.onboardingRequest.updateMany).toHaveBeenCalledWith(
+    expect(tx.onboardingRequest.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
           id: request.id,
