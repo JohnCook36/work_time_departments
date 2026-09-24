@@ -360,7 +360,7 @@ export class ShiftChangeRequestsService {
 
     if (result.stale) {
       throw new ConflictException(
-        'Shift change request is stale because a source shift changed',
+        'Shift change request is stale because an employee or source shift changed',
       );
     }
 
