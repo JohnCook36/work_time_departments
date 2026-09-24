@@ -36,7 +36,7 @@ describe('HTTP security baseline', () => {
     app = moduleRef.createNestApplication();
     configureHttpSecurity(app, {
       frontendOrigin: 'http://frontend.test',
-      nodeEnv: 'test',
+      nodeEnv: 'production',
     });
     await app.listen(0, '127.0.0.1');
     url = await app.getUrl();
@@ -80,7 +80,9 @@ describe('HTTP security baseline', () => {
       'same-origin',
     );
     expect(response.headers.get('cache-control')).toBe('no-store');
-    expect(response.headers.get('strict-transport-security')).toBeNull();
+    expect(response.headers.get('strict-transport-security')).toBe(
+      'max-age=31536000',
+    );
   });
 
   it('allows the configured browser origin with credentials', async () => {
