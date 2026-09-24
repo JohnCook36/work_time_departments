@@ -66,6 +66,7 @@ enum AuditAction {
   EMPLOYEE_DEACTIVATED
   DEPARTMENT_DEACTIVATED
   SCHEDULE_CHANGED
+  SCHEDULE_PUBLISHED
   ONBOARDING_APPROVED
   ONBOARDING_REJECTED
   SHIFT_CHANGE_MANAGER_APPROVED
@@ -93,6 +94,7 @@ model Department {
   onboardingRequests    OnboardingRequest[]
   requestedShiftChanges ShiftChangeRequest[] @relation("ShiftChangeRequesterDepartment")
   targetedShiftChanges  ShiftChangeRequest[] @relation("ShiftChangeTargetDepartment")
+  schedulePublications   SchedulePublication[]
 }
 
 model User {
@@ -110,6 +112,7 @@ model User {
   targetedShiftChanges       ShiftChangeRequest[]      @relation("ShiftChangeTargetUser")
   managedShiftChanges        ShiftChangeRequest[]      @relation("ShiftChangeManagerUser")
   shiftChangeEvents          ShiftChangeRequestEvent[] @relation("ShiftChangeEventActor")
+  schedulePublications       SchedulePublication[]
 }
 
 model Employee {
@@ -158,7 +161,8 @@ model Schedule {
   month     Int
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  shifts    Shift[]
+  shifts       Shift[]
+  publications SchedulePublication[]
 
   @@unique([year, month])
 }
@@ -307,6 +311,27 @@ model ShiftChangeRequestEvent {
   @@index([eventType])
 }
 
+
+model SchedulePublication {
+  id                      String   @id @default(cuid())
+  scheduleId              String
+  departmentId            String
+  version                 Int
+  publishedByUserId       String
+  sourceScheduleUpdatedAt DateTime
+  comment                 String?  @db.VarChar(500)
+  rulesVersion            String?  @db.VarChar(100)
+  snapshot                Json
+  diff                    Json
+  createdAt               DateTime @default(now())
+  schedule                Schedule   @relation(fields: [scheduleId], references: [id], onDelete: Restrict)
+  department              Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  publishedBy             User       @relation(fields: [publishedByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([scheduleId, departmentId, version])
+  @@index([scheduleId, departmentId, createdAt])
+  @@index([publishedByUserId, createdAt])
+}
 
 model AuditLog {
   id           String          @id @default(cuid())

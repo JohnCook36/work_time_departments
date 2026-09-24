@@ -55,6 +55,23 @@ export const personalScheduleResponse = object({
   employee: object({ id: text, displayName: text, ...workPattern, department: departmentSummaryResponse }), shifts,
 });
 export const scheduleAppliedResponse = object({ ...okResponse.properties, applied: integer, schedule: nullable(scheduleVersion) });
+
+const jsonObject: SchemaObject = { type: 'object', additionalProperties: true };
+export const schedulePublicationResponse = object({
+  id: text,
+  scheduleId: text,
+  departmentId: text,
+  version: integer,
+  publishedByUserId: text,
+  sourceScheduleUpdatedAt: timestamp,
+  comment: nullable(text),
+  rulesVersion: nullable(text),
+  snapshot: jsonObject,
+  diff: jsonObject,
+  createdAt: timestamp,
+});
+export const schedulePublicationListResponse = arrayOf(schedulePublicationResponse);
+
 export const wishResponse = object({ id: text, employeeId: text, year: integer, month: integer, day: nullable(integer), text, createdAt: timestamp, updatedAt: timestamp });
 export const shiftChangeResponse = object({
   id: text, kind: enumeration(ShiftChangeRequestKind), status: enumeration(ShiftChangeRequestStatus),

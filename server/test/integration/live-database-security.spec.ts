@@ -28,6 +28,12 @@ describeLive('live PostgreSQL security boundaries', () => {
   let baseUrl: string;
 
   async function clearDatabase(): Promise<void> {
+    await prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(
+        "SET LOCAL app.schedule_publication_retention_mode = 'on'",
+      );
+      await tx.schedulePublication.deleteMany();
+    });
     await prisma.shiftChangeRequestEvent.deleteMany();
     await prisma.shiftChangeRequest.deleteMany();
     await prisma.onboardingRequest.deleteMany();
@@ -275,6 +281,60 @@ describeLive('live PostgreSQL security boundaries', () => {
       { headers: { cookie } },
     );
     expect(foreignSchedule.status).toBe(403);
+  });
+
+  it('keeps published schedule versions immutable outside explicit retention mode', async () => {
+    const department = await prisma.department.create({
+      data: { name: 'Published department' },
+    });
+    const publisher = await prisma.user.create({
+      data: { phoneE164: '+79990000991' },
+    });
+    const schedule = await prisma.schedule.create({
+      data: { year: 2026, month: 11 },
+    });
+    const publication = await prisma.schedulePublication.create({
+      data: {
+        scheduleId: schedule.id,
+        departmentId: department.id,
+        version: 1,
+        publishedByUserId: publisher.id,
+        sourceScheduleUpdatedAt: schedule.updatedAt,
+        snapshot: {
+          department: {
+            id: department.id,
+            name: department.name,
+            kind: department.kind,
+          },
+          employees: [],
+          shifts: [],
+        },
+        diff: { employees: [], shifts: [] },
+      },
+    });
+
+    await expect(
+      prisma.schedulePublication.update({
+        where: { id: publication.id },
+        data: { comment: 'tampered' },
+      }),
+    ).rejects.toThrow();
+
+    await expect(
+      prisma.schedulePublication.delete({
+        where: { id: publication.id },
+      }),
+    ).rejects.toThrow();
+
+    expect(
+      await prisma.schedulePublication.findUniqueOrThrow({
+        where: { id: publication.id },
+      }),
+    ).toMatchObject({
+      id: publication.id,
+      version: 1,
+      comment: null,
+    });
   });
 
   it('keeps audit rows immutable outside explicit retention mode', async () => {

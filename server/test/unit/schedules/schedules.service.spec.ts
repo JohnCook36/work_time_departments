@@ -57,6 +57,9 @@ describe('SchedulesService', () => {
     schedule: {
       findUnique: jest.fn(),
     },
+    schedulePublication: {
+      findFirst: jest.fn(),
+    },
     shift: {
       findMany: jest.fn(),
     },
@@ -87,6 +90,7 @@ describe('SchedulesService', () => {
       updatedAt: new Date('2026-09-01T12:00:00.000Z'),
     });
     transaction.auditLog.create.mockResolvedValue({ id: 'audit-1' });
+    prisma.schedulePublication.findFirst.mockResolvedValue(null);
   });
 
   it('checks department scope before returning department schedule', async () => {
@@ -462,33 +466,66 @@ describe('SchedulesService', () => {
     );
   });
 
-  it('returns only the linked employee schedule for personal view', async () => {
+  it('returns only the latest published linked employee schedule for personal view', async () => {
     prisma.employee.findFirst.mockResolvedValue({
       id: 'employee-1',
-      displayName: 'Employee',
-      employmentRate: 1,
+      displayName: 'Current Employee',
+      employmentRate: 0.75,
+      scheduleMode: 'FLEXIBLE',
+      fixedStartTime: null,
+      fixedEndTime: null,
       department: {
         id: 'department-a',
-        name: 'Department A',
+        name: 'Current Department A',
         kind: 'GENERAL',
       },
     });
     prisma.schedule.findUnique.mockResolvedValue({
       id: 'schedule-1',
-      updatedAt: new Date('2026-09-01T10:00:00.000Z'),
     });
-    prisma.shift.findMany.mockResolvedValue([
-      {
-        id: 'shift-1',
-        employeeId: 'employee-1',
-        date: new Date('2026-09-07T00:00:00.000Z'),
-        code: null,
-        startTime: '08:00',
-        endTime: '17:00',
-        isOff: false,
-        updatedAt: new Date('2026-09-01T11:00:00.000Z'),
+    prisma.schedulePublication.findFirst.mockResolvedValue({
+      id: 'publication-2',
+      createdAt: new Date('2026-09-05T09:00:00.000Z'),
+      snapshot: {
+        department: {
+          id: 'department-a',
+          name: 'Published Department A',
+          kind: 'GENERAL',
+        },
+        employees: [
+          {
+            id: 'employee-1',
+            displayName: 'Published Employee',
+            employmentRate: 1,
+            scheduleMode: 'FIXED_WEEKDAYS',
+            fixedStartTime: '08:00',
+            fixedEndTime: '17:00',
+          },
+        ],
+        shifts: [
+          {
+            id: 'shift-1',
+            employeeId: 'employee-1',
+            date: '2026-09-07',
+            code: null,
+            startTime: '08:00',
+            endTime: '17:00',
+            isOff: false,
+            updatedAt: '2026-09-01T11:00:00.000Z',
+          },
+          {
+            id: 'shift-other',
+            employeeId: 'employee-2',
+            date: '2026-09-07',
+            code: null,
+            startTime: '09:00',
+            endTime: '18:00',
+            isOff: false,
+            updatedAt: '2026-09-01T11:00:00.000Z',
+          },
+        ],
       },
-    ]);
+    });
 
     const result = await service.getMySchedule(user(), 2026, 9);
 
@@ -501,20 +538,50 @@ describe('SchedulesService', () => {
         },
       }),
     );
-    expect(prisma.shift.findMany).toHaveBeenCalledWith(
+    expect(prisma.schedulePublication.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
           scheduleId: 'schedule-1',
-          employeeId: 'employee-1',
+          departmentId: 'department-a',
         },
       }),
     );
-    expect(result.shifts[0]).toEqual(
+    expect(prisma.shift.findMany).not.toHaveBeenCalled();
+    expect(result.schedule).toEqual({
+      id: 'publication-2',
+      updatedAt: '2026-09-05T09:00:00.000Z',
+    });
+    expect(result.employee.displayName).toBe('Published Employee');
+    expect(result.shifts).toEqual([
       expect.objectContaining({
         id: 'shift-1',
         date: '2026-09-07',
       }),
-    );
+    ]);
+  });
+
+  it('does not expose mutable draft shifts before first publication', async () => {
+    prisma.employee.findFirst.mockResolvedValue({
+      id: 'employee-1',
+      displayName: 'Employee',
+      employmentRate: 1,
+      scheduleMode: 'FLEXIBLE',
+      fixedStartTime: null,
+      fixedEndTime: null,
+      department: {
+        id: 'department-a',
+        name: 'Department A',
+        kind: 'GENERAL',
+      },
+    });
+    prisma.schedule.findUnique.mockResolvedValue({ id: 'schedule-1' });
+    prisma.schedulePublication.findFirst.mockResolvedValue(null);
+
+    const result = await service.getMySchedule(user(), 2026, 9);
+
+    expect(result.schedule).toBeNull();
+    expect(result.shifts).toEqual([]);
+    expect(prisma.shift.findMany).not.toHaveBeenCalled();
   });
 
   it('rejects personal schedule access when User is not linked to Employee', async () => {

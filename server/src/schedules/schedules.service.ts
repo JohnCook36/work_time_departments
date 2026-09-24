@@ -16,6 +16,7 @@ import { AuthUserContext } from '../auth/auth.service';
 import { isRussiaFiveDayWorkingDay } from '../calendar/productionCalendar';
 import { AuthorizationService } from '../auth/authorization.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { parseSchedulePublicationSnapshot } from './schedule-publications.service';
 
 function assertPeriod(year: number, month: number): void {
   if (!Number.isInteger(year) || year < 1970 || year > 9999) {
@@ -698,6 +699,16 @@ export class SchedulesService {
       throw new NotFoundException('Linked employee profile is not active');
     }
 
+    const currentEmployeePayload = {
+      id: employee.id,
+      displayName: employee.displayName,
+      employmentRate: employee.employmentRate,
+      scheduleMode: employee.scheduleMode,
+      fixedStartTime: employee.fixedStartTime,
+      fixedEndTime: employee.fixedEndTime,
+      department: employee.department,
+    };
+
     const schedule = await this.prisma.schedule.findUnique({
       where: {
         year_month: {
@@ -707,48 +718,78 @@ export class SchedulesService {
       },
       select: {
         id: true,
-        updatedAt: true,
       },
     });
 
-    const shifts = schedule
-      ? await this.prisma.shift.findMany({
-          where: {
-            scheduleId: schedule.id,
-            employeeId: employee.id,
-          },
-          orderBy: { date: 'asc' },
-          select: {
-            id: true,
-            employeeId: true,
-            date: true,
-            code: true,
-            startTime: true,
-            endTime: true,
-            isOff: true,
-            updatedAt: true,
-          },
-        })
-      : [];
+    if (!schedule) {
+      return {
+        period: { year, month },
+        schedule: null,
+        employee: currentEmployeePayload,
+        shifts: [],
+      };
+    }
+
+    const publication = await this.prisma.schedulePublication.findFirst({
+      where: {
+        scheduleId: schedule.id,
+        departmentId: employee.department.id,
+      },
+      orderBy: { version: 'desc' },
+      select: {
+        id: true,
+        createdAt: true,
+        snapshot: true,
+      },
+    });
+
+    if (!publication) {
+      return {
+        period: { year, month },
+        schedule: null,
+        employee: currentEmployeePayload,
+        shifts: [],
+      };
+    }
+
+    const snapshot = parseSchedulePublicationSnapshot(publication.snapshot);
+    if (!snapshot) {
+      throw new ConflictException(
+        'Published schedule snapshot is invalid',
+      );
+    }
+
+    const publishedEmployee = snapshot.employees.find(
+      (candidate) => candidate.id === employee.id,
+    );
+
+    if (!publishedEmployee) {
+      return {
+        period: { year, month },
+        schedule: null,
+        employee: currentEmployeePayload,
+        shifts: [],
+      };
+    }
 
     return {
       period: { year, month },
-      schedule: schedule
-        ? {
-            id: schedule.id,
-            updatedAt: schedule.updatedAt.toISOString(),
-          }
-        : null,
-      employee: {
-        id: employee.id,
-        displayName: employee.displayName,
-        employmentRate: employee.employmentRate,
-        scheduleMode: employee.scheduleMode,
-        fixedStartTime: employee.fixedStartTime,
-        fixedEndTime: employee.fixedEndTime,
-        department: employee.department,
+      schedule: {
+        id: publication.id,
+        updatedAt: publication.createdAt.toISOString(),
       },
-      shifts: shifts.map(serializeShift),
+      employee: {
+        id: publishedEmployee.id,
+        displayName: publishedEmployee.displayName,
+        employmentRate: publishedEmployee.employmentRate,
+        scheduleMode: publishedEmployee.scheduleMode,
+        fixedStartTime: publishedEmployee.fixedStartTime,
+        fixedEndTime: publishedEmployee.fixedEndTime,
+        department: snapshot.department,
+      },
+      shifts: snapshot.shifts.filter(
+        (shift) => shift.employeeId === employee.id,
+      ),
     };
   }
 }

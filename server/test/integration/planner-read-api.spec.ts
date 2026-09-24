@@ -13,6 +13,7 @@ import { SessionAuthGuard } from '../../src/auth/session-auth.guard';
 import { DepartmentsController } from '../../src/departments/departments.controller';
 import { DepartmentsService } from '../../src/departments/departments.service';
 import { PrismaService } from '../../src/prisma/prisma.service';
+import { SchedulePublicationsService } from '../../src/schedules/schedule-publications.service';
 import { SchedulesController } from '../../src/schedules/schedules.controller';
 import { SchedulesService } from '../../src/schedules/schedules.service';
 
@@ -280,6 +281,7 @@ describe('Planner management read API', () => {
       providers: [
         DepartmentsService,
         SchedulesService,
+        { provide: SchedulePublicationsService, useValue: {} },
         AuthorizationService,
         SessionAuthGuard,
         { provide: PrismaService, useValue: prisma },

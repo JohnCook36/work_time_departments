@@ -12,7 +12,10 @@ function fixedScheduleResponse(
 ): MyScheduleResponse {
   return {
     period: { year, month },
-    schedule: null,
+    schedule: {
+      id: 'publication-1',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    },
     employee: {
       id: 'employee-fixed',
       displayName: 'Иван Иванов',
@@ -31,6 +34,13 @@ function fixedScheduleResponse(
 }
 
 describe('buildVisibleShifts', () => {
+  it('does not expose an unpublished fixed 5/2 draft', () => {
+    const data = fixedScheduleResponse(2026, 1);
+    data.schedule = null;
+
+    expect(buildVisibleShifts(data)).toEqual([]);
+  });
+
   it('does not synthesize fixed 5/2 shifts during 2026 New Year holidays', () => {
     const visible = buildVisibleShifts(fixedScheduleResponse(2026, 1));
 
