@@ -68,6 +68,13 @@ for (const role of ['EMPLOYEE', 'DEPUTY']) {
   });
 }
 
+test('DEPARTMENT_ADMIN can use the management day/night view', async ({ page }) => {
+  await seedPlanner(page, 'DEPARTMENT_ADMIN');
+  await page.getByRole('button', { name: 'День / ночь' }).click();
+  await expect(page.locator('tfoot')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'График', exact: true })).toBeVisible();
+});
+
 for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
   test(`sticky department, employee and monthly totals geometry at ${viewport.width}px`, async ({ page }) => {
     await page.setViewportSize(viewport);

@@ -62,6 +62,95 @@ function employeeRow(page: Page, name = 'E2E Сотрудник') {
   return page.getByText(name, { exact: true }).locator('xpath=ancestor::tr');
 }
 
+for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+  test(`day/night planner shows paid hours and stable totals at ${viewport.width}px`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await page.clock.setFixedTime(new Date('2026-09-15T12:00:00Z'));
+    const entry = (start: string, end: string, code?: 'N') => ({
+      type: 'shift', shift: { start, end, ...(code ? { code } : {}) },
+    });
+    await seed(page, state({
+      departments: [
+        { id: 'department-1', name: 'Первый отдел', kind: 'general' },
+        { id: 'department-2', name: 'Второй отдел', kind: 'general' },
+      ],
+      employees: Array.from({ length: 22 }, (_, index) => ({
+        id: `employee-${index + 1}`,
+        name: `E2E Сотрудник ${index + 1}`,
+        departmentId: index < 11 ? 'department-1' : 'department-2',
+        employmentRate: 1 as const,
+      })),
+      schedule: {
+        'employee-1': {
+          1: entry('08:00', '17:00'),
+          2: entry('21:00', '06:00'),
+          3: entry('22:00', '06:00'),
+          4: entry('20:00', '08:00'),
+          5: entry('05:00', '14:00'),
+          6: entry('14:00', '23:00'),
+          7: entry('20:00', '08:00', 'N'),
+          8: { type: 'off' },
+        },
+        'employee-12': { 2: entry('08:00', '17:00') },
+      },
+    }));
+    await page.goto('/planner');
+
+    const row = employeeRow(page, 'E2E Сотрудник 1');
+    const scroll = page.locator('table:has(tfoot)').locator('xpath=..');
+    const toggle = page.getByRole('button', { name: 'День / ночь' });
+    const before = await toggle.boundingBox();
+    await expect(row.locator('td').nth(2)).toContainText('21:00–06:00');
+    await expect(row.locator('td').nth(7)).toContainText('20:00–08:00');
+    await toggle.click();
+    const after = await toggle.boundingBox();
+    expect(Math.abs(after!.x - before!.x)).toBeLessThanOrEqual(3);
+    expect(Math.abs(after!.y - before!.y)).toBeLessThanOrEqual(3);
+
+    for (const [day, dayHours, nightHours, total] of [
+      [1, 8, 0, 8], [2, 0, 8, 8], [3, 0, 7, 7],
+      [4, 3, 8, 11], [5, 7, 1, 8], [6, 7, 1, 8], [7, 4, 8, 12],
+    ]) {
+      const cell = row.locator('td').nth(day);
+      await expect(cell).toContainText(`Д ${dayHours}`);
+      await expect(cell).toContainText(`Н ${nightHours}`);
+      await expect(cell).toContainText(`Σ ${total}`);
+    }
+    await expect(row.locator('td').nth(8)).toContainText('OFF');
+    await expect(row.locator('td').nth(9)).toContainText('·');
+    await expect(row.locator('td').nth(31)).toHaveText('29');
+    await expect(row.locator('td').nth(32)).toHaveText('33');
+    await expect(row.locator('td').nth(33)).toHaveText('62');
+    const footer = page.locator('tfoot tr');
+    await expect(footer.locator('td').nth(2)).toHaveText('16');
+    await expect(footer.locator('td').nth(31)).toHaveText('37');
+    await expect(footer.locator('td').nth(32)).toHaveText('33');
+    await expect(footer.locator('td').nth(33)).toHaveText('70');
+
+    const employeeColumn = row.locator('td').first();
+    const originalX = (await employeeColumn.boundingBox())!.x;
+    const dimensions = await scroll.evaluate(element => ({
+      horizontal: element.scrollWidth - element.clientWidth,
+      vertical: element.scrollHeight - element.clientHeight,
+    }));
+    expect(dimensions.horizontal).toBeGreaterThan(300);
+    expect(dimensions.vertical).toBeGreaterThan(100);
+    await scroll.evaluate(element => { element.scrollLeft = 650; });
+    await expect.poll(() => scroll.evaluate(element => element.scrollLeft)).toBeGreaterThan(300);
+    expect(Math.abs((await employeeColumn.boundingBox())!.x - originalX)).toBeLessThanOrEqual(3);
+    await scroll.evaluate(element => { element.scrollTop = 400; });
+    const footerBox = await footer.locator('td').first().boundingBox();
+    const scrollBox = await scroll.boundingBox();
+    expect(footerBox!.y).toBeGreaterThanOrEqual(scrollBox!.y - 3);
+    expect(footerBox!.y + footerBox!.height).toBeLessThanOrEqual(scrollBox!.y + scrollBox!.height + 3);
+    await expect(toggle).toBeInViewport();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+
+    await page.getByRole('button', { name: 'График', exact: true }).click();
+    await expect(row.locator('td').nth(2)).toContainText('21:00–06:00');
+  });
+}
+
 test.beforeEach(async ({ page }) => {
   await page.route('**/auth/me', async (route) => {
     await route.fulfill({

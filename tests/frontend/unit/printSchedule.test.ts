@@ -7,6 +7,7 @@ import {
   getVisibleMonthWeekRanges,
   printSchedule,
 } from '../../../src/services/print/printSchedule';
+import { buildScheduleWorkbook } from '../../../src/services/excel/exportExcel';
 import type { Department, Employee, SchedulePeriodsData } from '../../../src/domain/models';
 
 describe('getPrintWeekRanges', () => {
@@ -227,6 +228,16 @@ describe('printSchedule popup content', () => {
     expect(cells[3].textContent).toBe('⚠');
     expect(cells[4].textContent).toBe('');
     expect(row?.querySelector('.hours')?.textContent).toBe('20');
+    const workbook = buildScheduleWorkbook({
+      departments, employees, schedule: schedules['2026-09'], schedules,
+      year: 2026, month: 8, daysInMonth: 30, rangeKey: 'week:2026-08-31',
+    });
+    const hoursSheet = workbook.getWorksheet('Часы')!;
+    expect(hoursSheet.getCell('B3').value).toBe('Д 4\nН 8\nΣ 12');
+    expect(hoursSheet.getCell('C3').value).toBe('Д 8\nН 0\nΣ 8');
+    expect([hoursSheet.getCell('I3').value, hoursSheet.getCell('J3').value])
+      .toEqual([12, 8]);
+    expect(hoursSheet.getCell('K3').value).toBe(Number(row?.querySelector('.hours')?.textContent));
   });
 
   it('prints seven days through October with next-month data and no earlier weeks', () => {
