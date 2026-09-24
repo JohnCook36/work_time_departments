@@ -109,6 +109,9 @@ describe('OpenAPI documentation', () => {
     const schemas = document.components!.schemas! as Record<string, SchemaObject>;
     expect(schemas.VerifyCodeDto.properties?.code).toMatchObject({ writeOnly: true });
     expect(schemas.VerifyCodeDto.properties?.code).not.toHaveProperty('example');
+    expect(
+      JSON.stringify(document.paths['/onboarding/admin/pending']),
+    ).not.toContain('phoneE164');
     for (const path of ['/employees?departmentId=example', '/auth/me', '/schedule-data/me?year=2026&month=9']) {
       expect((await fetch(url + path)).status).toBe(401);
     }

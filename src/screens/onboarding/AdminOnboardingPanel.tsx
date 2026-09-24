@@ -50,13 +50,6 @@ import {
   rejectOnboardingRequest,
 } from '../../api/auth';
 
-function maskPhone(value: string): string {
-  const compact = value.replace(/\s+/g, '');
-  if (compact.length <= 5) return compact;
-
-  return compact.slice(0, 3) + '•••' + compact.slice(-2);
-}
-
 function requestLabel(request: AdminOnboardingRequest): string {
   if (request.type === 'LINK_EXISTING') {
     return request.employee?.displayName || 'Существующий профиль сотрудника';
@@ -391,8 +384,6 @@ export function AdminOnboardingPanel() {
                                   {request.type === 'LINK_EXISTING'
                                     ? 'Привязка к существующему сотруднику'
                                     : 'Создание нового профиля'}
-                                  {' • '}
-                                  {maskPhone(request.user.phoneE164)}
                                 </RequestMeta>
                                 <RequestTimestamp>
                                   {new Date(
