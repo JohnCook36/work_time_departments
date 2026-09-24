@@ -24,6 +24,10 @@ export type EmployeeCreateFormValues = EmployeeCreateValues;
 
 interface PlannerControlsToolbarProps {
   departments: Department[];
+  year: number;
+  monthIndex: number;
+  publicationReadEnabled: boolean;
+  canPublishSchedule: boolean;
   canCreateEmployee: boolean;
   isCreatingEmployee: boolean;
   onAddEmployee: (values: EmployeeCreateFormValues) => Promise<boolean>;
@@ -56,6 +60,10 @@ interface PlannerControlsToolbarProps {
 
 export function PlannerControlsToolbar({
   departments,
+  year,
+  monthIndex,
+  publicationReadEnabled,
+  canPublishSchedule,
   canCreateEmployee,
   isCreatingEmployee,
   onAddEmployee,
@@ -156,6 +164,11 @@ export function PlannerControlsToolbar({
 
       {showScheduleTools && (
         <PlannerScheduleToolsDrawer
+          departments={departments}
+          year={year}
+          monthIndex={monthIndex}
+          publicationReadEnabled={publicationReadEnabled}
+          canPublishSchedule={canPublishSchedule}
           canImportExcel={canImportExcel}
           isImportingExcel={isImportingExcel}
           isApplyingExcelImport={isApplyingExcelImport}

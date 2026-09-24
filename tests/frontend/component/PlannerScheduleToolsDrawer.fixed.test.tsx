@@ -10,6 +10,8 @@ describe('5/2 action in schedule management', () => {
   it('saves through the existing drawer only when server planning is available', async () => {
     const onSaveFixedWeekdays = vi.fn();
     const props = {
+      departments: [{ id: 'department-a', name: 'Front Office', kind: 'general' as const }],
+      year: 2026, monthIndex: 8, publicationReadEnabled: false, canPublishSchedule: false,
       canImportExcel: false, isImportingExcel: false, isApplyingExcelImport: false,
       onExcelFile: vi.fn(), excelRangeKey: 'month', onExcelRangeChange: vi.fn(),
       isExportingExcel: false, onExportExcel: vi.fn(), printRangeKey: 'month',
