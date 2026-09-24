@@ -140,10 +140,42 @@ export class AuthService {
       );
     }
 
-    await this.prisma.authChallenge.update({
-      where: { id: challenge.id },
+    const reservationTime = new Date();
+    const reservedAttempt = await this.prisma.authChallenge.updateMany({
+      where: {
+        id: challenge.id,
+        consumedAt: null,
+        expiresAt: { gt: reservationTime },
+        attempts: { lt: challenge.maxAttempts },
+      },
       data: { attempts: { increment: 1 } },
     });
+
+    if (reservedAttempt.count !== 1) {
+      const currentChallenge = await this.prisma.authChallenge.findUnique({
+        where: { id: challenge.id },
+        select: {
+          attempts: true,
+          maxAttempts: true,
+          consumedAt: true,
+          expiresAt: true,
+        },
+      });
+
+      if (
+        currentChallenge &&
+        currentChallenge.consumedAt === null &&
+        currentChallenge.expiresAt.getTime() > Date.now() &&
+        currentChallenge.attempts >= currentChallenge.maxAttempts
+      ) {
+        throw new HttpException(
+          'Too many verification attempts',
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+
+      throw new UnauthorizedException('Code is invalid or expired');
+    }
 
     const suppliedHash = hashOtp(code, this.getOtpPepper());
 
@@ -156,10 +188,19 @@ export class AuthService {
     const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
 
     const result = await this.prisma.$transaction(async (tx) => {
-      await tx.authChallenge.update({
-        where: { id: challenge.id },
-        data: { consumedAt: new Date() },
+      const consumeTime = new Date();
+      const consumedChallenge = await tx.authChallenge.updateMany({
+        where: {
+          id: challenge.id,
+          consumedAt: null,
+          expiresAt: { gt: consumeTime },
+        },
+        data: { consumedAt: consumeTime },
       });
+
+      if (consumedChallenge.count !== 1) {
+        throw new UnauthorizedException('Code is invalid or expired');
+      }
 
       const user = await tx.user.upsert({
         where: { phoneE164 },
