@@ -126,3 +126,30 @@ export const DrawerButtonGrid = styled('div')({
 export const HiddenFileInput = styled('input')({
   display: 'none',
 });
+
+
+export const PublicationFeedback = styled('div')(({ theme }) => ({
+  minHeight: 34,
+  padding: '6px 8px',
+  borderRadius: 8,
+  color: theme.colors.muted,
+  fontSize: 12,
+  lineHeight: '18px',
+}));
+
+export const PublicationHistoryList = styled('div')({
+  display: 'grid',
+  gap: 8,
+});
+
+export const PublicationHistoryItem = styled('div')(({ theme }) => ({
+  display: 'grid',
+  gap: 4,
+  padding: 10,
+  borderRadius: 10,
+  border: '1px solid ' + theme.colors.border,
+}));
+
+export const PublicationHistoryMeta = styled(TinyText)({
+  margin: 0,
+});
