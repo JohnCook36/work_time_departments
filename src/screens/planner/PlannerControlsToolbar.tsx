@@ -6,6 +6,7 @@ import {
   EmployeeCreateValues,
 } from '../../components/drawers/EmployeeCreateDrawer';
 import { PlannerScheduleToolsDrawer } from '../../components/drawers/PlannerScheduleToolsDrawer';
+import { ScheduleRulesDrawer } from '../../components/drawers/ScheduleRulesDrawer';
 import { Department, Employee } from '../../domain/models';
 import {
   ActionButton,
@@ -99,6 +100,7 @@ export function PlannerControlsToolbar({
 }: PlannerControlsToolbarProps) {
   const [showEmployeeCreate, setShowEmployeeCreate] = useState(false);
   const [showScheduleTools, setShowScheduleTools] = useState(false);
+  const [showScheduleRules, setShowScheduleRules] = useState(false);
 
   return (
     <>
@@ -195,7 +197,20 @@ export function PlannerControlsToolbar({
           onFillOffAll={onFillOffAll}
           onClearAll={onClearAll}
           onNavigateToValidationIssue={onNavigateToValidationIssue}
+          onManageRules={() => {
+            setShowScheduleTools(false);
+            setShowScheduleRules(true);
+          }}
           onClose={() => setShowScheduleTools(false)}
+        />
+      )}
+
+      {showScheduleRules && (
+        <ScheduleRulesDrawer
+          departments={departments}
+          serverMode={publicationReadEnabled}
+          isSuperAdmin={canManageDepartments}
+          onClose={() => setShowScheduleRules(false)}
         />
       )}
     </>
