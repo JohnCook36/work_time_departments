@@ -37,6 +37,8 @@ interface PlannerScheduleToolsDrawerProps {
   isImportingExcel: boolean;
   isApplyingExcelImport: boolean;
   onExcelFile: (file: File | null) => void;
+  excelRangeKey: string;
+  onExcelRangeChange: (value: string) => void;
   isExportingExcel: boolean;
   onExportExcel: () => void;
   printRangeKey: string;
@@ -56,6 +58,8 @@ export function PlannerScheduleToolsDrawer({
   isImportingExcel,
   isApplyingExcelImport,
   onExcelFile,
+  excelRangeKey,
+  onExcelRangeChange,
   isExportingExcel,
   onExportExcel,
   printRangeKey,
@@ -90,6 +94,21 @@ export function PlannerScheduleToolsDrawer({
 
         <DrawerSection>
           <DrawerSectionTitle>Excel</DrawerSectionTitle>
+
+          <FormGroup>
+            <FormLabel htmlFor="excel-range">Период экспорта</FormLabel>
+            <Select
+              id="excel-range"
+              value={excelRangeKey}
+              disabled={isExportingExcel}
+              onChange={(event) => onExcelRangeChange(event.target.value)}
+            >
+              <option value="month">Весь месяц</option>
+              {printCalendarWeekRanges.map((range) => (
+                <option key={range.key} value={range.key}>{range.label}</option>
+              ))}
+            </Select>
+          </FormGroup>
 
           <HiddenFileInput
             ref={excelFileInputRef}

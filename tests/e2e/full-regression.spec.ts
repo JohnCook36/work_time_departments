@@ -282,3 +282,67 @@ test('employment rate changes the weekly norm', async ({ page }) => {
   await normRow.getByTitle('Ставка сотрудника').selectOption('0.5');
   await expect(normRow.getByText('40 / 20')).toBeVisible();
 });
+
+for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844 }]) {
+  test(`weekly Excel download and stable drawer at ${viewport.width}px`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await page.clock.setFixedTime(new Date('2026-09-15T12:00:00Z'));
+    const data = state();
+    data.schedules = {
+      '2026-08': { 'employee-1': { 31: { type: 'shift', shift: { start: '20:00', end: '08:00', code: 'N' } } } },
+      '2026-09': { 'employee-1': {
+        1: { type: 'shift', shift: { start: '08:00', end: '17:00', code: 'E' } },
+        2: { type: 'off' },
+        7: { type: 'shift', shift: { start: '08:00', end: '17:00' } },
+      } },
+    };
+    await seed(page, data);
+    await page.goto('/');
+    const trigger = page.getByRole('button', { name: 'Управление графиком' });
+    const before = await trigger.boundingBox();
+    await trigger.click();
+    expect(await trigger.boundingBox()).toEqual(before);
+    const select = page.getByLabel('Период экспорта');
+    await expect(select).toHaveValue('month');
+    const exportButton = page.getByRole('button', { name: 'Экспорт Excel' });
+    await exportButton.hover();
+    await expect.poll(async () => exportButton.evaluate((element) => getComputedStyle(element).transform)).toBe('matrix(1, 0, 0, 1, 0, -1)');
+    const buttonBefore = await exportButton.boundingBox();
+    await select.selectOption('week:2026-08-31');
+    await exportButton.hover();
+    await expect.poll(() => exportButton.boundingBox()).toEqual(buttonBefore);
+    const downloadPromise = page.waitForEvent('download');
+    await exportButton.click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toBe('work-time-departments_week-2026-08-31_to_2026-09-06.xlsx');
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.readFile((await download.path())!);
+    const sheet = workbook.getWorksheet('График')!;
+    expect(sheet.columnCount).toBe(12);
+    expect(sheet.getCell('B1').value).toBe('Пн\n31.08.2026');
+    expect(sheet.getCell('H1').value).toBe('Вс\n06.09.2026');
+    expect(sheet.getCell('B3').value).toBe('20:00-08:00');
+    expect(sheet.getCell('C3').value).toBe('08:00-17:00');
+    expect(sheet.getCell('D3').value).toBe('OFF');
+    expect(sheet.getCell('K3').value).toBe(20);
+    expect(workbook.getWorksheet('Часы')!.getCell('K3').value).toBe(20);
+    await expect(exportButton).toBeEnabled();
+    await exportButton.hover();
+    await expect.poll(() => exportButton.boundingBox()).toEqual(buttonBefore);
+    await expect(select).toBeInViewport();
+    await expect(exportButton).toBeInViewport();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.screenshot({ path: test.info().outputPath(`weekly-excel-${viewport.width}.png`) });
+
+    await select.selectOption('month');
+    const monthlyDownloadPromise = page.waitForEvent('download');
+    await exportButton.click();
+    const monthly = await monthlyDownloadPromise;
+    expect(monthly.suggestedFilename()).toBe('work-time-departments_2026-09.xlsx');
+    const monthlyWorkbook = new ExcelJS.Workbook();
+    await monthlyWorkbook.xlsx.readFile((await monthly.path())!);
+    expect(monthlyWorkbook.getWorksheet('График')!.columnCount).toBe(35);
+    await page.getByTitle('Закрыть', { exact: true }).click();
+    expect(await trigger.boundingBox()).toEqual(before);
+  });
+}

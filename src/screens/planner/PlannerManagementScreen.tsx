@@ -30,6 +30,8 @@ interface PlannerManagementScreenProps {
   isImportingExcel: boolean;
   isApplyingExcelImport: boolean;
   onExcelFile: (file: File | null) => void;
+  excelRangeKey: string;
+  onExcelRangeChange: (value: string) => void;
   isExportingExcel: boolean;
   onExportExcel: () => void;
   printRangeKey: string;
@@ -65,6 +67,8 @@ export function PlannerManagementScreen({
   isImportingExcel,
   isApplyingExcelImport,
   onExcelFile,
+  excelRangeKey,
+  onExcelRangeChange,
   isExportingExcel,
   onExportExcel,
   printRangeKey,
@@ -99,6 +103,8 @@ export function PlannerManagementScreen({
         isImportingExcel={isImportingExcel}
         isApplyingExcelImport={isApplyingExcelImport}
         onExcelFile={onExcelFile}
+        excelRangeKey={excelRangeKey}
+        onExcelRangeChange={onExcelRangeChange}
         isExportingExcel={isExportingExcel}
         onExportExcel={onExportExcel}
         printRangeKey={printRangeKey}

@@ -338,6 +338,8 @@ export function PlannerScreen() {
   );
 
   const {
+    excelRangeKey,
+    setExcelRangeKey,
     isExportingExcel,
     isImportingExcel,
     isApplyingExcelImport,
@@ -668,6 +670,8 @@ export function PlannerScreen() {
               isImportingExcel={isImportingExcel}
               isApplyingExcelImport={isApplyingExcelImport}
               onExcelFile={handleExcelFile}
+              excelRangeKey={excelRangeKey}
+              onExcelRangeChange={setExcelRangeKey}
               isExportingExcel={isExportingExcel}
               onExportExcel={() => void handleExportExcel()}
               printRangeKey={printRangeKey}
