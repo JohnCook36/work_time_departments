@@ -155,3 +155,69 @@ describe('AuthService OTP verification concurrency', () => {
     expect(prisma.authSession.create).toHaveBeenCalledTimes(1);
   });
 });
+
+
+describe('AuthService development OTP safety', () => {
+  const allowKey = ['AUTH', 'ALLOW', 'DEV', 'OTP'].join('_');
+  const codeKey = ['AUTH', 'DEV', 'OTP', 'CODE'].join('_');
+  const originalNodeEnv = process.env.NODE_ENV;
+  const originalAllow = process.env[allowKey];
+  const originalCode = process.env[codeKey];
+
+  afterEach(() => {
+    if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = originalNodeEnv;
+
+    if (originalAllow === undefined) delete process.env[allowKey];
+    else process.env[allowKey] = originalAllow;
+
+    if (originalCode === undefined) delete process.env[codeKey];
+    else process.env[codeKey] = originalCode;
+  });
+
+  function requestCodeService() {
+    const prisma = prismaMock();
+    prisma.authChallenge.findFirst.mockResolvedValue(null);
+    prisma.authChallenge.create.mockResolvedValue({ id: 'challenge-1' });
+    process.env[codeKey] = VALID_CODE;
+
+    return {
+      prisma,
+      service: new AuthService(prisma as unknown as PrismaService),
+    };
+  }
+
+  it('fails closed when dev OTP opt-in is missing', async () => {
+    delete process.env.NODE_ENV;
+    delete process.env[allowKey];
+    const { service, prisma } = requestCodeService();
+
+    await expect(service.requestCode(PHONE)).rejects.toThrow(
+      'SMS OTP provider is not configured',
+    );
+    expect(prisma.authChallenge.create).not.toHaveBeenCalled();
+  });
+
+  it('allows dev OTP only with explicit opt-in outside production', async () => {
+    process.env.NODE_ENV = 'development';
+    process.env[allowKey] = 'true';
+    const { service, prisma } = requestCodeService();
+
+    await expect(service.requestCode(PHONE)).resolves.toEqual({
+      status: 'sent',
+      expiresInSeconds: 300,
+    });
+    expect(prisma.authChallenge.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('always rejects dev OTP in production even when opt-in is set', async () => {
+    process.env.NODE_ENV = 'production';
+    process.env[allowKey] = 'true';
+    const { service, prisma } = requestCodeService();
+
+    await expect(service.requestCode(PHONE)).rejects.toThrow(
+      'SMS OTP provider is not configured',
+    );
+    expect(prisma.authChallenge.create).not.toHaveBeenCalled();
+  });
+});
