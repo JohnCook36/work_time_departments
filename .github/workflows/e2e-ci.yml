@@ -23,23 +23,16 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64, worktime]
     timeout-minutes: 25
-    container:
-      image: mcr.microsoft.com/playwright:v1.63.0-noble
-      options: --ipc=host
-    env:
-      PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
     steps:
+      - name: Repair workspace ownership
+        shell: bash
+        run: |
+          docker run --rm             -v "$GITHUB_WORKSPACE:/workspace"             alpine:3.20             sh -c "chown -R $(id -u):$(id -g) /workspace"
+
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run E2E regression suite
-        run: npm run test:e2e
+      - name: Run E2E regression suite in Playwright Docker
+        shell: bash
+        run: |
+          docker run --rm --ipc=host             --user "$(id -u):$(id -g)"             -e HOME=/tmp             -e CI=true             -v "$GITHUB_WORKSPACE:/work"             -w /work             mcr.microsoft.com/playwright:v1.63.0-noble             bash -lc "npm ci && npm run test:e2e"
