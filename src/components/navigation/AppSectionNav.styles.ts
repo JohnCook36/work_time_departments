@@ -84,14 +84,14 @@ export const MobileNavigationLink = styled(NavLink)(({ theme }) => ({
   },
 }));
 
-export const MobileNavigationButton = styled('button')(({ theme }) => ({
+export const MobileNavigationButton = styled('button')<{ $active?: boolean }>(({ theme, $active }) => ({
   minWidth: 0,
   minHeight: 52,
   padding: '5px 4px',
   border: 0,
   borderRadius: 10,
-  background: 'transparent',
-  color: theme.colors.textMuted,
+  background: $active ? theme.colors.totalSoft : 'transparent',
+  color: $active ? theme.colors.primary : theme.colors.textMuted,
   font: 'inherit',
   fontSize: 10,
   lineHeight: 1.15,
