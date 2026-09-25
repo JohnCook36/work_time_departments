@@ -324,7 +324,7 @@ describe('schedule publication controls', () => {
     expect(screen.queryByText('user-admin')).not.toBeInTheDocument();
     expect(screen.getByText('Сотрудников: 1 · смен: 1')).toBeInTheDocument();
     expect(
-      screen.getByText(/2026-09-07 · employee-1 · 08:00–17:00/),
+      screen.getByText(/2026-09-07 · Иванов И\.И\. · 08:00–17:00/),
     ).toBeInTheDocument();
   });
 
