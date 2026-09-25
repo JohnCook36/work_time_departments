@@ -358,7 +358,9 @@ for (const viewport of [
     await absences.locator('#absence-end').fill('2026-09-21');
     await absences.getByRole('button', { name: 'Добавить отсутствие' }).click();
     await expect(absences.getByText('Отсутствие добавлено.')).toBeVisible();
-    await expect(absences.getByText('Больничный', { exact: true })).toBeVisible();
+    await expect(
+      absences.getByLabel('Список отсутствий').getByText('Больничный', { exact: true }),
+    ).toBeVisible();
 
     await absences.getByRole('button', { name: 'Редактировать' }).first().click();
     await absences.locator('#absence-end').fill('2026-09-13');
