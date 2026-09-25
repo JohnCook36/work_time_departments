@@ -71,6 +71,7 @@ export class AuthService {
 
     const pepper = this.getOtpPepper();
     const code = this.getOtpCode();
+    this.assertOtpDeliveryConfigured();
     const sourceHash = requestSource
       ? hashAuthRequestSource(requestSource, pepper)
       : null;
@@ -464,6 +465,17 @@ export class AuthService {
         'Development OTP code must contain exactly 6 digits',
       );
     }
+  }
+
+  private assertOtpDeliveryConfigured(): void {
+    if (process.env.NODE_ENV !== 'production') return;
+
+    this.assertOtpDeliveryConfigured();
+    const url = process.env.AUTH_OTP_PROVIDER_URL!.trim();
+    const token = process.env.AUTH_OTP_PROVIDER_TOKEN!.trim();
+    const rawTimeoutMs = process.env.AUTH_OTP_PROVIDER_TIMEOUT_MS;
+    const timeoutMs = rawTimeoutMs ? Number(rawTimeoutMs) : 5000;
+    const parsedUrl = new URL(url);
   }
 
   private async deliverOtp(phoneE164: string, code: string): Promise<void> {
