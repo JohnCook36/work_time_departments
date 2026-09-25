@@ -78,6 +78,9 @@ describe('ScheduleRulesService', () => {
     auditLog: {
       create: jest.fn(),
     },
+    user: {
+      findUnique: jest.fn(),
+    },
     $queryRaw: jest.fn(),
   };
 
@@ -142,6 +145,17 @@ describe('ScheduleRulesService', () => {
       id: 'version-1',
     });
     transaction.auditLog.create.mockResolvedValue({ id: 'audit-1' });
+    transaction.user.findUnique.mockResolvedValue({
+      isActive: true,
+      memberships: [
+        {
+          id: 'membership-a',
+          role: RoleType.DEPARTMENT_ADMIN,
+          departmentId: 'department-a',
+          permissions: [],
+        },
+      ],
+    });
   });
 
   it('idempotently applies the standard FO preset without overwriting existing preset rules', async () => {
@@ -302,6 +316,18 @@ describe('ScheduleRulesService', () => {
       }),
     );
 
+    transaction.user.findUnique.mockResolvedValueOnce({
+      isActive: true,
+      memberships: [
+        {
+          id: 'membership-super',
+          role: RoleType.SUPER_ADMIN,
+          departmentId: null,
+          permissions: [],
+        },
+      ],
+    });
+
     await service.createRule(superAdmin(), {
       name: 'Employee coverage',
       description: 'Rule for employee role',
@@ -380,6 +406,33 @@ describe('ScheduleRulesService', () => {
         editable: true,
       }),
     );
+  });
+
+  it('rejects rule update when current schedule-rule scope was revoked', async () => {
+    prisma.scheduleRule.findFirst.mockResolvedValue(ruleRow());
+    transaction.user.findUnique.mockResolvedValueOnce({
+      isActive: true,
+      memberships: [],
+    });
+    authorization.canAdministerDepartment.mockImplementation(
+      (user: AuthUserContext) =>
+        user.memberships.some(
+          membership =>
+            membership.role === RoleType.DEPARTMENT_ADMIN &&
+            membership.departmentId === 'department-a',
+        ),
+    );
+
+    await expect(
+      service.updateRule(departmentAdmin(), 'rule-1', {
+        name: 'Нельзя изменить',
+        expectedUpdatedAt: '2026-09-24T20:00:00.000Z',
+      }),
+    ).rejects.toThrow('You do not have permission to edit this rule');
+
+    expect(transaction.scheduleRule.updateMany).not.toHaveBeenCalled();
+    expect(transaction.scheduleRuleVersion.create).not.toHaveBeenCalled();
+    expect(transaction.auditLog.create).not.toHaveBeenCalled();
   });
 
   it('rejects a stale optimistic rule update', async () => {
