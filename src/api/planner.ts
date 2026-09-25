@@ -784,6 +784,25 @@ export function getDepartmentSchedulePublication(
   );
 }
 
+export interface PublicationAcknowledgementList {
+  publicationId: string;
+  departmentId: string;
+  version: number;
+  employees: {
+    employeeId: string;
+    displayName: string;
+    status: 'ACKNOWLEDGED' | 'NOT_ACKNOWLEDGED' | 'NO_ACTIVE_ACCOUNT';
+    acknowledgedAt: string | null;
+  }[];
+}
+
+export function getPublicationAcknowledgements(publicationId: string) {
+  const params = new URLSearchParams({ publicationId });
+  return apiRequest<PublicationAcknowledgementList>(
+    '/schedule-data/department/publication-acknowledgements?' + params.toString(),
+  );
+}
+
 export function applyDepartmentScheduleChanges(
   departmentId: string,
   year: number,

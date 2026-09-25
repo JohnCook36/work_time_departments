@@ -21,6 +21,10 @@ function publication(version: number) {
     ...employeeBefore,
     employmentRate: 0.75,
   };
+  const otherEmployees = [
+    { ...employeeBefore, id: 'employee-2', displayName: 'Петров П.П.' },
+    { ...employeeBefore, id: 'employee-3', displayName: 'Сидорова С.С.' },
+  ];
   const shiftBefore = {
     id: 'shift-1',
     employeeId: 'employee-1',
@@ -65,13 +69,22 @@ function publication(version: number) {
         name: department.name,
         kind: department.kind,
       },
-      employees: [version === 2 ? employeeAfter : employeeBefore],
+      employees: version === 2
+        ? [employeeAfter, ...otherEmployees]
+        : [employeeBefore],
       shifts: version === 2 ? [shiftAfter, addedShift] : [shiftBefore],
     },
     diff: {
       employees:
         version === 2
-          ? [{ key: 'employee-1', before: employeeBefore, after: employeeAfter }]
+          ? [
+              { key: 'employee-1', before: employeeBefore, after: employeeAfter },
+              ...otherEmployees.map(employee => ({
+                key: employee.id,
+                before: null,
+                after: employee,
+              })),
+            ]
           : [{ key: 'employee-1', before: null, after: employeeBefore }],
       shifts:
         version === 2
@@ -202,6 +215,27 @@ async function mockServer(page: Page) {
       return reply(route, publication(version));
     }
 
+    if (path === '/schedule-data/department/publication-acknowledgements') {
+      const publicationId = url.searchParams.get('publicationId');
+      if (publicationId !== 'publication-1' && publicationId !== 'publication-2') {
+        return reply(route, { message: 'Unexpected publication' }, 404);
+      }
+      return reply(route, {
+        publicationId,
+        departmentId: department.id,
+        version: Number(publicationId.slice(-1)),
+        employees: publicationId === 'publication-2'
+          ? [
+              { employeeId: 'employee-1', displayName: 'Иванов И.И.', status: 'ACKNOWLEDGED', acknowledgedAt: '2026-09-25T10:30:00.000Z' },
+              { employeeId: 'employee-2', displayName: 'Петров П.П.', status: 'NOT_ACKNOWLEDGED', acknowledgedAt: null },
+              { employeeId: 'employee-3', displayName: 'Сидорова С.С.', status: 'NO_ACTIVE_ACCOUNT', acknowledgedAt: null },
+            ]
+          : [
+              { employeeId: 'employee-1', displayName: 'Иванов И.И.', status: 'NOT_ACKNOWLEDGED', acknowledgedAt: null },
+            ],
+      });
+    }
+
     return reply(route, { message: 'Unhandled E2E route: ' + path }, 404);
   });
 }
@@ -232,6 +266,23 @@ for (const viewport of [
 
     await expect(page.getByText(/^v2 ·/)).toBeVisible();
     await page.getByRole('button', { name: 'Открыть v2' }).click();
+
+    const acknowledgements = page.getByRole('region', { name: 'Ознакомление сотрудников' });
+    await expect(acknowledgements.getByText('Ознакомлен', { exact: true })).toBeVisible();
+    await expect(acknowledgements.getByText('Не ознакомлен', { exact: true })).toBeVisible();
+    await expect(acknowledgements.getByText('Нет активного аккаунта')).toBeVisible();
+    await expect(acknowledgements.getByText('25.09.2026, 10:30')).toBeVisible();
+    await expect(acknowledgements.getByText('Петров П.П.')).toBeVisible();
+    await expect(acknowledgements.getByText('Сидорова С.С.')).toBeVisible();
+    await expect(acknowledgements).not.toContainText('user-');
+    await expect(acknowledgements).not.toContainText('+7999');
+
+    await page.getByRole('button', { name: 'Открыть v1' }).click();
+    await expect(acknowledgements.getByText('Не ознакомлен', { exact: true })).toBeVisible();
+    await expect(acknowledgements.getByText('Ознакомлен', { exact: true })).toHaveCount(0);
+    await expect(acknowledgements.getByText('Петров П.П.')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Открыть v2' }).click();
+    await expect(acknowledgements.getByText('Ознакомлен', { exact: true })).toBeVisible();
 
     await expect(page.getByText('Изменения смен')).toBeVisible();
     await expect(

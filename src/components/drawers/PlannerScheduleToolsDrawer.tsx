@@ -20,6 +20,7 @@ import {
   validateDepartmentSchedule,
 } from '../../api/planner';
 import { Department, Employee } from '../../domain/models';
+import { PublicationAcknowledgements } from './PublicationAcknowledgements';
 import {
   ActionButton,
   DrawerHeader,
@@ -216,6 +217,7 @@ export function PlannerScheduleToolsDrawer({
     }
 
     setPublicationBusy(true);
+    setSelectedPublication(null);
     try {
       const history = await getDepartmentSchedulePublications(
         publicationDepartmentId,
@@ -347,6 +349,7 @@ export function PlannerScheduleToolsDrawer({
     }
 
     setPublicationBusy(true);
+    setSelectedPublication(null);
     setPublicationFeedback('');
 
     try {
@@ -776,6 +779,11 @@ export function PlannerScheduleToolsDrawer({
                 <PublicationHistoryMeta>
                   Комментарий: {selectedPublication.comment || 'без комментария'}
                 </PublicationHistoryMeta>
+
+                <PublicationAcknowledgements
+                  key={selectedPublication.id}
+                  publicationId={selectedPublication.id}
+                />
 
                 <strong>Изменения смен</strong>
                 {selectedPublication.diff.shifts.length === 0 ? (
