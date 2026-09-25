@@ -483,7 +483,13 @@ export function RoleAccessScreen() {
                         );
 
                   return (
-                    <AssignmentCard key={assignment.id}>
+                    <AssignmentCard
+                      key={assignment.id}
+                      aria-label={
+                        'Назначение ' +
+                        (assignment.employee?.displayName || 'без сотрудника')
+                      }
+                    >
                       <AssignmentTop>
                         <div>
                           <AssignmentTitle>
