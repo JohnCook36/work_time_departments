@@ -34,7 +34,7 @@ describeLive('live PostgreSQL structured absences', () => {
     await prisma.schedule.deleteMany();
     await prisma.$transaction(async tx => {
       await tx.$executeRawUnsafe(
-        "SET LOCAL app.audit_log_retention_mode = 'on'",
+        "SET LOCAL wtd.audit_retention_delete = 'on'",
       );
       await tx.auditLog.deleteMany();
     });
