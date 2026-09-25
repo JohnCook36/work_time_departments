@@ -31,7 +31,7 @@ function publication(version: number): SchedulePublicationResponse {
     scheduleId: 'schedule-1',
     departmentId: 'department-a',
     version,
-    publishedByLabel: 'user-admin',
+    publishedByLabel: 'Администратор публикации',
     sourceScheduleUpdatedAt: '2026-09-01T10:00:00.000Z',
     comment: version === 2 ? 'Финальный график' : 'Первая версия',
     rulesVersion: null,
@@ -252,6 +252,8 @@ describe('schedule publication controls', () => {
     });
 
     expect(screen.getByText('v1 · Front Office')).toBeInTheDocument();
+    expect(screen.getByText('Автор: Администратор публикации')).toBeInTheDocument();
+    expect(screen.queryByText('user-admin')).not.toBeInTheDocument();
     expect(screen.getByText('Сотрудников: 1 · смен: 1')).toBeInTheDocument();
     expect(
       screen.getByText(/2026-09-07 · employee-1 · 08:00–17:00/),
