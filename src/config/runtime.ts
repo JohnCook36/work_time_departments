@@ -38,9 +38,11 @@ export function resolveRuntimeConfig(env: RuntimeEnv): RuntimeConfig {
   };
 }
 
-export const runtimeConfig = resolveRuntimeConfig({
-  PROD: import.meta.env.PROD,
-  VITE_API_URL: import.meta.env.VITE_API_URL,
-  VITE_SERVER_PLANNER_READ: import.meta.env.VITE_SERVER_PLANNER_READ,
-  VITE_SERVER_PLANNER_WRITE: import.meta.env.VITE_SERVER_PLANNER_WRITE,
-});
+export function getRuntimeConfig(): RuntimeConfig {
+  return resolveRuntimeConfig({
+    PROD: import.meta.env.PROD,
+    VITE_API_URL: import.meta.env.VITE_API_URL,
+    VITE_SERVER_PLANNER_READ: import.meta.env.VITE_SERVER_PLANNER_READ,
+    VITE_SERVER_PLANNER_WRITE: import.meta.env.VITE_SERVER_PLANNER_WRITE,
+  });
+}
