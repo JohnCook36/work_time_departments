@@ -227,6 +227,48 @@ describeLive('live PostgreSQL shift-change application', () => {
     await expectManagerNotifications(f.request.id, f.requester.id, f.target.id, ShiftChangeRequestEventType.MANAGER_APPROVED);
   });
 
+  it('rejects manager rejection when database membership was revoked after target accepted', async () => {
+    const f = await fixture(ShiftChangeRequestKind.COVER);
+    await prisma.membership.updateMany({
+      where: { userId: f.manager.id },
+      data: { isActive: false },
+    });
+
+    await expect(
+      changes.managerReject(f.manager, f.request.id),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(
+      (await prisma.shiftChangeRequest.findUniqueOrThrow({
+        where: { id: f.request.id },
+      })).status,
+    ).toBe(ShiftChangeRequestStatus.PENDING_MANAGER);
+    expect(
+      await prisma.shiftChangeRequestEvent.count({
+        where: {
+          requestId: f.request.id,
+          eventType: ShiftChangeRequestEventType.MANAGER_REJECTED,
+        },
+      }),
+    ).toBe(0);
+    expect(
+      await prisma.auditLog.count({
+        where: {
+          entityId: f.request.id,
+          action: AuditAction.SHIFT_CHANGE_MANAGER_REJECTED,
+        },
+      }),
+    ).toBe(0);
+    expect(
+      await prisma.notification.count({
+        where: {
+          entityId: f.request.id,
+          eventKey: `shift-change:${f.request.id}:MANAGER_REJECTED`,
+        },
+      }),
+    ).toBe(0);
+  });
+
   it('notifies only requester and target about manager rejection, once per outcome', async () => {
     const f = await fixture(ShiftChangeRequestKind.COVER);
     const rejected = await changes.managerReject(f.manager, f.request.id);
