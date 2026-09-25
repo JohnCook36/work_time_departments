@@ -695,6 +695,19 @@ describe('ShiftChangeRequestsService', () => {
         }),
       }),
     );
+    expect(notifications.createForUserInTransaction).toHaveBeenCalledTimes(2);
+    expect(notifications.createForUserInTransaction.mock.calls).toEqual([
+      [prisma, expect.objectContaining({
+        recipientId: 'requester-user',
+        entityId: 'request-1',
+        eventKey: 'shift-change:request-1:MANAGER_APPROVED',
+      })],
+      [prisma, expect.objectContaining({
+        recipientId: 'target-user',
+        entityId: 'request-1',
+        eventKey: 'shift-change:request-1:MANAGER_APPROVED',
+      })],
+    ]);
     expect(prisma.auditLog.create).toHaveBeenCalledTimes(4);
     expect(prisma.auditLog.create).toHaveBeenCalledWith({
       data: {
@@ -894,5 +907,18 @@ describe('ShiftChangeRequestsService', () => {
       },
       select: { id: true },
     });
+    expect(notifications.createForUserInTransaction).toHaveBeenCalledTimes(2);
+    expect(notifications.createForUserInTransaction.mock.calls).toEqual([
+      [prisma, expect.objectContaining({
+        recipientId: 'requester-user',
+        entityId: 'request-1',
+        eventKey: 'shift-change:request-1:MANAGER_REJECTED',
+      })],
+      [prisma, expect.objectContaining({
+        recipientId: 'target-user',
+        entityId: 'request-1',
+        eventKey: 'shift-change:request-1:MANAGER_REJECTED',
+      })],
+    ]);
   });
 });

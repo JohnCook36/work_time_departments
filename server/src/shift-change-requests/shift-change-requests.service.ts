@@ -629,21 +629,6 @@ export class ShiftChangeRequestsService {
             ),
           ]);
 
-          await Promise.all([
-          this.notifyShiftChange(
-            tx,
-            request.requesterUserId,
-            request.id,
-            ShiftChangeRequestEventType.MANAGER_REJECTED,
-          ),
-          this.notifyShiftChange(
-            tx,
-            request.targetUserId,
-            request.id,
-            ShiftChangeRequestEventType.MANAGER_REJECTED,
-          ),
-        ]);
-
         for (const departmentId of new Set([
             request.requesterDepartmentId,
             request.targetDepartmentId,
@@ -838,6 +823,21 @@ export class ShiftChangeRequestsService {
             resolvedAt: new Date(),
           },
         );
+
+        await Promise.all([
+          this.notifyShiftChange(
+            tx,
+            request.requesterUserId,
+            request.id,
+            ShiftChangeRequestEventType.MANAGER_REJECTED,
+          ),
+          this.notifyShiftChange(
+            tx,
+            request.targetUserId,
+            request.id,
+            ShiftChangeRequestEventType.MANAGER_REJECTED,
+          ),
+        ]);
 
         for (const departmentId of new Set([
           request.requesterDepartmentId,
