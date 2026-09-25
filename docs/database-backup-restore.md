@@ -88,3 +88,27 @@ bash server/scripts/production-backup.sh
 The script creates a custom PostgreSQL dump, encrypts it with age, stores a SHA-256 checksum, removes the raw temporary dump and deletes encrypted backup/checksum files older than the configured rotation.
 
 Scheduling is intentionally an infrastructure responsibility. Use systemd timer, cron or the hosting provider scheduler with least-privilege credentials. The Gate A evidence must contain at least one successful scheduled backup and one isolated restore rehearsal; a repository CI smoke does not substitute for those.
+
+
+### Production restore rehearsal runner
+
+For Gate A, restore one real encrypted scheduled backup into a pre-created empty isolated database:
+
+```bash
+BACKUP_FILE='/secure/path/wtd-YYYYMMDD-HHMMSS.dump.age' \
+BACKUP_AGE_IDENTITY='/secure/path/restore.agekey' \
+RESTORE_DATABASE_URL='postgresql://...' \
+bash server/scripts/production-restore-rehearsal.sh
+```
+
+The runner:
+
+1. verifies the encrypted backup checksum;
+2. refuses a non-empty target database;
+3. refuses the production database URL when `DATABASE_URL` is also supplied;
+4. decrypts to a mode-600 temporary file and always removes it;
+5. restores with `pg_restore --exit-on-error`;
+6. verifies Prisma migration history and the Department table are readable;
+7. reports elapsed restore seconds for the Gate A RTO evidence.
+
+The isolated restored database is intentionally left intact for operator inspection. Delete it after the evidence record is complete.

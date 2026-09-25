@@ -49,6 +49,7 @@ jobs:
           component=false
           integration=false
           build=false
+          ops=false
 
           if [ "$EVENT_NAME" != "pull_request" ]; then
             full=true
@@ -83,6 +84,10 @@ jobs:
             if grep -Eq '^src/|^index\.html$|^vite\.config\.|^tsconfig|^package(-lock)?\.json$' <<<"$changed"; then
               build=true
             fi
+
+            if grep -Eq '^scripts/gate-a-.*\.mjs$' <<<"$changed"; then
+              ops=true
+            fi
           fi
 
           if [ "$full" = true ]; then
@@ -92,10 +97,11 @@ jobs:
             component=true
             integration=true
             build=true
+            ops=true
           fi
 
           needs_node=false
-          if [ "$deps" = true ] || [ "$static" = true ] || [ "$unit" = true ] || [ "$component" = true ] || [ "$integration" = true ] || [ "$build" = true ]; then
+          if [ "$deps" = true ] || [ "$static" = true ] || [ "$unit" = true ] || [ "$component" = true ] || [ "$integration" = true ] || [ "$build" = true ] || [ "$ops" = true ]; then
             needs_node=true
           fi
 
@@ -107,6 +113,7 @@ jobs:
             echo "component=$component"
             echo "integration=$integration"
             echo "build=$build"
+            echo "ops=$ops"
             echo "needs_node=$needs_node"
           } >> "$GITHUB_OUTPUT"
 
@@ -144,6 +151,10 @@ jobs:
       - name: Frontend integration block
         if: steps.scope.outputs.integration == 'true'
         run: npm test -- tests/frontend/integration
+
+      - name: Gate A operational script syntax
+        if: steps.scope.outputs.ops == 'true'
+        run: node --check scripts/gate-a-auth-smoke.mjs
 
       - name: Typecheck
         if: steps.scope.outputs.build == 'true'
