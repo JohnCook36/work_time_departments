@@ -31,6 +31,13 @@ roles, permissions, PII, export/print and backend changes.
 - The deployment topology must match that policy: with the current `SameSite=Lax` cookie, frontend/backend should be same-site or the alternative cross-site cookie/session design must be explicitly reviewed and browser-tested. Do not switch to `SameSite=None` blindly.
 - OTP codes are never logged or documented with production examples.
 - OTP attempt limits and challenge consumption must remain atomic under concurrency.
+- OTP challenge technical records use bounded retention: records older than
+  `max(OTP_TTL, AUTH_OTP_SOURCE_WINDOW_SECONDS)` are pruned before a new
+  request-code decision. This preserves both OTP validity and the active source
+  rate-limit window while preventing unbounded accumulation during normal auth traffic.
+- Hard wall-clock deletion still depends on auth traffic; if the pilot requires
+  deletion at an exact time even while authentication is idle, schedule the same
+  cleanup rule operationally rather than shortening the retention window.
 - Logout must revoke the server session and browser-private planner data for that account.
 - Production OTP must not fall back to the development code.
 
