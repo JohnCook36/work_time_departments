@@ -28,6 +28,7 @@ roles, permissions, PII, export/print and backend changes.
 - Session tokens are opaque, stored server-side as hashes and transported by HttpOnly cookies
   or the explicitly supported bearer transport.
 - Production cookies must remain `HttpOnly`, `Secure` and use the defined SameSite policy.
+- The deployment topology must match that policy: with the current `SameSite=Lax` cookie, frontend/backend should be same-site or the alternative cross-site cookie/session design must be explicitly reviewed and browser-tested. Do not switch to `SameSite=None` blindly.
 - OTP codes are never logged or documented with production examples.
 - OTP attempt limits and challenge consumption must remain atomic under concurrency.
 - Logout must revoke the server session and browser-private planner data for that account.
@@ -71,6 +72,8 @@ this backend. Add CSP only with a tested policy that keeps the required document
 ## Secrets and environment
 
 - Secrets belong in deployment/environment configuration, never in Git.
+- Production frontend builds must explicitly set the real HTTPS `VITE_API_URL` and canonical server planner flags; relying on the localhost fallback is a release failure.
+- Backend `FRONTEND_ORIGIN` must exactly match the deployed frontend origin. Green build/deploy-preview status does not prove runtime frontend↔backend session connectivity.
 - `.env.example` contains placeholders only.
 - Production must use unique secrets of sufficient length.
 - Never bypass a missing production integration by enabling a development credential/code.
@@ -96,6 +99,7 @@ Security-sensitive PRs should include, where relevant:
 - cross-account isolation tests;
 - invalid/stale/concurrent mutation tests;
 - HTTP/CORS/origin/session lifecycle tests;
+- production-like browser verification of OTP/session cookies across the actual frontend/backend origins before release;
 - E2E checks when browser state or routing changes.
 
 ## Merge gate

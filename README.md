@@ -58,11 +58,13 @@ npm run typecheck
 npm run build
 ```
 
-Для Prisma задайте `DATABASE_URL` согласно `server/.env.example`. HTTP/Jest и Playwright regression tests используют mocks; их прохождение не подтверждает production SMS или интеграцию с живой БД.
+Для Prisma задайте `DATABASE_URL` согласно `server/.env.example`. HTTP/OpenAPI и Playwright regression tests в основном используют controlled/mocked HTTP, а Backend CI отдельно запускает live PostgreSQL security/shift-change suites и pg_dump→restore smoke. Даже полный green CI не подтверждает production SMS provider или корректность реального deployment/runtime env.
 
 ## Сборка и deploy
 
 `npm run build` генерирует `dist/`. Netlify использует эту команду и SPA fallback из `netlify.toml`; backend разворачивается отдельно. `dist/` и `node_modules/` не хранятся в Git. Старый standalone-прототип `site/` удалён; актуальное приложение запускается через Vite и использует backend auth.
+
+Для production frontend build необходимо явно задать HTTPS `VITE_API_URL` реального backend и canonical server mode `VITE_SERVER_PLANNER_READ=1`, `VITE_SERVER_PLANNER_WRITE=1`; иначе `VITE_API_URL` fallback'ится в `http://localhost:3000`. Backend production требует точный `FRONTEND_ORIGIN`. Session cookie сейчас `HttpOnly; SameSite=Lax; Secure` в production, поэтому frontend/backend origin topology должна быть проверена реальным браузером: предпочтительно same-site custom domains либо отдельно спроектированный и протестированный cross-site cookie flow. Зелёный Netlify build сам по себе runtime-связность не подтверждает.
 
 ## Excel export
 
