@@ -64,7 +64,12 @@ describeLive('live PostgreSQL shift-change application', () => {
     const notifications = new NotificationsService(prisma);
     changes = new ShiftChangeRequestsService(prisma, authorization, notifications);
     schedules = new SchedulesService(prisma, authorization);
-    publications = new SchedulePublicationsService(prisma, authorization);
+    const publicationNotifications = new NotificationsService(prisma);
+    publications = new SchedulePublicationsService(
+      prisma,
+      authorization,
+      publicationNotifications,
+    );
   });
   beforeEach(async () => clearDatabase());
   afterAll(async () => {

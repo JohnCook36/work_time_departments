@@ -8,6 +8,7 @@ import {
 import type { AuthUserContext } from '../../src/auth/auth.service';
 import { AuthorizationService } from '../../src/auth/authorization.service';
 import { OnboardingService } from '../../src/onboarding/onboarding.service';
+import { NotificationsService } from '../../src/notifications/notifications.service';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import { SchedulePublicationsService } from '../../src/schedules/schedule-publications.service';
 import { SchedulesService } from '../../src/schedules/schedules.service';
@@ -35,6 +36,8 @@ describeLive('live PostgreSQL onboarding acceptance', () => {
       );
       await tx.schedulePublication.deleteMany();
     });
+    await prisma.notificationPreference.deleteMany();
+    await prisma.notification.deleteMany();
     await prisma.shiftChangeRequestEvent.deleteMany();
     await prisma.shiftChangeRequest.deleteMany();
     await prisma.onboardingRequest.deleteMany();
@@ -70,7 +73,12 @@ describeLive('live PostgreSQL onboarding acceptance', () => {
     await prisma.$connect();
     const authorization = new AuthorizationService();
     onboarding = new OnboardingService(prisma, authorization);
-    publications = new SchedulePublicationsService(prisma, authorization);
+    const publicationNotifications = new NotificationsService(prisma);
+    publications = new SchedulePublicationsService(
+      prisma,
+      authorization,
+      publicationNotifications,
+    );
     schedules = new SchedulesService(prisma, authorization);
   });
 
