@@ -81,7 +81,14 @@ jobs:
               integration=true
             fi
 
-            if grep -Eq '^src/|^index\.html$|^vite\.config\.|^tsconfig|^package(-lock)?\.json          fi
+            if grep -Eq '^src/|^index\.html$|^vite\.config\.|^tsconfig|^package(-lock)?\.json$' <<<"$changed"; then
+              build=true
+            fi
+
+            if grep -Eq '^scripts/gate-a-.*\.mjs$' <<<"$changed"; then
+              ops=true
+            fi
+          fi
 
           if [ "$full" = true ]; then
             deps=true
@@ -148,151 +155,6 @@ jobs:
       - name: Gate A operational script syntax
         if: steps.scope.outputs.ops == 'true'
         run: node --check scripts/gate-a-auth-smoke.mjs
-
-      - name: Typecheck
-        if: steps.scope.outputs.build == 'true'
-        run: npm run typecheck
-
-      - name: Build
-        if: steps.scope.outputs.build == 'true'
-        run: npm run build
- <<<"$changed"; then
-              build=true
-            fi
-
-            if grep -Eq '^scripts/gate-a-.*\.mjs          fi
-
-          if [ "$full" = true ]; then
-            deps=true
-            static=true
-            unit=true
-            component=true
-            integration=true
-            build=true
-          fi
-
-          needs_node=false
-          if [ "$deps" = true ] || [ "$static" = true ] || [ "$unit" = true ] || [ "$component" = true ] || [ "$integration" = true ] || [ "$build" = true ]; then
-            needs_node=true
-          fi
-
-          {
-            echo "full=$full"
-            echo "deps=$deps"
-            echo "static=$static"
-            echo "unit=$unit"
-            echo "component=$component"
-            echo "integration=$integration"
-            echo "build=$build"
-            echo "needs_node=$needs_node"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Setup Node
-        if: steps.scope.outputs.needs_node == 'true'
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install dependencies
-        if: steps.scope.outputs.needs_node == 'true'
-        run: npm ci
-
-      - name: Runtime dependency audit
-        if: steps.scope.outputs.deps == 'true'
-        run: npm audit --omit=dev --audit-level=high
-
-      - name: Design token guard
-        if: steps.scope.outputs.static == 'true'
-        run: npm run check:design-tokens
-
-      - name: Inline style guard
-        if: steps.scope.outputs.static == 'true'
-        run: npm run check:inline-styles
-
-      - name: Frontend unit block
-        if: steps.scope.outputs.unit == 'true'
-        run: npm test -- tests/frontend/unit
-
-      - name: Frontend component block
-        if: steps.scope.outputs.component == 'true'
-        run: npm test -- tests/frontend/component
-
-      - name: Frontend integration block
-        if: steps.scope.outputs.integration == 'true'
-        run: npm test -- tests/frontend/integration
-
-      - name: Typecheck
-        if: steps.scope.outputs.build == 'true'
-        run: npm run typecheck
-
-      - name: Build
-        if: steps.scope.outputs.build == 'true'
-        run: npm run build
- <<<"$changed"; then
-              ops=true
-            fi
-          fi
-
-          if [ "$full" = true ]; then
-            deps=true
-            static=true
-            unit=true
-            component=true
-            integration=true
-            build=true
-          fi
-
-          needs_node=false
-          if [ "$deps" = true ] || [ "$static" = true ] || [ "$unit" = true ] || [ "$component" = true ] || [ "$integration" = true ] || [ "$build" = true ]; then
-            needs_node=true
-          fi
-
-          {
-            echo "full=$full"
-            echo "deps=$deps"
-            echo "static=$static"
-            echo "unit=$unit"
-            echo "component=$component"
-            echo "integration=$integration"
-            echo "build=$build"
-            echo "needs_node=$needs_node"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Setup Node
-        if: steps.scope.outputs.needs_node == 'true'
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install dependencies
-        if: steps.scope.outputs.needs_node == 'true'
-        run: npm ci
-
-      - name: Runtime dependency audit
-        if: steps.scope.outputs.deps == 'true'
-        run: npm audit --omit=dev --audit-level=high
-
-      - name: Design token guard
-        if: steps.scope.outputs.static == 'true'
-        run: npm run check:design-tokens
-
-      - name: Inline style guard
-        if: steps.scope.outputs.static == 'true'
-        run: npm run check:inline-styles
-
-      - name: Frontend unit block
-        if: steps.scope.outputs.unit == 'true'
-        run: npm test -- tests/frontend/unit
-
-      - name: Frontend component block
-        if: steps.scope.outputs.component == 'true'
-        run: npm test -- tests/frontend/component
-
-      - name: Frontend integration block
-        if: steps.scope.outputs.integration == 'true'
-        run: npm test -- tests/frontend/integration
 
       - name: Typecheck
         if: steps.scope.outputs.build == 'true'
