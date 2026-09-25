@@ -8,6 +8,7 @@ import { AuthUserContext } from '../../../src/auth/auth.service';
 import { AuthorizationService } from '../../../src/auth/authorization.service';
 import { SessionAuthGuard } from '../../../src/auth/session-auth.guard';
 import { PrismaService } from '../../../src/prisma/prisma.service';
+import { ScheduleAcknowledgementsService } from '../../../src/schedules/schedule-acknowledgements.service';
 import { SchedulePublicationsService } from '../../../src/schedules/schedule-publications.service';
 import { SchedulesController } from '../../../src/schedules/schedules.controller';
 import { SchedulesService } from '../../../src/schedules/schedules.service';
@@ -91,6 +92,7 @@ describe('SchedulesController API validation', () => {
       providers: [
         SchedulesService,
         { provide: SchedulePublicationsService, useValue: publications },
+        { provide: ScheduleAcknowledgementsService, useValue: {} },
         { provide: PrismaService, useValue: prisma },
         { provide: AuthorizationService, useValue: authorization },
       ],
