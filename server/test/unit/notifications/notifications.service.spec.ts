@@ -17,6 +17,7 @@ function createPrismaMock() {
       count: jest.fn(),
       update: jest.fn(),
       updateMany: jest.fn(),
+      deleteMany: jest.fn(),
       upsert: jest.fn(),
     },
     notificationPreference: {
@@ -75,6 +76,22 @@ describe('NotificationsService', () => {
         readAt: null,
       }),
     );
+  });
+
+  it('prunes notifications older than the pilot retention window before listing', async () => {
+    prisma.notification.findMany.mockResolvedValue([]);
+
+    const before = Date.now();
+    await service.listOwn('user-a', {});
+    const after = Date.now();
+
+    expect(prisma.notification.deleteMany).toHaveBeenCalledTimes(1);
+    const cutoff =
+      prisma.notification.deleteMany.mock.calls[0][0].where.createdAt.lt;
+    expect(cutoff).toBeInstanceOf(Date);
+    const retentionMs = 180 * 24 * 60 * 60 * 1000;
+    expect(cutoff.getTime()).toBeGreaterThanOrEqual(before - retentionMs);
+    expect(cutoff.getTime()).toBeLessThanOrEqual(after - retentionMs);
   });
 
   it('rejects a cursor owned by another user', async () => {
