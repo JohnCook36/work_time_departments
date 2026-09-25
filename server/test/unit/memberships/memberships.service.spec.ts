@@ -17,6 +17,7 @@ function createPrismaMock() {
   const prisma: any = {
     employee: { findFirst: jest.fn() },
     department: { findFirst: jest.fn() },
+    user: { findUnique: jest.fn() },
     membership: {
       findMany: jest.fn(),
       findFirst: jest.fn(),
@@ -75,6 +76,17 @@ describe('MembershipsService role assignment lifecycle', () => {
       new AuthorizationService(),
     );
     prisma.department.findFirst.mockResolvedValue({ id: 'department-a' });
+    prisma.user.findUnique.mockResolvedValue({
+      isActive: true,
+      memberships: [
+        {
+          id: 'admin-membership',
+          role: RoleType.DEPARTMENT_ADMIN,
+          departmentId: 'department-a',
+          permissions: [],
+        },
+      ],
+    });
     prisma.employee.findFirst.mockResolvedValue({
       id: 'employee-target',
       departmentId: 'department-a',
@@ -246,6 +258,37 @@ describe('MembershipsService role assignment lifecycle', () => {
         }),
       }),
     );
+  });
+
+  it('rejects permission changes when current ROLE_MANAGE access was revoked', async () => {
+    const version = new Date('2026-09-25T12:00:00.000Z');
+    prisma.membership.findUnique.mockResolvedValue({
+      id: 'membership-target',
+      userId: 'target-user',
+      role: RoleType.DEPUTY,
+      departmentId: 'department-a',
+      isActive: true,
+      updatedAt: version,
+    });
+    prisma.user.findUnique.mockResolvedValueOnce({
+      isActive: true,
+      memberships: [],
+    });
+
+    await expect(
+      service.replacePermissions(
+        departmentAdmin,
+        'membership-target',
+        {
+          permissions: [PermissionCapability.SCHEDULE_READ],
+          expectedUpdatedAt: version.toISOString(),
+        },
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(prisma.membershipPermission.deleteMany).not.toHaveBeenCalled();
+    expect(prisma.membership.updateMany).not.toHaveBeenCalled();
+    expect(prisma.auditLog.create).not.toHaveBeenCalled();
   });
 
   it('blocks self-deactivation', async () => {
