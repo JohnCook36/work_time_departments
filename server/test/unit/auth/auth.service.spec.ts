@@ -25,6 +25,7 @@ function prismaMock() {
     },
     authSession: {
       create: jest.fn(),
+      deleteMany: jest.fn(),
     },
     $queryRaw: jest.fn(),
     $transaction: jest.fn(),
@@ -169,6 +170,13 @@ describe('AuthService development OTP safety', () => {
   const originalPepper = process.env[pepperKey];
   const sourceWindowKey = 'AUTH_OTP_SOURCE_WINDOW_SECONDS';
   const originalSourceWindow = process.env[sourceWindowKey];
+  const providerUrlKey = 'AUTH_OTP_PROVIDER_URL';
+  const providerTokenKey = 'AUTH_OTP_PROVIDER_TOKEN';
+  const providerTimeoutKey = 'AUTH_OTP_PROVIDER_TIMEOUT_MS';
+  const originalProviderUrl = process.env[providerUrlKey];
+  const originalProviderToken = process.env[providerTokenKey];
+  const originalProviderTimeout = process.env[providerTimeoutKey];
+  const originalFetch = global.fetch;
 
   afterEach(() => {
     if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
@@ -185,6 +193,14 @@ describe('AuthService development OTP safety', () => {
 
     if (originalSourceWindow === undefined) delete process.env[sourceWindowKey];
     else process.env[sourceWindowKey] = originalSourceWindow;
+
+    if (originalProviderUrl === undefined) delete process.env[providerUrlKey];
+    else process.env[providerUrlKey] = originalProviderUrl;
+    if (originalProviderToken === undefined) delete process.env[providerTokenKey];
+    else process.env[providerTokenKey] = originalProviderToken;
+    if (originalProviderTimeout === undefined) delete process.env[providerTimeoutKey];
+    else process.env[providerTimeoutKey] = originalProviderTimeout;
+    global.fetch = originalFetch;
   });
 
   function requestCodeService() {
@@ -276,6 +292,47 @@ describe('AuthService development OTP safety', () => {
     expect((error as HttpException).getStatus()).toBe(429);
     expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
     expect(prisma.authChallenge.create).not.toHaveBeenCalled();
+  });
+
+  it('delivers a random OTP through the configured production provider', async () => {
+    process.env.NODE_ENV = 'production';
+    process.env[providerUrlKey] = 'https://otp.example.test/send';
+    process.env[providerTokenKey] = 'provider-secret';
+    global.fetch = jest.fn().mockResolvedValue({ ok: true }) as never;
+    const { service, prisma } = requestCodeService();
+
+    await expect(service.requestCode(PHONE)).resolves.toEqual({
+      status: 'sent',
+      expiresInSeconds: 300,
+    });
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    const [url, init] = (global.fetch as jest.Mock).mock.calls[0];
+    expect(String(url)).toBe('https://otp.example.test/send');
+    expect(init).toEqual(
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          authorization: 'Bearer provider-secret',
+        }),
+      }),
+    );
+    const payload = JSON.parse(String(init.body));
+    expect(payload.phoneE164).toBe(PHONE);
+    expect(payload.code).toMatch(/^\d{6}$/);
+    expect(prisma.authChallenge.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails closed when the production provider rejects delivery', async () => {
+    process.env.NODE_ENV = 'production';
+    process.env[providerUrlKey] = 'https://otp.example.test/send';
+    process.env[providerTokenKey] = 'provider-secret';
+    global.fetch = jest.fn().mockResolvedValue({ ok: false }) as never;
+    const { service } = requestCodeService();
+
+    await expect(service.requestCode(PHONE)).rejects.toThrow(
+      'OTP delivery provider failed',
+    );
   });
 
   it('always rejects dev OTP in production even when opt-in is set', async () => {
