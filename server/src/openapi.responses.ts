@@ -36,6 +36,20 @@ export const currentUserResponse = object({
     permissions: arrayOf(enumeration(PermissionCapability)),
   })),
 });
+export const membershipAssignmentResponse = object({
+  id: text,
+  role: enumeration(RoleType),
+  departmentId: nullable(text),
+  permissions: arrayOf(enumeration(PermissionCapability)),
+  employee: nullable(object({ id: text, displayName: text })),
+  isActive: boolean,
+  updatedAt: timestamp,
+});
+export const membershipDeactivatedResponse = object({
+  ...okResponse.properties,
+  membershipId: text,
+});
+
 export const codeSentResponse = object({ status: { type: 'string', enum: ['sent'] }, expiresInSeconds: integer });
 export const verifyCodeResponse = object({ expiresAt: timestamp, user: object({ id: text, phoneE164: text, onboardingRequired: boolean }) });
 export const onboardingResponse = object({
