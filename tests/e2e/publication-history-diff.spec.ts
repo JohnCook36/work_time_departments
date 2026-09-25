@@ -139,6 +139,21 @@ async function reply(route: Route, body: unknown, status = 200) {
 }
 
 async function mockServer(page: Page) {
+  let absenceItems = [
+    {
+      id: 'absence-1',
+      employeeId: 'employee-1',
+      type: 'VACATION',
+      startDate: '2026-09-10',
+      endDate: '2026-09-12',
+      comment: 'Плановый отпуск',
+      status: 'ACTIVE',
+      canceledAt: null,
+      createdAt: '2026-09-01T08:00:00.000Z',
+      updatedAt: '2026-09-01T08:00:00.000Z',
+    },
+  ];
+
   await page.route('http://localhost:3000/**', async route => {
     const url = new URL(route.request().url());
     const path = url.pathname;
@@ -235,6 +250,70 @@ async function mockServer(page: Page) {
             ],
       });
     }
+    if (path === '/absences' && method === 'GET') {
+      return reply(route, absenceItems);
+    }
+
+    if (path === '/absences' && method === 'POST') {
+      const payload = route.request().postDataJSON() as {
+        employeeId: string;
+        type: string;
+        startDate: string;
+        endDate: string;
+        comment?: string | null;
+      };
+      const created = {
+        id: 'absence-' + (absenceItems.length + 1),
+        employeeId: payload.employeeId,
+        type: payload.type,
+        startDate: payload.startDate,
+        endDate: payload.endDate,
+        comment: payload.comment ?? null,
+        status: 'ACTIVE',
+        canceledAt: null,
+        createdAt: '2026-09-25T12:00:00.000Z',
+        updatedAt: '2026-09-25T12:00:00.000Z',
+      };
+      absenceItems = [...absenceItems, created];
+      return reply(route, created, 201);
+    }
+
+    const absenceMatch = path.match(/^\/absences\/([^/]+)$/);
+    if (absenceMatch && method === 'PATCH') {
+      const payload = route.request().postDataJSON() as {
+        type?: string;
+        startDate?: string;
+        endDate?: string;
+        comment?: string | null;
+      };
+      const id = absenceMatch[1];
+      const current = absenceItems.find(item => item.id === id);
+      if (!current) return reply(route, { message: 'Not found' }, 404);
+      const updated = {
+        ...current,
+        ...payload,
+        updatedAt: '2026-09-25T12:15:00.000Z',
+      };
+      absenceItems = absenceItems.map(item => item.id === id ? updated : item);
+      return reply(route, updated);
+    }
+
+    const cancelMatch = path.match(/^\/absences\/([^/]+)\/cancel$/);
+    if (cancelMatch && method === 'POST') {
+      const id = cancelMatch[1];
+      absenceItems = absenceItems.map(item =>
+        item.id === id
+          ? {
+              ...item,
+              status: 'CANCELED',
+              canceledAt: '2026-09-25T12:20:00.000Z',
+              updatedAt: '2026-09-25T12:20:00.000Z',
+            }
+          : item,
+      );
+      return reply(route, { status: 'ok', absenceId: id }, 201);
+    }
+
 
     return reply(route, { message: 'Unhandled E2E route: ' + path }, 404);
   });
@@ -263,6 +342,35 @@ for (const viewport of [
       expect(Math.abs(before.x - after.x)).toBeLessThanOrEqual(3);
       expect(Math.abs(before.y - after.y)).toBeLessThanOrEqual(3);
     }
+
+    const absences = page.getByRole('region', {
+      name: 'Структурированные отсутствия',
+    });
+    await expect(absences.getByText('Плановый отпуск')).toBeVisible();
+    await expect(
+      absences.getByLabel('Список отсутствий').getByText('Отпуск', { exact: true }),
+    ).toBeVisible();
+
+    const absenceType = absences.getByLabel('Тип');
+    await absenceType.selectOption('SICK');
+    await expect(absences.getByLabel('Рабочая заметка')).toBeDisabled();
+    await absences.locator('#absence-start').fill('2026-09-20');
+    await absences.locator('#absence-end').fill('2026-09-21');
+    await absences.getByRole('button', { name: 'Добавить отсутствие' }).click();
+    await expect(absences.getByText('Отсутствие добавлено.')).toBeVisible();
+    await expect(
+      absences.getByLabel('Список отсутствий').getByText('Больничный', { exact: true }),
+    ).toBeVisible();
+
+    await absences.getByRole('button', { name: 'Редактировать' }).first().click();
+    await absences.locator('#absence-end').fill('2026-09-13');
+    await absences.getByRole('button', { name: 'Сохранить изменения' }).click();
+    await expect(absences.getByText('Отсутствие обновлено.')).toBeVisible();
+    await expect(absences.getByText(/2026-09-10 — 2026-09-13/)).toBeVisible();
+
+    await absences.getByRole('button', { name: 'Отменить отсутствие' }).first().click();
+    await expect(absences.getByText('Отсутствие отменено.')).toBeVisible();
+    await expect(absences.getByText('Отменено', { exact: true })).toBeVisible();
 
     await expect(page.getByText(/^v2 ·/)).toBeVisible();
     await page.getByRole('button', { name: 'Открыть v2' }).click();

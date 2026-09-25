@@ -20,6 +20,7 @@ import {
   validateDepartmentSchedule,
 } from '../../api/planner';
 import { Department, Employee } from '../../domain/models';
+import { AbsenceManagement } from './AbsenceManagement';
 import { PublicationAcknowledgements } from './PublicationAcknowledgements';
 import {
   ActionButton,
@@ -514,6 +515,17 @@ export function PlannerScheduleToolsDrawer({
           <PublicationHistoryMeta>
             Создание, приоритет, hard/soft, область действия и история версий.
           </PublicationHistoryMeta>
+        </DrawerSection>
+
+        <DrawerSection>
+          <DrawerSectionTitle>Отсутствия</DrawerSectionTitle>
+          <AbsenceManagement
+            departmentId={publicationDepartmentId}
+            employees={employees}
+            year={year}
+            monthIndex={monthIndex}
+            canEdit={canBulkEditSchedule}
+          />
         </DrawerSection>
 
         <DrawerSection>
