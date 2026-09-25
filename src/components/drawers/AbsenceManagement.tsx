@@ -213,7 +213,7 @@ export function AbsenceManagement({
   };
 
   return (
-    <AbsencePanel aria-label="Структурированные отсутствия">
+    <AbsencePanel role="region" aria-label="Структурированные отсутствия">
       <AbsenceGrid>
         <FormGroup>
           <FormLabel htmlFor="absence-employee">Сотрудник</FormLabel>
