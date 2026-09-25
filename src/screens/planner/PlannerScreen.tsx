@@ -24,6 +24,7 @@ import {
   getVisibleMonthWeekRanges,
 } from '../../services/print/printSchedule';
 import { hasManagementAccess, useAuthUser } from '../../auth/AuthContext';
+import { runtimeConfig } from '../../config/runtime';
 import { PlannerServerSnapshot, saveFixedWeekdaysSchedule } from '../../api/planner';
 import { buildEffectiveSchedule } from '../../domain/schedule/employeeSchedule';
 import { useDepartmentManagement } from '../../hooks/useDepartmentManagement';
@@ -78,11 +79,9 @@ export function PlannerScreen() {
   const authUser = useAuthUser();
   const canManagePlanner = hasManagementAccess(authUser);
   const serverPlannerWriteEnabled =
-    canManagePlanner && import.meta.env.VITE_SERVER_PLANNER_WRITE === '1';
+    canManagePlanner && runtimeConfig.serverPlannerWriteEnabled;
   const serverPlannerReadEnabled =
-    canManagePlanner &&
-    (serverPlannerWriteEnabled ||
-      import.meta.env.VITE_SERVER_PLANNER_READ === '1');
+    canManagePlanner && runtimeConfig.serverPlannerReadEnabled;
   const canEditPlanner = canManagePlanner && !serverPlannerReadEnabled;
   const canEditScheduleCells =
     canManagePlanner &&
