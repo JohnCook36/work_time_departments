@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -93,6 +94,54 @@ export class AbsencesService {
     private readonly authorization: AuthorizationService,
   ) {}
 
+  private async loadCurrentEditor(
+    tx: Prisma.TransactionClient,
+    admin: AuthUserContext,
+    departmentId: string,
+  ): Promise<AuthUserContext> {
+    const current = await tx.user.findUnique({
+      where: { id: admin.id },
+      select: {
+        isActive: true,
+        memberships: {
+          where: { isActive: true },
+          select: {
+            id: true,
+            role: true,
+            departmentId: true,
+            permissions: {
+              select: { capability: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!current?.isActive) {
+      throw new ForbiddenException('Manager account is inactive');
+    }
+
+    const currentAdmin: AuthUserContext = {
+      ...admin,
+      memberships: current.memberships.map(membership => ({
+        id: membership.id,
+        role: membership.role,
+        departmentId: membership.departmentId,
+        permissions: membership.permissions.map(
+          permission => permission.capability,
+        ),
+      })),
+    };
+
+    this.authorization.assertCapability(
+      currentAdmin,
+      PermissionCapability.SCHEDULE_EDIT,
+      departmentId,
+    );
+
+    return currentAdmin;
+  }
+
   async listDepartment(
     admin: AuthUserContext,
     departmentId: string,
@@ -182,6 +231,8 @@ export class AbsencesService {
 
     try {
       return await this.prisma.$transaction(async tx => {
+      await this.loadCurrentEditor(tx, admin, employee.departmentId);
+
       const duplicate = await tx.absence.findFirst({
         where: {
           employeeId: employee.id,
@@ -309,6 +360,12 @@ export class AbsencesService {
 
     try {
       return await this.prisma.$transaction(async tx => {
+      await this.loadCurrentEditor(
+        tx,
+        admin,
+        current.employee.departmentId,
+      );
+
       const changed = await tx.absence.updateMany({
         where: {
           id: current.id,
@@ -395,6 +452,12 @@ export class AbsencesService {
     }
 
     await this.prisma.$transaction(async tx => {
+      await this.loadCurrentEditor(
+        tx,
+        admin,
+        current.employee.departmentId,
+      );
+
       const changed = await tx.absence.updateMany({
         where: {
           id: absenceId,
