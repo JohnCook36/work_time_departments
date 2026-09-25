@@ -21,3 +21,30 @@ export function hasManagementAccess(user: AuthUser): boolean {
       membership.role === 'DEPARTMENT_ADMIN',
   );
 }
+
+
+export function hasCapability(
+  user: AuthUser,
+  capability: string,
+  departmentId?: string,
+): boolean {
+  return user.memberships.some((membership) => {
+    if (membership.role === 'SUPER_ADMIN') return true;
+
+    if (
+      membership.role === 'DEPARTMENT_ADMIN' &&
+      (!departmentId || membership.departmentId === departmentId)
+    ) {
+      return true;
+    }
+
+    if (
+      departmentId &&
+      membership.departmentId !== departmentId
+    ) {
+      return false;
+    }
+
+    return membership.permissions?.includes(capability) ?? false;
+  });
+}
