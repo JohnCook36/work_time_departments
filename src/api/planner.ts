@@ -86,6 +86,36 @@ export interface PlannerDepartmentMetadataMap {
   [departmentId: string]: PlannerDepartmentMetadata;
 }
 
+
+export type AbsenceType =
+  | 'VACATION'
+  | 'SICK'
+  | 'TRAINING'
+  | 'BUSINESS_TRIP'
+  | 'UNAVAILABLE';
+
+export interface AbsenceResponse {
+  id: string;
+  employeeId: string;
+  type: AbsenceType;
+  startDate: string;
+  endDate: string;
+  comment: string | null;
+  status: 'ACTIVE' | 'CANCELED';
+  canceledAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AbsenceMutationInput {
+  employeeId?: string;
+  type?: AbsenceType;
+  startDate?: string;
+  endDate?: string;
+  comment?: string | null;
+  expectedUpdatedAt?: string;
+}
+
 export interface WishResponse {
   id: string;
   employeeId: string;
@@ -602,6 +632,57 @@ export function getDepartmentPlannerSchedule(
 
   return apiRequest<DepartmentScheduleResponse>(
     '/schedule-data/department?' + params.toString(),
+  );
+}
+
+
+export function getDepartmentAbsences(
+  departmentId: string,
+  from: string,
+  to: string,
+) {
+  const params = new URLSearchParams({ departmentId, from, to });
+  return apiRequest<AbsenceResponse[]>('/absences?' + params.toString());
+}
+
+export function createPlannerAbsence(input: {
+  employeeId: string;
+  type: AbsenceType;
+  startDate: string;
+  endDate: string;
+  comment?: string | null;
+}) {
+  return apiRequest<AbsenceResponse>('/absences', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function updatePlannerAbsence(
+  absenceId: string,
+  input: Omit<AbsenceMutationInput, 'employeeId'> & {
+    expectedUpdatedAt: string;
+  },
+) {
+  return apiRequest<AbsenceResponse>(
+    '/absences/' + encodeURIComponent(absenceId),
+    {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    },
+  );
+}
+
+export function cancelPlannerAbsence(
+  absenceId: string,
+  expectedUpdatedAt: string,
+) {
+  return apiRequest<{ status: 'ok'; absenceId: string }>(
+    '/absences/' + encodeURIComponent(absenceId) + '/cancel',
+    {
+      method: 'POST',
+      body: JSON.stringify({ expectedUpdatedAt }),
+    },
   );
 }
 
