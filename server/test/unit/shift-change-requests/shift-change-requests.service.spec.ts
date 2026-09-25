@@ -884,6 +884,28 @@ describe('ShiftChangeRequestsService', () => {
     expect(prisma.shiftChangeRequestEvent.create).not.toHaveBeenCalled();
   });
 
+  it('rejects manager rejection when active database membership was revoked', async () => {
+    prisma.shiftChangeRequest.findUnique.mockResolvedValueOnce(
+      requestRecord(ShiftChangeRequestStatus.PENDING_MANAGER),
+    );
+    prisma.user.findUnique.mockResolvedValueOnce({
+      isActive: true,
+      memberships: [],
+    });
+
+    await expect(
+      service.managerReject(
+        adminUser(RoleType.DEPARTMENT_ADMIN, ['department-a']),
+        'request-1',
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(prisma.shiftChangeRequest.updateMany).not.toHaveBeenCalled();
+    expect(prisma.shiftChangeRequestEvent.create).not.toHaveBeenCalled();
+    expect(prisma.auditLog.create).not.toHaveBeenCalled();
+    expect(notifications.createForUserInTransaction).not.toHaveBeenCalled();
+  });
+
   it('creates MANAGER_REJECTED audit event', async () => {
     mockTransition(requestRecord(ShiftChangeRequestStatus.PENDING_MANAGER));
     const admin = adminUser(RoleType.DEPARTMENT_ADMIN, ['department-a']);
