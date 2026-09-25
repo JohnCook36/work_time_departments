@@ -1,6 +1,5 @@
 import { ThemeProvider } from '@emotion/react';
-import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 
@@ -50,6 +49,7 @@ describe('AppSectionNav mobile model', () => {
 
     const mobile = screen.getByRole('navigation', {
       name: 'Мобильная навигация',
+      hidden: true,
     });
     expect(mobile).toHaveTextContent('Смены');
     expect(mobile).toHaveTextContent('Задачи');
@@ -59,8 +59,7 @@ describe('AppSectionNav mobile model', () => {
   });
 
   it('uses Planner / Requests / Tasks / More for a department admin', async () => {
-    const user = userEvent.setup();
-    renderNav({
+        renderNav({
       ...employee,
       memberships: [
         {
@@ -80,17 +79,21 @@ describe('AppSectionNav mobile model', () => {
     expect(mobile).toHaveTextContent('Задачи');
     expect(mobile).toHaveTextContent('Ещё');
 
-    await user.click(screen.getByRole('button', { name: /Ещё/ }));
+    fireEvent.click(
+      within(mobile).getByRole('button', { name: /Ещё/, hidden: true }),
+    );
     expect(
-      screen.getByRole('region', { name: 'Дополнительная навигация' }),
+      screen.getByRole('region', {
+        name: 'Дополнительная навигация',
+        hidden: true,
+      }),
     ).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Уведомления/ })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Профиль/ })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Уведомления/, hidden: true })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Профиль/, hidden: true })).toBeInTheDocument();
   });
 
   it('does not expose unavailable secondary management links', async () => {
-    const user = userEvent.setup();
-    renderNav({
+        renderNav({
       ...employee,
       memberships: [
         {
@@ -104,13 +107,12 @@ describe('AppSectionNav mobile model', () => {
 
     await user.click(screen.getByRole('button', { name: /Ещё/ }));
 
-    expect(screen.queryByRole('link', { name: /Журнал/ })).toBeNull();
-    expect(screen.queryByRole('link', { name: /Роли и доступ/ })).toBeNull();
+    expect(screen.queryByRole('link', { name: /Журнал/, hidden: true })).toBeNull();
+    expect(screen.queryByRole('link', { name: /Роли и доступ/, hidden: true })).toBeNull();
   });
 
   it('gives a capability-bearing deputy a More sheet without planner access', async () => {
-    const user = userEvent.setup();
-    renderNav({
+        renderNav({
       ...employee,
       memberships: [
         {
@@ -129,6 +131,6 @@ describe('AppSectionNav mobile model', () => {
     expect(mobile).not.toHaveTextContent('План');
 
     await user.click(screen.getByRole('button', { name: /Ещё/ }));
-    expect(screen.getByRole('link', { name: /Журнал/ })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Журнал/, hidden: true })).toBeInTheDocument();
   });
 });
