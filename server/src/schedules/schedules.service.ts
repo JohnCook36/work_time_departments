@@ -58,6 +58,34 @@ function changeKey(employeeId: string, day: number): string {
   return employeeId + ':' + day;
 }
 
+function formatPlannerDate(year: number, month: number, day: number): string {
+  return (
+    String(day).padStart(2, '0') +
+    '.' +
+    String(month).padStart(2, '0') +
+    '.' +
+    String(year)
+  );
+}
+
+function describeStoredCell(cell: {
+  code: string | null;
+  startTime: string | null;
+  endTime: string | null;
+  isOff: boolean;
+}): string {
+  if (cell.isOff) return 'OFF';
+  if (cell.startTime && cell.endTime) {
+    return (
+      (cell.code ? cell.code + ' · ' : '') +
+      cell.startTime +
+      '–' +
+      cell.endTime
+    );
+  }
+  return 'существующая запись';
+}
+
 function validateCellChange(
   change: ScheduleCellChange,
   year: number,
@@ -326,6 +354,10 @@ export class SchedulesService {
       select: {
         id: true,
         updatedAt: true,
+        code: true,
+        startTime: true,
+        endTime: true,
+        isOff: true,
       },
     });
 
@@ -474,7 +506,11 @@ export class SchedulesService {
       ) {
         if (change.expectedUpdatedAt === null && current) {
           throw new ConflictException(
-            'Schedule cell changed since it was loaded',
+            'Сотрудник уже запланирован на ' +
+              formatPlannerDate(year, month, change.day) +
+              ': ' +
+              describeStoredCell(current) +
+              '. Сначала измените или удалите существующую смену.',
           );
         }
 
