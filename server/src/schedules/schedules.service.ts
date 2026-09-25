@@ -354,10 +354,6 @@ export class SchedulesService {
       select: {
         id: true,
         updatedAt: true,
-        code: true,
-        startTime: true,
-        endTime: true,
-        isOff: true,
       },
     });
 
@@ -486,6 +482,10 @@ export class SchedulesService {
         id: true,
         employeeId: true,
         date: true,
+        code: true,
+        startTime: true,
+        endTime: true,
+        isOff: true,
         updatedAt: true,
       },
     });
