@@ -1,6 +1,6 @@
 import { ConflictException, ForbiddenException } from '@nestjs/common';
 import {
-  AuditAction, RoleType, ShiftChangeRequestEventType,
+  AuditAction, NotificationCategory, NotificationEntityType, RoleType, ShiftChangeRequestEventType,
   ShiftChangeRequestKind, ShiftChangeRequestStatus,
 } from '@prisma/client';
 
@@ -124,6 +124,33 @@ describeLive('live PostgreSQL shift-change application', () => {
       requesterEmployee, targetEmployee, firstSchedule, secondSchedule, request };
   }
 
+  async function expectManagerNotifications(
+    requestId: string,
+    requesterUserId: string,
+    targetUserId: string,
+    outcome: ShiftChangeRequestEventType,
+  ) {
+    const eventKey = `shift-change:${requestId}:${outcome}`;
+    const opposite = outcome === ShiftChangeRequestEventType.MANAGER_APPROVED
+      ? ShiftChangeRequestEventType.MANAGER_REJECTED
+      : ShiftChangeRequestEventType.MANAGER_APPROVED;
+    const notifications = await prisma.notification.findMany({
+      where: { entityId: requestId, eventKey: { in: [eventKey, `shift-change:${requestId}:${opposite}`] } },
+      select: { recipientId: true, eventKey: true, entityType: true, category: true },
+    });
+    expect(notifications).toHaveLength(2);
+    expect(notifications).toEqual(expect.arrayContaining(
+      [requesterUserId, targetUserId].map(recipientId => ({
+        recipientId,
+        eventKey,
+        entityType: NotificationEntityType.SHIFT_CHANGE_REQUEST,
+        category: NotificationCategory.SHIFT_CHANGE,
+      })),
+    ));
+    expect(notifications.filter(notification => notification.eventKey.endsWith(`:${opposite}`))).toHaveLength(0);
+    expect(await prisma.notification.count({ where: { recipientId: { notIn: [requesterUserId, targetUserId] }, eventKey } })).toBe(0);
+  }
+
   it('discovers only published same-department shifts without private fields', async () => {
     const f = await fixture(ShiftChangeRequestKind.SWAP);
     await publications.publishDepartmentSchedule(f.manager, f.department.id, 2026, 9);
@@ -166,6 +193,7 @@ describeLive('live PostgreSQL shift-change application', () => {
     expect(original.version).toBe(1);
     const approved = await changes.approve(f.manager, f.request.id);
     expect(approved.status).toBe(ShiftChangeRequestStatus.MANAGER_APPROVED);
+    await expectManagerNotifications(f.request.id, f.requester.id, f.target.id, ShiftChangeRequestEventType.MANAGER_APPROVED);
     const [source, target] = await Promise.all([
       prisma.shift.findUniqueOrThrow({ where: { id: f.source.id } }),
       prisma.shift.findUniqueOrThrow({ where: { id: f.targetShift!.id } }),
@@ -196,6 +224,63 @@ describeLive('live PostgreSQL shift-change application', () => {
     expect(newPersonal.shifts.map(shift => shift.id)).toContain(f.source.id);
     expect((await prisma.schedulePublication.findUniqueOrThrow({ where: { id: original.id } })).snapshot).toEqual(original.snapshot);
     await expect(changes.approve(f.manager, f.request.id)).rejects.toBeInstanceOf(ConflictException);
+    await expectManagerNotifications(f.request.id, f.requester.id, f.target.id, ShiftChangeRequestEventType.MANAGER_APPROVED);
+  });
+
+  it('notifies only requester and target about manager rejection, once per outcome', async () => {
+    const f = await fixture(ShiftChangeRequestKind.COVER);
+    const rejected = await changes.managerReject(f.manager, f.request.id);
+    expect(rejected.status).toBe(ShiftChangeRequestStatus.MANAGER_REJECTED);
+    expect(await prisma.shiftChangeRequestEvent.count({ where: {
+      requestId: f.request.id, eventType: ShiftChangeRequestEventType.MANAGER_REJECTED,
+    } })).toBe(1);
+    expect(await prisma.auditLog.count({ where: {
+      entityId: f.request.id, action: AuditAction.SHIFT_CHANGE_MANAGER_REJECTED,
+    } })).toBe(1);
+    await expectManagerNotifications(f.request.id, f.requester.id, f.target.id, ShiftChangeRequestEventType.MANAGER_REJECTED);
+
+    await expect(changes.managerReject(f.manager, f.request.id)).rejects.toBeInstanceOf(ConflictException);
+    await expectManagerNotifications(f.request.id, f.requester.id, f.target.id, ShiftChangeRequestEventType.MANAGER_REJECTED);
+  });
+
+  it('does not notify either manager outcome when rejection marks a request stale', async () => {
+    const f = await fixture(ShiftChangeRequestKind.COVER);
+    await prisma.shift.update({ where: { id: f.source.id }, data: { startTime: '10:00', updatedAt: october } });
+    await expect(changes.managerReject(f.manager, f.request.id)).rejects.toBeInstanceOf(ConflictException);
+    expect((await prisma.shiftChangeRequest.findUniqueOrThrow({ where: { id: f.request.id } })).status).toBe(ShiftChangeRequestStatus.STALE);
+    expect(await prisma.notification.count({ where: {
+      entityId: f.request.id,
+      eventKey: { in: [
+        `shift-change:${f.request.id}:MANAGER_APPROVED`,
+        `shift-change:${f.request.id}:MANAGER_REJECTED`,
+      ] },
+    } })).toBe(0);
+  });
+
+  it('rolls back rejection, audit and both notifications if notification persistence fails', async () => {
+    const f = await fixture(ShiftChangeRequestKind.COVER);
+    await prisma.$executeRawUnsafe(`CREATE FUNCTION reject_manager_notification() RETURNS trigger AS $$
+      BEGIN IF NEW."recipientId" = '${f.target.id}' AND NEW."eventKey" = 'shift-change:${f.request.id}:MANAGER_REJECTED'
+        THEN RAISE EXCEPTION 'test manager notification rejected'; END IF;
+      RETURN NEW; END $$ LANGUAGE plpgsql`);
+    await prisma.$executeRawUnsafe(`CREATE TRIGGER reject_manager_notification BEFORE INSERT ON "Notification"
+      FOR EACH ROW EXECUTE FUNCTION reject_manager_notification()`);
+    try {
+      await expect(changes.managerReject(f.manager, f.request.id)).rejects.toThrow('test manager notification rejected');
+      expect((await prisma.shiftChangeRequest.findUniqueOrThrow({ where: { id: f.request.id } })).status).toBe(ShiftChangeRequestStatus.PENDING_MANAGER);
+      expect(await prisma.shiftChangeRequestEvent.count({ where: {
+        requestId: f.request.id, eventType: ShiftChangeRequestEventType.MANAGER_REJECTED,
+      } })).toBe(0);
+      expect(await prisma.auditLog.count({ where: {
+        entityId: f.request.id, action: AuditAction.SHIFT_CHANGE_MANAGER_REJECTED,
+      } })).toBe(0);
+      expect(await prisma.notification.count({ where: {
+        entityId: f.request.id, eventKey: `shift-change:${f.request.id}:MANAGER_REJECTED`,
+      } })).toBe(0);
+    } finally {
+      await prisma.$executeRawUnsafe('DROP TRIGGER IF EXISTS reject_manager_notification ON "Notification"');
+      await prisma.$executeRawUnsafe('DROP FUNCTION IF EXISTS reject_manager_notification()');
+    }
   });
 
   it('exchanges times on one date without violating the unique employee cell', async () => {
