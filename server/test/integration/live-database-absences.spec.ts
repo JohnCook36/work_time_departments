@@ -1,3 +1,4 @@
+import { ForbiddenException } from '@nestjs/common';
 import { RoleType } from '@prisma/client';
 
 import type { AuthUserContext } from '../../src/auth/auth.service';
@@ -125,6 +126,33 @@ describeLive('live PostgreSQL structured absences', () => {
       await clearDatabase();
       await prisma.$disconnect();
     }
+  });
+
+  it('rejects cross-department absence mutation through real authorization scope', async () => {
+    const foreignDepartment = await prisma.department.create({
+      data: { name: 'Foreign absence department' },
+    });
+    const foreignEmployee = await prisma.employee.create({
+      data: {
+        displayName: 'Foreign synthetic employee',
+        departmentId: foreignDepartment.id,
+      },
+    });
+
+    await expect(
+      absences.create(adminContext, {
+        employeeId: foreignEmployee.id,
+        type: 'UNAVAILABLE',
+        startDate: '2026-09-20',
+        endDate: '2026-09-20',
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(
+      await prisma.absence.count({
+        where: { employeeId: foreignEmployee.id },
+      }),
+    ).toBe(0);
   });
 
   it('blocks publication readiness while active and stops blocking after cancel', async () => {
