@@ -17,6 +17,7 @@ import {
 
 import { appendAuditLog } from '../audit/audit-log';
 import { AuthUserContext } from '../auth/auth.service';
+import { AuthorizationService } from '../auth/authorization.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 export interface DepartmentMutationInput {
@@ -146,7 +147,10 @@ const departmentSelect = {
 
 @Injectable()
 export class DepartmentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly authorization: AuthorizationService,
+  ) {}
 
   async createDepartment(
     user: AuthUserContext,
@@ -499,21 +503,9 @@ export class DepartmentsService {
   }
 
   listManageable(user: AuthUserContext) {
-    const isSuperAdmin = user.memberships.some(
-      (membership) => membership.role === RoleType.SUPER_ADMIN,
-    );
-
-    const departmentIds = Array.from(
-      new Set(
-        user.memberships
-          .filter(
-            (membership) =>
-              membership.role === RoleType.DEPARTMENT_ADMIN &&
-              membership.departmentId !== null,
-          )
-          .map((membership) => membership.departmentId as string),
-      ),
-    );
+    const isSuperAdmin = this.authorization.isSuperAdmin(user);
+    const departmentIds =
+      this.authorization.departmentIdsWithAnyCapability(user);
 
     if (!isSuperAdmin && departmentIds.length === 0) {
       throw new ForbiddenException(
