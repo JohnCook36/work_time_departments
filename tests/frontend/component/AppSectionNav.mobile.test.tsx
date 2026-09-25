@@ -43,14 +43,18 @@ const employee: AuthUser = {
   ],
 };
 
+function mobileNav() {
+  return screen.getByRole('navigation', {
+    name: 'Мобильная навигация',
+    hidden: true,
+  });
+}
+
 describe('AppSectionNav mobile model', () => {
   it('keeps the employee mobile baseline to four labelled destinations', () => {
     renderNav(employee);
 
-    const mobile = screen.getByRole('navigation', {
-      name: 'Мобильная навигация',
-      hidden: true,
-    });
+    const mobile = mobileNav();
     expect(mobile).toHaveTextContent('Смены');
     expect(mobile).toHaveTextContent('Задачи');
     expect(mobile).toHaveTextContent('Обмен');
@@ -58,8 +62,8 @@ describe('AppSectionNav mobile model', () => {
     expect(mobile).not.toHaveTextContent('Ещё');
   });
 
-  it('uses Planner / Requests / Tasks / More for a department admin', async () => {
-        renderNav({
+  it('uses Planner / Requests / Tasks / More for a department admin', () => {
+    renderNav({
       ...employee,
       memberships: [
         {
@@ -71,9 +75,7 @@ describe('AppSectionNav mobile model', () => {
       ],
     });
 
-    const mobile = screen.getByRole('navigation', {
-      name: 'Мобильная навигация',
-    });
+    const mobile = mobileNav();
     expect(mobile).toHaveTextContent('План');
     expect(mobile).toHaveTextContent('Запросы');
     expect(mobile).toHaveTextContent('Задачи');
@@ -82,18 +84,23 @@ describe('AppSectionNav mobile model', () => {
     fireEvent.click(
       within(mobile).getByRole('button', { name: /Ещё/, hidden: true }),
     );
+
     expect(
       screen.getByRole('region', {
         name: 'Дополнительная навигация',
         hidden: true,
       }),
     ).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Уведомления/, hidden: true })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Профиль/, hidden: true })).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: /Уведомления/, hidden: true }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: /Профиль/, hidden: true }),
+    ).toBeInTheDocument();
   });
 
-  it('does not expose unavailable secondary management links', async () => {
-        renderNav({
+  it('does not expose unavailable secondary management links', () => {
+    renderNav({
       ...employee,
       memberships: [
         {
@@ -105,14 +112,21 @@ describe('AppSectionNav mobile model', () => {
       ],
     });
 
-    await user.click(screen.getByRole('button', { name: /Ещё/ }));
+    const mobile = mobileNav();
+    fireEvent.click(
+      within(mobile).getByRole('button', { name: /Ещё/, hidden: true }),
+    );
 
-    expect(screen.queryByRole('link', { name: /Журнал/, hidden: true })).toBeNull();
-    expect(screen.queryByRole('link', { name: /Роли и доступ/, hidden: true })).toBeNull();
+    expect(
+      screen.queryByRole('link', { name: /Журнал/, hidden: true }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole('link', { name: /Роли и доступ/, hidden: true }),
+    ).toBeNull();
   });
 
-  it('gives a capability-bearing deputy a More sheet without planner access', async () => {
-        renderNav({
+  it('gives a capability-bearing deputy a More sheet without planner access', () => {
+    renderNav({
       ...employee,
       memberships: [
         {
@@ -124,13 +138,16 @@ describe('AppSectionNav mobile model', () => {
       ],
     });
 
-    const mobile = screen.getByRole('navigation', {
-      name: 'Мобильная навигация',
-    });
+    const mobile = mobileNav();
     expect(mobile).toHaveTextContent('Смены');
     expect(mobile).not.toHaveTextContent('План');
 
-    await user.click(screen.getByRole('button', { name: /Ещё/ }));
-    expect(screen.getByRole('link', { name: /Журнал/, hidden: true })).toBeInTheDocument();
+    fireEvent.click(
+      within(mobile).getByRole('button', { name: /Ещё/, hidden: true }),
+    );
+
+    expect(
+      screen.getByRole('link', { name: /Журнал/, hidden: true }),
+    ).toBeInTheDocument();
   });
 });
