@@ -1,4 +1,4 @@
-import { runtimeConfig } from '../config/runtime';
+import { getRuntimeConfig } from '../config/runtime';
 
 export interface AuthUser {
   id: string;
@@ -52,8 +52,6 @@ export interface AdminOnboardingRequest extends OnboardingRequest {
   } | null;
 }
 
-const API_URL = runtimeConfig.apiUrl;
-
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -67,7 +65,7 @@ export async function apiRequest<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const response = await fetch(API_URL + path, {
+  const response = await fetch(getRuntimeConfig().apiUrl + path, {
     ...options,
     credentials: 'include',
     headers: {
