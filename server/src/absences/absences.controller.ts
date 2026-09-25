@@ -6,6 +6,7 @@ import {
   Patch,
   Post,
   Query,
+  Param,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -75,13 +76,9 @@ export class AbsencesController {
   @Patch(':absenceId')
   update(
     @CurrentUser() user: AuthUserContext,
-    @Query('absenceId') _unused: string | undefined,
+    @Param('absenceId') absenceId: string,
     @Body() body: Record<string, unknown>,
   ) {
-    const absenceId =
-      typeof (body as { absenceId?: unknown }).absenceId === 'string'
-        ? String((body as { absenceId?: unknown }).absenceId)
-        : '';
     return this.absences.update(
       user,
       requiredString(absenceId, 'absenceId'),
@@ -93,11 +90,12 @@ export class AbsencesController {
   @Post(':absenceId/cancel')
   cancel(
     @CurrentUser() user: AuthUserContext,
-    @Body() body: { absenceId?: unknown; expectedUpdatedAt?: unknown },
+    @Param('absenceId') absenceId: string,
+    @Body() body: { expectedUpdatedAt?: unknown },
   ) {
     return this.absences.cancel(
       user,
-      requiredString(body?.absenceId, 'absenceId'),
+      requiredString(absenceId, 'absenceId'),
       requiredString(body?.expectedUpdatedAt, 'expectedUpdatedAt'),
     );
   }
