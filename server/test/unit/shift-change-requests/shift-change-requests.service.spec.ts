@@ -108,6 +108,7 @@ function prismaMock() {
   const mock = {
     employee: {
       findFirst: jest.fn(),
+      findMany: jest.fn(),
     },
     shift: {
       findFirst: jest.fn(),
@@ -168,6 +169,63 @@ describe('ShiftChangeRequestsService', () => {
       prisma as unknown as PrismaService,
       new AuthorizationService(),
     );
+  });
+
+  it('requires a current linked Employee for discovery', async () => {
+    await expect(service.discoverTargets({ ...requester, employee: null })).rejects.toBeInstanceOf(ForbiddenException);
+    prisma.employee.findFirst.mockResolvedValue(null);
+    await expect(service.discoverTargets(requester)).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('only discovers same-department active linked employees and projects names', async () => {
+    prisma.employee.findFirst.mockResolvedValue({ id: 'requester-employee', departmentId: 'department-a' });
+    prisma.employee.findMany.mockResolvedValue([{ id: 'target-employee', displayName: 'Сотрудник Б' }]);
+    expect(await service.discoverTargets(requester)).toEqual([{ id: 'target-employee', displayName: 'Сотрудник Б' }]);
+    expect(prisma.employee.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ departmentId: 'department-a', id: { not: 'requester-employee' }, isActive: true, userId: { not: null }, user: { isActive: true } }),
+      select: { id: true, displayName: true },
+    }));
+  });
+
+  it('reads just one target work shift by date, without phone, rate or schedule dump', async () => {
+    prisma.employee.findFirst.mockResolvedValueOnce({ id: 'requester-employee', departmentId: 'department-a' })
+      .mockResolvedValueOnce({ id: 'target-employee' });
+    prisma.shift.findFirst.mockResolvedValueOnce({ id: 'requester-shift' });
+    prisma.shift.findFirst.mockResolvedValue({
+      id: 'target-shift', date: new Date('2026-09-20T00:00:00.000Z'), startTime: '08:00', endTime: '17:00', code: null,
+    });
+    expect(await service.discoverTargetShift(requester, 'target-employee', '2026-09-20', 'requester-shift')).toEqual({
+      id: 'target-shift', date: '2026-09-20', startTime: '08:00', endTime: '17:00', code: null,
+    });
+    expect(prisma.shift.findFirst).toHaveBeenLastCalledWith({
+      where: { employeeId: 'target-employee', date: new Date('2026-09-20T00:00:00.000Z'), isOff: false, startTime: { not: null }, endTime: { not: null } },
+      select: { id: true, date: true, startTime: true, endTime: true, code: true },
+    });
+  });
+
+  it('rejects invalid dates and targets outside the same active linked department', async () => {
+    prisma.employee.findFirst
+      .mockResolvedValueOnce({ id: 'requester-employee', departmentId: 'department-a' })
+      .mockResolvedValueOnce({ id: 'requester-employee', departmentId: 'department-a' })
+      .mockResolvedValueOnce(null);
+    await expect(service.discoverTargetShift(requester, 'target-employee', '2026-02-30', 'requester-shift')).rejects.toBeInstanceOf(BadRequestException);
+    prisma.shift.findFirst.mockResolvedValueOnce({ id: 'requester-shift' });
+    await expect(service.discoverTargetShift(requester, 'target-employee', '2026-09-20', 'requester-shift')).rejects.toMatchObject({ status: 404 });
+    expect(prisma.employee.findFirst).toHaveBeenLastCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ departmentId: 'department-a', id: { equals: 'target-employee', not: 'requester-employee' }, user: { isActive: true }, isActive: true }),
+    }));
+    expect(prisma.shift.findFirst).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses synthetic, OFF or another employee source before looking up a target shift', async () => {
+    prisma.employee.findFirst.mockResolvedValue({ id: 'requester-employee', departmentId: 'department-a' });
+    await expect(service.discoverTargetShift(requester, 'target-employee', '2026-09-20', 'default:employee:2026-09-20')).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.discoverTargetShift(requester, 'target-employee', '2026-09-20', 'someone-elses-shift')).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.employee.findFirst).toHaveBeenCalledTimes(2);
+    expect(prisma.shift.findFirst).toHaveBeenCalledWith({
+      where: { id: 'someone-elses-shift', employeeId: 'requester-employee', isOff: false, startTime: { not: null }, endTime: { not: null } },
+      select: { id: true },
+    });
   });
 
   it('does not expose account ids in shift-change response selects', async () => {

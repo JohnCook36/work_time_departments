@@ -7,6 +7,7 @@ import { PlannerPage } from '../pages/PlannerPage';
 import { MySchedulePage } from '../pages/MySchedulePage';
 import { ProfilePage } from '../pages/ProfilePage';
 import { TasksPage } from '../pages/TasksPage';
+import { ShiftRequestsPage } from '../pages/ShiftRequestsPage';
 import {
   AuthenticatedHomeRoute,
   LoginRoute,
@@ -29,6 +30,7 @@ export function AppRouter() {
         <Route element={<ProtectedRoute />}>
           <Route path="/" element={<AuthenticatedHomeRoute />} />
           <Route path="/my-schedule" element={<MySchedulePage />} />
+          <Route path="/shift-requests" element={<ShiftRequestsPage />} />
           <Route path="/tasks" element={<TasksPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route element={<ManagementRoute />}>

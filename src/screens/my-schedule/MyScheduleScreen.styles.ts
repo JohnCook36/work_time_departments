@@ -224,6 +224,13 @@ export const ShiftHours = styled('div')(({ theme }) => ({
   },
 }));
 
+export const ShiftAction = styled(ActionButton)({
+  gridColumn: '2 / -1',
+  justifySelf: 'start',
+  minHeight: 34,
+  '@media (max-width: 520px)': { gridColumn: '2' },
+});
+
 export const ScheduleFooterNote = styled('div')(({ theme }) => ({
   marginTop: 14,
   color: theme.colors.textMuted,

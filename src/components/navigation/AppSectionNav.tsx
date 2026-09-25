@@ -1,4 +1,4 @@
-import { CalendarDays, ClipboardList, LayoutDashboard, UserRound } from 'lucide-react';
+import { CalendarDays, ClipboardList, LayoutDashboard, Repeat2, UserRound } from 'lucide-react';
 
 import { hasManagementAccess, useAuthUser } from '../../auth/AuthContext';
 import { NavigationBar, NavigationLink } from './AppSectionNav.styles';
@@ -17,6 +17,11 @@ export function AppSectionNav() {
       <NavigationLink to="/tasks">
         <ClipboardList size={16} />
         Задачи
+      </NavigationLink>
+
+      <NavigationLink to="/shift-requests">
+        <Repeat2 size={16} />
+        Обмен сменами
       </NavigationLink>
 
       <NavigationLink to="/profile">

@@ -203,6 +203,72 @@ export class ShiftChangeRequestsService {
     });
   }
 
+  async discoverTargets(user: AuthUserContext) {
+    const employee = await this.requireCurrentEmployee(user);
+    return this.prisma.employee.findMany({
+      where: {
+        departmentId: employee.departmentId,
+        id: { not: employee.id },
+        isActive: true,
+        userId: { not: null },
+        user: { isActive: true },
+      },
+      orderBy: [{ position: 'asc' }, { displayName: 'asc' }],
+      select: { id: true, displayName: true },
+    });
+  }
+
+  async discoverTargetShift(user: AuthUserContext, targetEmployeeId: string, date: string, sourceShiftId: string) {
+    const employee = await this.requireCurrentEmployee(user);
+    if (!sourceShiftId || sourceShiftId.startsWith('default:')) {
+      throw new BadRequestException('A persisted source shift is required');
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+        Number.isNaN(Date.parse(date + 'T00:00:00.000Z')) ||
+        new Date(date + 'T00:00:00.000Z').toISOString().slice(0, 10) !== date) {
+      throw new BadRequestException('date must be a valid YYYY-MM-DD');
+    }
+    const source = await this.prisma.shift.findFirst({
+      where: { id: sourceShiftId, employeeId: employee.id, isOff: false,
+        startTime: { not: null }, endTime: { not: null } },
+      select: { id: true },
+    });
+    if (!source) throw new ForbiddenException('Source shift does not belong to the authenticated employee');
+    const target = await this.prisma.employee.findFirst({
+      where: {
+        id: { equals: targetEmployeeId, not: employee.id },
+        departmentId: employee.departmentId,
+        isActive: true,
+        userId: { not: null },
+        user: { isActive: true },
+      },
+      select: { id: true },
+    });
+    if (!target) throw new NotFoundException('Eligible target employee not found');
+    const shift = await this.prisma.shift.findFirst({
+      where: {
+        employeeId: target.id,
+        date: new Date(date + 'T00:00:00.000Z'),
+        isOff: false,
+        startTime: { not: null },
+        endTime: { not: null },
+      },
+      select: { id: true, date: true, startTime: true, endTime: true, code: true },
+    });
+    if (!shift) throw new NotFoundException('Eligible shift not found for this date');
+    return { ...shift, date: shift.date.toISOString().slice(0, 10) };
+  }
+
+  private async requireCurrentEmployee(user: AuthUserContext) {
+    const linked = this.requireLinkedEmployee(user);
+    const employee = await this.prisma.employee.findFirst({
+      where: { id: linked.id, userId: user.id, isActive: true, user: { isActive: true } },
+      select: { id: true, departmentId: true },
+    });
+    if (!employee) throw new ForbiddenException('Active linked employee required');
+    return employee;
+  }
+
   getIncoming(user: AuthUserContext) {
     const employee = this.requireLinkedEmployee(user);
 
@@ -803,6 +869,10 @@ export class ShiftChangeRequestsService {
       targetShiftId: true,
       requesterShiftUpdatedAt: true,
       targetShiftUpdatedAt: true,
+      requesterEmployee: { select: { displayName: true } },
+      targetEmployee: { select: { displayName: true } },
+      requesterShift: { select: { date: true, startTime: true, endTime: true, code: true, isOff: true } },
+      targetShift: { select: { date: true, startTime: true, endTime: true, code: true, isOff: true } },
       resolvedAt: true,
       createdAt: true,
       updatedAt: true,
