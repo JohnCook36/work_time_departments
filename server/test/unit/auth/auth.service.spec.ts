@@ -25,6 +25,7 @@ function prismaMock() {
     },
     authSession: {
       create: jest.fn(),
+      deleteMany: jest.fn(),
     },
     $queryRaw: jest.fn(),
     $transaction: jest.fn(),
@@ -137,6 +138,20 @@ describe('AuthService OTP verification concurrency', () => {
     expect(prisma.authChallenge.updateMany).toHaveBeenCalledTimes(1);
     expect(prisma.user.upsert).not.toHaveBeenCalled();
     expect(prisma.authSession.create).not.toHaveBeenCalled();
+  });
+
+  it('prunes expired and revoked sessions before creating a fresh session', async () => {
+    await service.verifyCode(PHONE, VALID_CODE);
+
+    expect(prisma.authSession.deleteMany).toHaveBeenCalledWith({
+      where: {
+        OR: [
+          { expiresAt: { lte: expect.any(Date) } },
+          { revokedAt: { not: null } },
+        ],
+      },
+    });
+    expect(prisma.authSession.create).toHaveBeenCalledTimes(1);
   });
 
   it('consumes a verified challenge exactly once before creating a session', async () => {
