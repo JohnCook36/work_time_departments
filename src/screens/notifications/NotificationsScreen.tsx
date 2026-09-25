@@ -44,8 +44,12 @@ function notificationText(item: NotificationItem) {
     if (item.eventKey.endsWith(':TARGET_ACCEPTED')) return 'Сотрудник согласился. Запрос ждёт решения руководителя.';
     if (item.eventKey.endsWith(':TARGET_REJECTED')) return 'Сотрудник отклонил запрос на изменение смены.';
     if (item.eventKey.endsWith(':CANCELED')) return 'Запрос на изменение смены отменён.';
-    if (item.eventKey.endsWith(':MANAGER_APPROVED')) return 'Руководитель одобрил изменение смены.';
+    if (item.eventKey.endsWith(':MANAGER_APPROVED')) return 'Руководитель одобрил изменение смены в черновике.';
     if (item.eventKey.endsWith(':MANAGER_REJECTED')) return 'Руководитель отклонил изменение смены.';
+  }
+  if (item.category === 'SCHEDULE_PUBLICATION') {
+    if (item.eventKey.endsWith(':INITIAL')) return 'Опубликован ваш рабочий график.';
+    if (item.eventKey.endsWith(':CHANGED')) return 'Опубликована новая версия: ваш график изменился.';
   }
   return CATEGORY_LABELS[item.category] + ': новое событие.';
 }
