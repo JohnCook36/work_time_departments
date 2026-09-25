@@ -316,6 +316,18 @@ describe('ScheduleRulesService', () => {
       }),
     );
 
+    transaction.user.findUnique.mockResolvedValueOnce({
+      isActive: true,
+      memberships: [
+        {
+          id: 'membership-super',
+          role: RoleType.SUPER_ADMIN,
+          departmentId: null,
+          permissions: [],
+        },
+      ],
+    });
+
     await service.createRule(superAdmin(), {
       name: 'Employee coverage',
       description: 'Rule for employee role',
