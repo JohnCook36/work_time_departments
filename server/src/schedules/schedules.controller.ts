@@ -1,5 +1,5 @@
 import { ApiTags, ApiOperation, ApiResponse, ApiBadRequestResponse, ApiUnauthorizedResponse, ApiForbiddenResponse, ApiSecurity, ApiConflictResponse, ApiNotFoundResponse, ApiBody, ApiQuery } from '@nestjs/swagger';
-import { departmentScheduleResponse, personalScheduleResponse, scheduleAppliedResponse, schedulePublicationListResponse, schedulePublicationResponse, schedulePublicationValidationResponse } from '../openapi.responses';
+import { departmentScheduleResponse, personalScheduleResponse, scheduleAcknowledgementListResponse, scheduleAcknowledgementResponse, scheduleAcknowledgementStatusResponse, scheduleAppliedResponse, schedulePublicationListResponse, schedulePublicationResponse, schedulePublicationValidationResponse } from '../openapi.responses';
 import { ApplyPlannerChangesDto, ApplyDepartmentChangesDto, MaterializeFixedWeekdaysDto, PublishDepartmentScheduleDto } from './schedules.dto';
 
 import {
@@ -16,6 +16,7 @@ import {
 import { AuthUserContext } from '../auth/auth.service';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { SessionAuthGuard } from '../auth/session-auth.guard';
+import { ScheduleAcknowledgementsService } from './schedule-acknowledgements.service';
 import { SchedulePublicationsService } from './schedule-publications.service';
 import {
   ScheduleCellChange,
@@ -88,6 +89,7 @@ export class SchedulesController {
   constructor(
     private readonly schedules: SchedulesService,
     private readonly publications: SchedulePublicationsService,
+    private readonly acknowledgements: ScheduleAcknowledgementsService,
   ) {}
 
   @ApiOperation({ summary: 'Save missing fixed-weekday shifts for a month from today (UTC); existing cells remain unchanged' })
@@ -253,6 +255,47 @@ export class SchedulesController {
       requiredInteger(year, 'year'),
       requiredInteger(month, 'month'),
       requiredInteger(version, 'version'),
+    );
+  }
+
+  @ApiOperation({ summary: 'Acknowledge one immutable published schedule version as the linked employee' })
+  @ApiResponse({ status: 201, schema: scheduleAcknowledgementResponse })
+  @Post('me/publication-acknowledgements')
+  acknowledgePublication(
+    @CurrentUser() user: AuthUserContext,
+    @Body() body: { publicationId?: unknown },
+  ) {
+    return this.acknowledgements.acknowledge(
+      user,
+      requiredBodyString(body?.publicationId, 'publicationId'),
+    );
+  }
+
+  @ApiOperation({ summary: 'Read current employee acknowledgement status for one publication' })
+  @ApiQuery({ name: 'publicationId', required: true, schema: { type: 'string' } })
+  @ApiResponse({ status: 200, schema: scheduleAcknowledgementStatusResponse })
+  @Get('me/publication-acknowledgement')
+  getOwnAcknowledgement(
+    @CurrentUser() user: AuthUserContext,
+    @Query('publicationId') publicationId?: string,
+  ) {
+    return this.acknowledgements.getOwnStatus(
+      user,
+      requiredString(publicationId, 'publicationId'),
+    );
+  }
+
+  @ApiOperation({ summary: 'List scoped employee acknowledgement statuses for one publication' })
+  @ApiQuery({ name: 'publicationId', required: true, schema: { type: 'string' } })
+  @ApiResponse({ status: 200, schema: scheduleAcknowledgementListResponse })
+  @Get('department/publication-acknowledgements')
+  listPublicationAcknowledgements(
+    @CurrentUser() user: AuthUserContext,
+    @Query('publicationId') publicationId?: string,
+  ) {
+    return this.acknowledgements.listPublicationStatuses(
+      user,
+      requiredString(publicationId, 'publicationId'),
     );
   }
 

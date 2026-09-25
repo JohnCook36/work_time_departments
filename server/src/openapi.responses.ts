@@ -158,6 +158,33 @@ export const schedulePublicationValidationResponse = object({
   })),
 });
 
+export const scheduleAcknowledgementResponse = object({
+  id: text,
+  publicationId: text,
+  employeeId: text,
+  acknowledgedAt: timestamp,
+});
+export const scheduleAcknowledgementStatusResponse = object({
+  publicationId: text,
+  employeeId: text,
+  status: { type: 'string', enum: ['ACKNOWLEDGED', 'NOT_ACKNOWLEDGED'] },
+  acknowledgedAt: nullable(timestamp),
+});
+export const scheduleAcknowledgementListResponse = object({
+  publicationId: text,
+  departmentId: text,
+  version: integer,
+  employees: arrayOf(object({
+    employeeId: text,
+    displayName: text,
+    status: {
+      type: 'string',
+      enum: ['ACKNOWLEDGED', 'NOT_ACKNOWLEDGED', 'NO_ACTIVE_ACCOUNT'],
+    },
+    acknowledgedAt: nullable(timestamp),
+  })),
+});
+
 export const scheduleRuleResponse = object({
   id: text,
   name: text,
