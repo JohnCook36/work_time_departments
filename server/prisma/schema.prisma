@@ -56,6 +56,14 @@ enum EmployeeScheduleMode {
   FIXED_WEEKDAYS
 }
 
+enum AbsenceType {
+  VACATION
+  SICK
+  TRAINING
+  BUSINESS_TRIP
+  UNAVAILABLE
+}
+
 enum OnboardingRequestType {
   LINK_EXISTING
   CREATE_EMPLOYEE
@@ -108,6 +116,9 @@ enum AuditAction {
   ROLE_ASSIGNMENT_CREATED
   ROLE_PERMISSIONS_UPDATED
   ROLE_ASSIGNMENT_DEACTIVATED
+  ABSENCE_CREATED
+  ABSENCE_UPDATED
+  ABSENCE_CANCELED
 }
 
 enum AuditEntityType {
@@ -118,6 +129,7 @@ enum AuditEntityType {
   ONBOARDING_REQUEST
   SHIFT_CHANGE_REQUEST
   MEMBERSHIP
+  ABSENCE
 }
 
 enum NotificationCategory {
@@ -175,6 +187,8 @@ model User {
   notifications              Notification[]
   notificationPreferences    NotificationPreference[]
   scheduleAcknowledgements    ScheduleAcknowledgement[]
+  createdAbsences              Absence[] @relation("AbsenceCreatedBy")
+  updatedAbsences              Absence[] @relation("AbsenceUpdatedBy")
 }
 
 model Employee {
@@ -198,6 +212,7 @@ model Employee {
   requestedShiftChanges ShiftChangeRequest[] @relation("ShiftChangeRequesterEmployee")
   targetedShiftChanges  ShiftChangeRequest[] @relation("ShiftChangeTargetEmployee")
   scheduleAcknowledgements ScheduleAcknowledgement[]
+  absences                 Absence[]
 
   @@index([departmentId])
 }
@@ -515,4 +530,25 @@ model ScheduleAcknowledgement {
   @@index([publicationId, acknowledgedAt])
   @@index([employeeId, acknowledgedAt])
   @@index([acknowledgedByUserId, acknowledgedAt])
+}
+
+
+model Absence {
+  id              String      @id @default(cuid())
+  employeeId      String
+  type            AbsenceType
+  startDate       DateTime    @db.Date
+  endDate         DateTime    @db.Date
+  comment         String?     @db.VarChar(240)
+  canceledAt      DateTime?
+  createdByUserId String
+  updatedByUserId String
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  employee        Employee    @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  createdBy       User        @relation("AbsenceCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  updatedBy       User        @relation("AbsenceUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([employeeId, startDate, endDate])
+  @@index([employeeId, canceledAt])
 }
