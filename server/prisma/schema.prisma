@@ -20,6 +20,20 @@ enum RoleType {
   EMPLOYEE
 }
 
+enum PermissionCapability {
+  SCHEDULE_READ
+  SCHEDULE_EDIT
+  SCHEDULE_PUBLISH
+  EMPLOYEE_MANAGE
+  ONBOARDING_REVIEW
+  SHIFT_CHANGE_APPROVE
+  SCHEDULE_RULE_MANAGE
+  AUDIT_READ
+  PRIVATE_PROFILE_READ
+  PRIVATE_PROFILE_EDIT
+  ROLE_MANAGE
+}
+
 enum ScheduleRuleScope {
   ORGANIZATION
   DEPARTMENT
@@ -174,10 +188,22 @@ model Membership {
   updatedAt    DateTime   @updatedAt
   user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   department   Department? @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  permissions  MembershipPermission[]
 
   @@index([userId])
   @@index([departmentId])
   @@index([role])
+}
+
+model MembershipPermission {
+  id           String               @id @default(cuid())
+  membershipId String
+  capability   PermissionCapability
+  createdAt    DateTime             @default(now())
+  membership   Membership           @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+
+  @@unique([membershipId, capability])
+  @@index([capability])
 }
 
 model Schedule {
