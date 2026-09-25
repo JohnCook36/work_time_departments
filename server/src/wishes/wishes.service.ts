@@ -1,10 +1,11 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 
-import { PermissionCapability } from '@prisma/client';
+import { PermissionCapability, Prisma } from '@prisma/client';
 
 import { AuthUserContext } from '../auth/auth.service';
 import { AuthorizationService } from '../auth/authorization.service';
@@ -98,6 +99,52 @@ export class WishesService {
     private readonly authorization: AuthorizationService,
   ) {}
 
+  private async loadCurrentEditor(
+    tx: Prisma.TransactionClient,
+    admin: AuthUserContext,
+    departmentId: string,
+  ): Promise<void> {
+    const current = await tx.user.findUnique({
+      where: { id: admin.id },
+      select: {
+        isActive: true,
+        memberships: {
+          where: { isActive: true },
+          select: {
+            id: true,
+            role: true,
+            departmentId: true,
+            permissions: {
+              select: { capability: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!current?.isActive) {
+      throw new ForbiddenException('Manager account is inactive');
+    }
+
+    const currentAdmin: AuthUserContext = {
+      ...admin,
+      memberships: current.memberships.map(membership => ({
+        id: membership.id,
+        role: membership.role,
+        departmentId: membership.departmentId,
+        permissions: membership.permissions.map(
+          permission => permission.capability,
+        ),
+      })),
+    };
+
+    this.authorization.assertCapability(
+      currentAdmin,
+      PermissionCapability.SCHEDULE_EDIT,
+      departmentId,
+    );
+  }
+
   async listDepartmentWishes(
     admin: AuthUserContext,
     departmentId: string,
@@ -187,27 +234,31 @@ export class WishesService {
       employee.departmentId,
     );
 
-    const wish = await this.prisma.employeeWish.create({
-      data: {
-        employeeId,
-        year,
-        month,
-        day,
-        text,
-      },
-      select: {
-        id: true,
-        employeeId: true,
-        year: true,
-        month: true,
-        day: true,
-        text: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
+    return this.prisma.$transaction(async tx => {
+      await this.loadCurrentEditor(tx, admin, employee.departmentId);
 
-    return serializeWish(wish);
+      const wish = await tx.employeeWish.create({
+        data: {
+          employeeId,
+          year,
+          month,
+          day,
+          text,
+        },
+        select: {
+          id: true,
+          employeeId: true,
+          year: true,
+          month: true,
+          day: true,
+          text: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+
+      return serializeWish(wish);
+    });
   }
 
   async deleteWish(
@@ -248,13 +299,21 @@ export class WishesService {
       wish.employee.departmentId,
     );
 
-    await this.prisma.employeeWish.delete({
-      where: { id: wish.id },
-    });
+    return this.prisma.$transaction(async tx => {
+      await this.loadCurrentEditor(
+        tx,
+        admin,
+        wish.employee.departmentId,
+      );
 
-    return {
-      status: 'ok' as const,
-      wishId: wish.id,
-    };
+      await tx.employeeWish.delete({
+        where: { id: wish.id },
+      });
+
+      return {
+        status: 'ok' as const,
+        wishId: wish.id,
+      };
+    });
   }
 }
