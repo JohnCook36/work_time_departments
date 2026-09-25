@@ -28,6 +28,8 @@ import {
   FullWidthSelect,
   ShiftTimeGrid,
   TimeIconSlot,
+  OccupiedShiftNotice,
+  OccupiedShiftSlot,
 } from './styles';
 
 interface ShiftEditorProps {
@@ -55,6 +57,54 @@ const PRESETS: ShiftPreset[] = [
   { label: 'N · 20:00–08:00', start: '20:00', end: '08:00', code: 'N' },
 ];
 
+
+export function getOccupiedShiftNotice(
+  entry: ShiftEntry,
+  day: number,
+  month: number,
+  year: number,
+): string | null {
+  if (entry.type === 'empty') return null;
+
+  const date =
+    String(day).padStart(2, '0') +
+    '.' +
+    String(month + 1).padStart(2, '0') +
+    '.' +
+    String(year);
+
+  if (entry.type === 'shift') {
+    const shift = entry.shift;
+    const label =
+      (shift.code ? shift.code + ' · ' : '') +
+      shift.start +
+      '–' +
+      shift.end;
+
+    return (
+      'Сотрудник уже запланирован на ' +
+      date +
+      ': ' +
+      label +
+      '. Чтобы поставить другую смену, измените текущую запись или сначала очистите ячейку.'
+    );
+  }
+
+  if (entry.type === 'off') {
+    return (
+      'У сотрудника уже есть запись на ' +
+      date +
+      ': OFF. Чтобы поставить смену, измените текущую запись.'
+    );
+  }
+
+  return (
+    'У сотрудника уже есть запись на ' +
+    date +
+    '. Проверьте её перед сохранением новой смены.'
+  );
+}
+
 export function ShiftEditor({
   employee,
   day,
@@ -65,6 +115,7 @@ export function ShiftEditor({
   onClose,
 }: ShiftEditorProps) {
   const currentShift = entry.type === 'shift' ? entry.shift : undefined;
+  const occupiedNotice = getOccupiedShiftNotice(entry, day, month, year);
   const [code, setCode] = useState<ShiftCode | ''>(currentShift?.code || '');
   const [start, setStart] = useState(currentShift?.start || '08:00');
   const [end, setEnd] = useState(currentShift?.end || '17:00');
@@ -95,6 +146,14 @@ export function ShiftEditor({
             <X size={18} />
           </IconButton>
         </DrawerHeader>
+
+        <OccupiedShiftSlot>
+          {occupiedNotice && (
+            <OccupiedShiftNotice role="status">
+              {occupiedNotice}
+            </OccupiedShiftNotice>
+          )}
+        </OccupiedShiftSlot>
 
         <FormGroup>
           <FormLabel>Код смены</FormLabel>
