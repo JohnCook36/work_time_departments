@@ -57,13 +57,19 @@ export function AppSectionNav() {
         styles={{
           '@media (max-width: 720px)': {
             html: {
-              scrollPaddingBottom: 'calc(84px + env(safe-area-inset-bottom))',
+              height: '100%',
+              overflow: 'hidden',
             },
             body: {
-              paddingBottom: 'calc(84px + env(safe-area-inset-bottom))',
+              height: '100%',
+              overflow: 'hidden',
             },
-            'button, a, input, select, textarea': {
-              scrollMarginBottom: 'calc(84px + env(safe-area-inset-bottom))',
+            '#root': {
+              height: 'calc(100dvh - 64px - env(safe-area-inset-bottom))',
+              overflowY: 'auto',
+              overflowX: 'hidden',
+              overscrollBehavior: 'contain',
+              scrollPaddingBottom: 16,
             },
           },
         }}
