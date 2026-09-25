@@ -43,6 +43,13 @@ export function AppSectionNav() {
   }, [location.pathname]);
 
   const managerMobile = canManagePlanner || hasSecondaryManagement;
+  const moreRouteActive = [
+    '/notifications',
+    '/profile',
+    '/roles-access',
+    '/audit',
+    '/my-schedule',
+  ].includes(location.pathname) && managerMobile;
 
   return (
     <>
@@ -130,6 +137,7 @@ export function AppSectionNav() {
 
           <MobileNavigationButton
             type="button"
+            $active={moreRouteActive}
             aria-expanded={moreOpen}
             aria-controls="mobile-more-navigation"
             onClick={() => setMoreOpen(current => !current)}
