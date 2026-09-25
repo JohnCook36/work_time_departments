@@ -364,6 +364,45 @@ export class ScheduleRulesService {
     });
   }
 
+  private async loadCurrentActor(
+    tx: Prisma.TransactionClient,
+    user: AuthUserContext,
+  ): Promise<AuthUserContext> {
+    const current = await tx.user.findUnique({
+      where: { id: user.id },
+      select: {
+        isActive: true,
+        memberships: {
+          where: { isActive: true },
+          select: {
+            id: true,
+            role: true,
+            departmentId: true,
+            permissions: {
+              select: { capability: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!current?.isActive) {
+      throw new ForbiddenException('Manager account is inactive');
+    }
+
+    return {
+      ...user,
+      memberships: current.memberships.map(membership => ({
+        id: membership.id,
+        role: membership.role,
+        departmentId: membership.departmentId,
+        permissions: membership.permissions.map(
+          permission => permission.capability,
+        ),
+      })),
+    };
+  }
+
   private async assertDepartmentExists(departmentId: string | null) {
     if (!departmentId) return;
     const department = await this.prisma.department.findFirst({
@@ -433,6 +472,13 @@ export class ScheduleRulesService {
     }
 
     return this.prisma.$transaction(async tx => {
+      const currentUser = await this.loadCurrentActor(tx, user);
+      this.authorization.assertCapability(
+        currentUser,
+        PermissionCapability.SCHEDULE_RULE_MANAGE,
+        normalizedDepartmentId,
+      );
+
       const lockKey = 'schedule-rule:fo-preset:' + normalizedDepartmentId;
       await tx.$queryRaw<Array<{ locked: number }>>`
         SELECT 1::int AS locked
@@ -515,6 +561,13 @@ export class ScheduleRulesService {
     await this.assertDepartmentExists(normalized.departmentId);
 
     return this.prisma.$transaction(async (tx) => {
+      const currentUser = await this.loadCurrentActor(tx, user);
+      this.assertCanManageScope(
+        currentUser,
+        normalized.scope,
+        normalized.departmentId,
+      );
+
       const rule = (await tx.scheduleRule.create({
         data: {
           ...normalized,
@@ -569,6 +622,18 @@ export class ScheduleRulesService {
     const expected = expectedUpdatedAt(input.expectedUpdatedAt);
 
     return this.prisma.$transaction(async (tx) => {
+      const currentUser = await this.loadCurrentActor(tx, user);
+      if (!this.canEditRule(currentUser, current)) {
+        throw new ForbiddenException(
+          'You do not have permission to edit this rule',
+        );
+      }
+      this.assertCanManageScope(
+        currentUser,
+        normalized.scope,
+        normalized.departmentId,
+      );
+
       const updated = await tx.scheduleRule.updateMany({
         where: {
           id: ruleId,
@@ -630,6 +695,13 @@ export class ScheduleRulesService {
     const expected = expectedUpdatedAt(expectedUpdatedAtValue);
 
     return this.prisma.$transaction(async (tx) => {
+      const currentUser = await this.loadCurrentActor(tx, user);
+      if (!this.canEditRule(currentUser, current)) {
+        throw new ForbiddenException(
+          'You do not have permission to delete this rule',
+        );
+      }
+
       const updated = await tx.scheduleRule.updateMany({
         where: {
           id: ruleId,
