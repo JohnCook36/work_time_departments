@@ -439,7 +439,7 @@ export class EmployeesService {
           membership =>
             membership.role === 'SUPER_ADMIN' ||
             membership.role === 'DEPARTMENT_ADMIN' ||
-            membership.permissions.length > 0,
+            (membership.permissions?.length ?? 0) > 0,
         ) ?? false;
 
       const adminIsSuperAdmin = this.authorization.isSuperAdmin(admin);
