@@ -1,5 +1,5 @@
 import type { SchemaObject } from '@nestjs/swagger';
-import { AuditAction, AuditEntityType, DepartmentKind, EmployeeScheduleMode, NotificationCategory, NotificationEntityType, OnboardingRequestStatus, OnboardingRequestType, PermissionCapability, RoleType, ScheduleRuleKind, ScheduleRuleScope, ScheduleRuleSeverity, ShiftChangeRequestEventType, ShiftChangeRequestKind, ShiftChangeRequestStatus } from '@prisma/client';
+import { AbsenceType, AuditAction, AuditEntityType, DepartmentKind, EmployeeScheduleMode, NotificationCategory, NotificationEntityType, OnboardingRequestStatus, OnboardingRequestType, PermissionCapability, RoleType, ScheduleRuleKind, ScheduleRuleScope, ScheduleRuleSeverity, ShiftChangeRequestEventType, ShiftChangeRequestKind, ShiftChangeRequestStatus } from '@prisma/client';
 
 // Wire response shapes selected/serialized by the services, never database records or fixtures.
 const text: SchemaObject = { type: 'string' };
@@ -62,6 +62,24 @@ export const membershipAssignmentResponse = object({
 export const membershipDeactivatedResponse = object({
   ...okResponse.properties,
   membershipId: text,
+});
+
+export const absenceResponse = object({
+  id: text,
+  employeeId: text,
+  type: enumeration(AbsenceType),
+  startDate: { type: 'string', format: 'date' },
+  endDate: { type: 'string', format: 'date' },
+  comment: nullable(text),
+  status: { type: 'string', enum: ['ACTIVE', 'CANCELED'] },
+  canceledAt: nullable(timestamp),
+  createdAt: timestamp,
+  updatedAt: timestamp,
+});
+export const absenceListResponse = arrayOf(absenceResponse);
+export const absenceCanceledResponse = object({
+  ...okResponse.properties,
+  absenceId: text,
 });
 
 export const notificationResponse = object({
