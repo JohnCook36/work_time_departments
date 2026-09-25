@@ -354,14 +354,14 @@ for (const viewport of [
     const absenceType = absences.getByLabel('Тип');
     await absenceType.selectOption('SICK');
     await expect(absences.getByLabel('Рабочая заметка')).toBeDisabled();
-    await absences.getByLabel('С').fill('2026-09-20');
-    await absences.getByLabel('По').fill('2026-09-21');
+    await absences.locator('#absence-start').fill('2026-09-20');
+    await absences.locator('#absence-end').fill('2026-09-21');
     await absences.getByRole('button', { name: 'Добавить отсутствие' }).click();
     await expect(absences.getByText('Отсутствие добавлено.')).toBeVisible();
     await expect(absences.getByText('Больничный', { exact: true })).toBeVisible();
 
     await absences.getByRole('button', { name: 'Редактировать' }).first().click();
-    await absences.getByLabel('По').fill('2026-09-13');
+    await absences.locator('#absence-end').fill('2026-09-13');
     await absences.getByRole('button', { name: 'Сохранить изменения' }).click();
     await expect(absences.getByText('Отсутствие обновлено.')).toBeVisible();
     await expect(absences.getByText(/2026-09-10 — 2026-09-13/)).toBeVisible();
