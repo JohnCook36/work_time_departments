@@ -59,6 +59,10 @@ describe('SchedulePublicationsService', () => {
 
   const authorization = {
     assertCanAdministerDepartment: jest.fn(),
+    assertCapability: jest.fn(
+      (user, _capability, departmentId) =>
+        authorization.assertCanAdministerDepartment(user, departmentId),
+    ),
   };
 
   const service = new SchedulePublicationsService(
