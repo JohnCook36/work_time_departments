@@ -6,7 +6,9 @@ export const Page = styled('div')(({ theme }) => ({
   background: 'linear-gradient(135deg, ' + theme.colors.background + ' 0%, ' + theme.colors.backgroundAlt + ' 100%)',
   color: theme.colors.text,
   transition: 'background 180ms ease, color 180ms ease',
-  '@media (max-width: 720px)': { padding: '10px' },
+  '@media (max-width: 720px)': {
+    padding: '10px 10px calc(88px + env(safe-area-inset-bottom))',
+  },
 }));
 
 export const Container = styled('div')({
