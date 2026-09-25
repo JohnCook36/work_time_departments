@@ -6,6 +6,7 @@ import {
 
 import { AuthorizationService } from '../../src/auth/authorization.service';
 import { AuthUserContext } from '../../src/auth/auth.service';
+import { NotificationsService } from '../../src/notifications/notifications.service';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import { SchedulePublicationsService } from '../../src/schedules/schedule-publications.service';
 import { SchedulesService } from '../../src/schedules/schedules.service';
@@ -31,6 +32,8 @@ describeLive('live PostgreSQL shift-change application', () => {
       await tx.$executeRawUnsafe("SET LOCAL app.schedule_publication_retention_mode = 'on'");
       await tx.schedulePublication.deleteMany();
     });
+    await prisma.notificationPreference.deleteMany();
+    await prisma.notification.deleteMany();
     await prisma.shiftChangeRequestEvent.deleteMany();
     await prisma.shiftChangeRequest.deleteMany();
     await prisma.onboardingRequest.deleteMany();
@@ -58,7 +61,8 @@ describeLive('live PostgreSQL shift-change application', () => {
     prisma = new PrismaService();
     await prisma.$connect();
     const authorization = new AuthorizationService();
-    changes = new ShiftChangeRequestsService(prisma, authorization);
+    const notifications = new NotificationsService(prisma);
+    changes = new ShiftChangeRequestsService(prisma, authorization, notifications);
     schedules = new SchedulesService(prisma, authorization);
     publications = new SchedulePublicationsService(prisma, authorization);
   });
