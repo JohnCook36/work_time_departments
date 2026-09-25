@@ -225,6 +225,22 @@ describe('AuthService development OTP safety', () => {
     expect(prisma.authChallenge.create).toHaveBeenCalledTimes(1);
   });
 
+  it('never prunes challenges newer than the OTP TTL when the source window is shorter', async () => {
+    process.env.NODE_ENV = 'development';
+    process.env[allowKey] = 'true';
+    process.env[sourceWindowKey] = '60';
+    const { service, prisma } = requestCodeService();
+    const before = Date.now();
+
+    await service.requestCode(PHONE);
+
+    const after = Date.now();
+    const cutoff =
+      prisma.authChallenge.deleteMany.mock.calls[0][0].where.createdAt.lt;
+    expect(cutoff.getTime()).toBeGreaterThanOrEqual(before - 5 * 60 * 1000);
+    expect(cutoff.getTime()).toBeLessThanOrEqual(after - 5 * 60 * 1000);
+  });
+
   it('prunes challenges older than the active OTP source rate-limit window', async () => {
     process.env.NODE_ENV = 'development';
     process.env[allowKey] = 'true';
