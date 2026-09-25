@@ -35,6 +35,11 @@ ON "Absence"("employeeId", "startDate", "endDate");
 CREATE INDEX "Absence_employeeId_canceledAt_idx"
 ON "Absence"("employeeId", "canceledAt");
 
+-- Prevent exact duplicate active absences even under concurrent requests.
+CREATE UNIQUE INDEX "Absence_active_exact_unique"
+ON "Absence"("employeeId", "type", "startDate", "endDate")
+WHERE "canceledAt" IS NULL;
+
 -- AddForeignKey
 ALTER TABLE "Absence"
 ADD CONSTRAINT "Absence_employeeId_fkey"
