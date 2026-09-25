@@ -428,6 +428,23 @@ export function PlannerScreen() {
     }
   };
 
+  const navigateToValidationIssue = useCallback(
+    (employeeId: string, date: string) => {
+      const employee = employees.find((item) => item.id === employeeId);
+      const day = Number(date.slice(8, 10));
+      if (!employee || !Number.isInteger(day) || day < 1 || day > daysInMonth) {
+        return;
+      }
+
+      setCollapsedDepartments((current) =>
+        current.filter((departmentId) => departmentId !== employee.departmentId),
+      );
+      setScheduleView('schedule');
+      setEditingCell({ empId: employeeId, day });
+    },
+    [daysInMonth, employees],
+  );
+
   const getEntry = useCallback(
     (empId: string, day: number): ShiftEntry => {
       return schedule[empId]?.[day] || { type: 'empty' };
