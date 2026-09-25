@@ -10,7 +10,7 @@ import type { AuthUserContext } from '../../../src/auth/auth.service';
 import { WishesService } from '../../../src/wishes/wishes.service';
 
 describe('WishesService', () => {
-  const prisma = {
+  const prisma: any = {
     department: {
       findFirst: jest.fn(),
     },
@@ -200,8 +200,9 @@ describe('WishesService', () => {
       memberships: [],
     });
     authorization.assertCapability.mockImplementation(
-      (user: AuthUserContext) => {
-        if (user.memberships.length === 0) {
+      (user: unknown) => {
+        const currentUser = user as AuthUserContext;
+        if (currentUser.memberships.length === 0) {
           throw new ForbiddenException(
             'You do not have permission to perform this action',
           );
