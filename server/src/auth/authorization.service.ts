@@ -66,6 +66,29 @@ export class AuthorizationService {
     return [...new Set(ids)];
   }
 
+  departmentIdsWithAnyCapability(user: AuthUserContext): string[] {
+    const ids = user.memberships
+      .filter(
+        membership =>
+          !!membership.departmentId &&
+          (membership.role === RoleType.DEPARTMENT_ADMIN ||
+            (membership.permissions?.length ?? 0) > 0),
+      )
+      .map(membership => membership.departmentId!);
+
+    return [...new Set(ids)];
+  }
+
+  hasAnyManagementCapability(user: AuthUserContext): boolean {
+    if (this.isSuperAdmin(user)) return true;
+
+    return user.memberships.some(
+      membership =>
+        membership.role === RoleType.DEPARTMENT_ADMIN ||
+        (membership.permissions?.length ?? 0) > 0,
+    );
+  }
+
   canAdministerDepartment(
     user: AuthUserContext,
     departmentId: string,
