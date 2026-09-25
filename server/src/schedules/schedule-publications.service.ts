@@ -21,6 +21,7 @@ import { AuthorizationService } from '../auth/authorization.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
+  buildHourlyCoverage,
   buildManagedRulesetSnapshot,
   buildRulesVersion,
   ManagedScheduleRuleSnapshot,
@@ -245,6 +246,7 @@ function validatePublicationRules(
     rulesSnapshot,
     rulesVersion: buildRulesVersion(rulesSnapshot),
     violations,
+    coverage: buildHourlyCoverage(snapshot, rules, year, month),
     canPublish: !violations.some(
       (violation) => violation.severity === 'hard',
     ),
@@ -740,7 +742,16 @@ export class SchedulePublicationsService {
         employeeId: violation.employeeId ?? null,
         shiftId: violation.shiftId ?? null,
         date: violation.date ?? null,
+        ruleId: violation.ruleId ?? null,
+        ruleVersion: violation.ruleVersion ?? null,
+        ruleName: violation.ruleName ?? null,
+        expected: violation.expected ?? null,
+        actual: violation.actual ?? null,
+        time: violation.time ?? null,
+        affectedEmployeeIds: violation.affectedEmployeeIds ?? [],
+        affectedShiftIds: violation.affectedShiftIds ?? [],
       })),
+      coverage: ruleValidation.coverage,
     };
   }
 
