@@ -3,7 +3,17 @@ name: Playwright E2E
 on:
   pull_request:
     paths:
-      - 'tests/**'
+      - 'tests/e2e/**'
+      - 'src/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'playwright.config.ts'
+      - '.github/workflows/e2e-ci.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'tests/e2e/**'
       - 'src/**'
       - 'package.json'
       - 'package-lock.json'
@@ -20,19 +30,127 @@ concurrency:
 
 jobs:
   test:
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64, worktime]
     timeout-minutes: 25
     steps:
       - name: Repair workspace ownership
         shell: bash
         run: |
-          docker run --rm             -v "$GITHUB_WORKSPACE:/workspace"             alpine:3.20             sh -c "chown -R $(id -u):$(id -g) /workspace"
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/workspace" \
+            alpine:3.20 \
+            sh -c "chown -R $(id -u):$(id -g) /workspace"
 
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Run E2E regression suite in Playwright Docker
+      - name: Detect affected E2E blocks
+        id: scope
         shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          docker run --rm --ipc=host             --user "$(id -u):$(id -g)"             -e HOME=/tmp             -e CI=true             -v "$GITHUB_WORKSPACE:/work"             -w /work             mcr.microsoft.com/playwright:v1.63.0-noble             bash -lc "npm ci && npm run test:e2e"
+          set -euo pipefail
+
+          full=false
+          planner=false
+          auth_nav=false
+          workflow=false
+
+          if [ "$EVENT_NAME" != "pull_request" ]; then
+            full=true
+          else
+            changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
+            printf '%s\n' "$changed"
+
+            if grep -Eq '^\.github/workflows/e2e-ci\.yml$|^package(-lock)?\.json$|^playwright\.config\.ts$|^src/(main|App)\.tsx$|^src/components/shared/' <<<"$changed"; then
+              full=true
+            fi
+
+            if grep -Eq '^tests/e2e/(full-regression|planner-sticky-geometry|fo-coverage-preset)\.spec\.ts$|^src/(domain|services|utils)/|^src/components/(drawers|planner|schedule)|^src/screens/(planner|schedule-rules)/' <<<"$changed"; then
+              planner=true
+            fi
+
+            if grep -Eq '^tests/e2e/(mobile-bottom-navigation|onboarding-acceptance|role-access-management)\.spec\.ts$|^src/(auth|router)/|^src/components/navigation/|^src/screens/(auth|onboarding|roles)/|^src/pages/(Login|Onboarding)' <<<"$changed"; then
+              auth_nav=true
+            fi
+
+            if grep -Eq '^tests/e2e/(audit-log-viewer|notifications-inbox|publication-history-diff|schedule-acknowledgement|shift-change-requests)\.spec\.ts$|^src/api/|^src/screens/(audit|notifications|shift|publication|acknowledgement)/' <<<"$changed"; then
+              workflow=true
+            fi
+
+            if grep -Eq '^src/' <<<"$changed" && [ "$planner" = false ] && [ "$auth_nav" = false ] && [ "$workflow" = false ]; then
+              full=true
+            fi
+          fi
+
+          if [ "$full" = true ]; then
+            planner=true
+            auth_nav=true
+            workflow=true
+          fi
+
+          {
+            echo "full=$full"
+            echo "planner=$planner"
+            echo "auth_nav=$auth_nav"
+            echo "workflow=$workflow"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Run affected E2E blocks in Playwright Docker
+        if: steps.scope.outputs.planner == 'true' || steps.scope.outputs.auth_nav == 'true' || steps.scope.outputs.workflow == 'true'
+        shell: bash
+        env:
+          FULL: ${{ steps.scope.outputs.full }}
+          PLANNER: ${{ steps.scope.outputs.planner }}
+          AUTH_NAV: ${{ steps.scope.outputs.auth_nav }}
+          WORKFLOW: ${{ steps.scope.outputs.workflow }}
+        run: |
+          set -euo pipefail
+
+          if [ "$FULL" = "true" ]; then
+            test_command="npm run test:e2e"
+          else
+            tests=()
+
+            if [ "$PLANNER" = "true" ]; then
+              tests+=(
+                tests/e2e/full-regression.spec.ts
+                tests/e2e/planner-sticky-geometry.spec.ts
+                tests/e2e/fo-coverage-preset.spec.ts
+              )
+            fi
+
+            if [ "$AUTH_NAV" = "true" ]; then
+              tests+=(
+                tests/e2e/mobile-bottom-navigation.spec.ts
+                tests/e2e/onboarding-acceptance.spec.ts
+                tests/e2e/role-access-management.spec.ts
+              )
+            fi
+
+            if [ "$WORKFLOW" = "true" ]; then
+              tests+=(
+                tests/e2e/audit-log-viewer.spec.ts
+                tests/e2e/notifications-inbox.spec.ts
+                tests/e2e/publication-history-diff.spec.ts
+                tests/e2e/schedule-acknowledgement.spec.ts
+                tests/e2e/shift-change-requests.spec.ts
+              )
+            fi
+
+            test_command="npx playwright test ${tests[*]}"
+          fi
+
+          docker run --rm --ipc=host \
+            --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp \
+            -e CI=true \
+            -v "$GITHUB_WORKSPACE:/work" \
+            -w /work \
+            mcr.microsoft.com/playwright:v1.63.0-noble \
+            bash -lc "npm ci && $test_command"

@@ -2,6 +2,9 @@ name: CI
 
 on:
   pull_request:
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -13,7 +16,7 @@ concurrency:
 
 jobs:
   check:
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64, worktime]
     timeout-minutes: 20
     steps:
@@ -27,30 +30,125 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect affected frontend test blocks
+        id: scope
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+
+          full=false
+          deps=false
+          static=false
+          unit=false
+          component=false
+          integration=false
+          build=false
+
+          if [ "$EVENT_NAME" != "pull_request" ]; then
+            full=true
+          else
+            changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
+            printf '%s\n' "$changed"
+
+            if grep -Eq '^\.github/workflows/ci\.yml$|^vite\.config\.|^vitest\.config\.|^tsconfig|^package(-lock)?\.json$' <<<"$changed"; then
+              full=true
+            fi
+
+            if grep -Eq '^package(-lock)?\.json$' <<<"$changed"; then
+              deps=true
+            fi
+
+            if grep -Eq '^src/|^scripts/check-(design-tokens|inline-styles)\.mjs$' <<<"$changed"; then
+              static=true
+            fi
+
+            if grep -Eq '^tests/frontend/unit/|^src/(domain|utils|services)/' <<<"$changed"; then
+              unit=true
+            fi
+
+            if grep -Eq '^tests/frontend/component/|^src/(components|hooks|screens)/|^src/App\.tsx$' <<<"$changed"; then
+              component=true
+            fi
+
+            if grep -Eq '^tests/frontend/integration/|^src/|^index\.html$' <<<"$changed"; then
+              integration=true
+            fi
+
+            if grep -Eq '^src/|^index\.html$|^vite\.config\.|^tsconfig|^package(-lock)?\.json$' <<<"$changed"; then
+              build=true
+            fi
+          fi
+
+          if [ "$full" = true ]; then
+            deps=true
+            static=true
+            unit=true
+            component=true
+            integration=true
+            build=true
+          fi
+
+          needs_node=false
+          if [ "$deps" = true ] || [ "$static" = true ] || [ "$unit" = true ] || [ "$component" = true ] || [ "$integration" = true ] || [ "$build" = true ]; then
+            needs_node=true
+          fi
+
+          {
+            echo "full=$full"
+            echo "deps=$deps"
+            echo "static=$static"
+            echo "unit=$unit"
+            echo "component=$component"
+            echo "integration=$integration"
+            echo "build=$build"
+            echo "needs_node=$needs_node"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Setup Node
+        if: steps.scope.outputs.needs_node == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
 
       - name: Install dependencies
+        if: steps.scope.outputs.needs_node == 'true'
         run: npm ci
 
       - name: Runtime dependency audit
+        if: steps.scope.outputs.deps == 'true'
         run: npm audit --omit=dev --audit-level=high
 
       - name: Design token guard
+        if: steps.scope.outputs.static == 'true'
         run: npm run check:design-tokens
 
       - name: Inline style guard
+        if: steps.scope.outputs.static == 'true'
         run: npm run check:inline-styles
 
-      - name: Tests
-        run: npm test --if-present
+      - name: Frontend unit block
+        if: steps.scope.outputs.unit == 'true'
+        run: npm test -- tests/frontend/unit
+
+      - name: Frontend component block
+        if: steps.scope.outputs.component == 'true'
+        run: npm test -- tests/frontend/component
+
+      - name: Frontend integration block
+        if: steps.scope.outputs.integration == 'true'
+        run: npm test -- tests/frontend/integration
 
       - name: Typecheck
+        if: steps.scope.outputs.build == 'true'
         run: npm run typecheck
 
       - name: Build
+        if: steps.scope.outputs.build == 'true'
         run: npm run build
