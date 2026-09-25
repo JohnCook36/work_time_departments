@@ -347,7 +347,9 @@ for (const viewport of [
       name: 'Структурированные отсутствия',
     });
     await expect(absences.getByText('Плановый отпуск')).toBeVisible();
-    await expect(absences.getByText('Отпуск', { exact: true })).toBeVisible();
+    await expect(
+      absences.getByLabel('Список отсутствий').getByText('Отпуск', { exact: true }),
+    ).toBeVisible();
 
     const absenceType = absences.getByLabel('Тип');
     await absenceType.selectOption('SICK');
