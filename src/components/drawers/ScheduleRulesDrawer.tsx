@@ -820,7 +820,7 @@ export function ScheduleRulesDrawer({
                     {new Date(version.createdAt).toLocaleString('ru-RU')}
                   </strong>
                   <PublicationHistoryMeta>
-                    Изменил: {version.changedByUserId}
+                    Изменил: {version.changedByLabel}
                   </PublicationHistoryMeta>
                   <PublicationHistoryMeta>
                     {String(version.snapshot.name ?? 'Правило')} ·{' '}
