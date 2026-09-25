@@ -159,16 +159,17 @@ Current requirements include:
 
 ### Deployment / reverse proxy
 
-The backend currently does not define a trusted-proxy topology.
+The application supports an explicit trusted-proxy hop count through
+`AUTH_TRUST_PROXY_HOPS`; raw `X-Forwarded-For` is not trusted by default.
 
-Consequences:
+Production still must define and verify the actual proxy topology:
 
-- raw `X-Forwarded-For` must not be treated as trustworthy client identity;
-- source-IP OTP throttling must not be implemented until trusted proxy hops /
-  proxy identity are explicitly configured;
-- direct socket IP can collapse all clients to one address behind a reverse proxy.
+- keep `AUTH_TRUST_PROXY_HOPS=0` unless the exact reverse-proxy chain is known;
+- when configured, verify that the selected forwarded address is the real client source;
+- confirm that direct socket/source identity does not collapse all clients behind the proxy;
+- verify frontend/backend origin and cookie topology in a real browser.
 
-This is an explicit production-readiness dependency.
+This remains an explicit production-readiness dependency.
 
 ### Future SMS provider
 
@@ -233,9 +234,10 @@ Current controls:
 
 Residual risk:
 
-- source-level abuse across many phone numbers is not yet rate-limited;
+- DB-backed source-level request limits are implemented, but their production effectiveness
+  depends on correct proxy/source identity configuration;
 - production SMS/equivalent provider is not connected;
-- trusted-proxy configuration is required before source-IP based throttling.
+- production provider-specific pumping limits/cost controls still need validation.
 
 ### Session theft / replay
 
@@ -251,7 +253,9 @@ Current controls:
 
 Residual risk:
 
-- final production cookie/domain/TLS deployment must be validated end-to-end.
+- final production cookie/domain/TLS deployment must be validated end-to-end;
+- the current `SameSite=Lax` session cookie assumes a compatible same-site topology unless
+  a separate cross-site design is explicitly reviewed and browser-tested.
 
 ### Broken access control / IDOR
 
@@ -325,10 +329,16 @@ Current controls include:
 - atomic OTP and onboarding transitions;
 - stale shift-change detection.
 
+Current additional controls:
+
+- immutable per-department `SchedulePublication` versions with PostgreSQL protection;
+- server-owned publication rule snapshots/versioning;
+- shift-change manager approval applies SWAP/COVER atomically in a Serializable transaction
+  and preserves immutable published history.
+
 Residual risk:
 
-- new bulk and publication/versioning features must define their transaction and
-  concurrency model explicitly.
+- every new bulk mutation still needs an explicit transaction/concurrency model and regression coverage.
 
 ### Dependency / supply-chain risk
 
@@ -365,15 +375,18 @@ Residual risks:
 
 ### Repudiation / auditability
 
-Current audit-like records:
+Current controls:
 
-- ShiftChangeRequestEvent records actor/event transitions.
+- immutable/minimized `AuditLog` foundation exists for critical administrative mutations;
+- ShiftChangeRequestEvent records actor/event transitions;
+- publication and managed-rule histories provide immutable version evidence;
+- live PostgreSQL regression verifies AuditLog immutability.
 
 Residual risk:
 
-- there is no general administrative AuditLog for all privileged mutations;
-- retention/deletion policy is not finalized;
-- roadmap task #24 remains relevant.
+- scoped read/history API/UI for administrators is still missing (#24/#23);
+- future role/private-profile mutations must add audit coverage;
+- retention/deletion policy is not finalized.
 
 ## Known production blockers
 
@@ -382,9 +395,10 @@ The following remain blockers or explicit production-readiness gates:
 - production SMS/equivalent provider;
 - trusted reverse-proxy model before source-level request throttling;
 - source-level OTP/SMS abuse protection;
-- backup + restore procedure and successful restore test;
+- production backup operations: schedule, encrypted storage/provider permissions, retention,
+  RTO/RPO and disaster-recovery rehearsal (CI pg_dump→restore smoke already exists);
 - retention/deletion policy for security/PII records;
-- general administrative audit requirements;
+- completion of admin audit viewer/coverage for future role/private-data mutations;
 - final secrets/deployment review;
 - final repeat Critical/High security audit.
 
@@ -394,13 +408,16 @@ Already automated:
 
 - OTP verification concurrency;
 - OTP request-code same-phone concurrency on live PostgreSQL;
+- DB-backed source-level OTP request limiting;
 - session persistence/revocation on live PostgreSQL;
 - department IDOR/scope on live PostgreSQL;
 - HTTP/CORS/origin/security headers;
 - browser account cache isolation;
 - failed logout local purge;
 - onboarding stale-scope/race protections;
-- shift-change stale-scope protections;
+- shift-change stale-scope protections and atomic SWAP/COVER application on live PostgreSQL;
+- immutable AuditLog regression;
+- pg_dump→isolated restore smoke in Backend CI;
 - runtime dependency High/Critical gate.
 
 Still requiring production/manual validation:
@@ -408,7 +425,7 @@ Still requiring production/manual validation:
 - production TLS/cookie/origin deployment;
 - actual SMS provider behavior and abuse controls;
 - trusted proxy / source identity;
-- backup restore;
+- production backup storage/schedule/RTO/RPO and disaster-recovery rehearsal;
 - retention/audit operational process;
 - final browser acceptance for privacy/export/print/account switching.
 
