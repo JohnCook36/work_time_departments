@@ -42,6 +42,17 @@ interface WorkingInterval {
   date: string;
 }
 
+export interface HourlyCoveragePoint {
+  date: string;
+  time: string;
+  count: number;
+  employeeIds: string[];
+  shiftIds: string[];
+  minRequired: number | null;
+  maxAllowed: number | null;
+  status: 'below' | 'within' | 'above';
+}
+
 const TIME_PATTERN = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 const SHIFT_CODES = new Set(['E', 'IN', 'INN', 'L', 'N']);
 
@@ -66,6 +77,53 @@ function dateForDay(year: number, month: number, day: number): string {
 
 function severity(rule: ManagedScheduleRuleSnapshot): 'hard' | 'soft' {
   return rule.severity === ScheduleRuleSeverity.HARD ? 'hard' : 'soft';
+}
+
+function activeIntervalsAt(
+  intervals: WorkingInterval[],
+  minute: number,
+): WorkingInterval[] {
+  return intervals.filter(
+    (interval) => interval.start <= minute && minute < interval.end,
+  );
+}
+
+function absoluteMinuteDateTime(
+  year: number,
+  month: number,
+  absoluteMinute: number,
+): { date: string; time: string } {
+  const value = new Date(Date.UTC(year, month - 1, 1, 0, absoluteMinute));
+  return {
+    date: value.toISOString().slice(0, 10),
+    time: value.toISOString().slice(11, 16),
+  };
+}
+
+function managedViolationFields(
+  rule: ManagedScheduleRuleSnapshot,
+  active: WorkingInterval[],
+  expected: number,
+  actual: number,
+  time?: string,
+) {
+  const affectedEmployeeIds = Array.from(
+    new Set(active.map((interval) => interval.employeeId)),
+  ).sort();
+  const affectedShiftIds = active.map((interval) => interval.shiftId).sort();
+
+  return {
+    ruleId: rule.id,
+    ruleVersion: rule.version,
+    ruleName: rule.name,
+    expected,
+    actual,
+    ...(time ? { time } : {}),
+    affectedEmployeeIds,
+    affectedShiftIds,
+    employeeId: affectedEmployeeIds[0],
+    shiftId: affectedShiftIds[0],
+  };
 }
 
 function scopedEmployeeIds(
@@ -156,7 +214,12 @@ function maxConcurrentViolation(
     active.set(event.interval.shiftId, event.interval);
     if (active.size <= maxConcurrent) continue;
 
-    const target = active.values().next().value as WorkingInterval | undefined;
+    const affected = Array.from(active.values());
+    const at = absoluteMinuteDateTime(
+      Number(snapshot.shifts[0]?.date.slice(0, 4) ?? new Date().getUTCFullYear()),
+      Number(snapshot.shifts[0]?.date.slice(5, 7) ?? 1),
+      event.at,
+    );
     return [
       {
         severity: severity(rule),
@@ -168,9 +231,14 @@ function maxConcurrentViolation(
           ', лимит: ' +
           maxConcurrent +
           '.',
-        employeeId: target?.employeeId,
-        shiftId: target?.shiftId,
-        date: target?.date,
+        date: at.date,
+        ...managedViolationFields(
+          rule,
+          affected,
+          maxConcurrent,
+          active.size,
+          at.time,
+        ),
       },
     ];
   }
@@ -207,14 +275,10 @@ function minStaffAtTimeViolations(
 
   for (let day = 1; day <= daysInMonth(year, month); day++) {
     const targetMinute = (day - 1) * 1440 + timeMinutes;
-    const active = intervals.filter(
-      (interval) =>
-        interval.start <= targetMinute && targetMinute < interval.end,
-    );
+    const active = activeIntervalsAt(intervals, targetMinute);
 
     if (active.length >= minStaff) continue;
 
-    const target = active[0];
     violations.push({
       severity: severity(rule),
       code: 'MANAGED_MIN_STAFF_AT_TIME',
@@ -229,13 +293,111 @@ function minStaffAtTimeViolations(
         ' из ' +
         minStaff +
         '.',
-      employeeId: target?.employeeId,
-      shiftId: target?.shiftId,
       date: dateForDay(year, month, day),
+      ...managedViolationFields(rule, active, minStaff, active.length, time),
     });
   }
 
   return violations;
+}
+
+export function buildHourlyCoverage(
+  snapshot: SchedulePublicationSnapshot,
+  rules: ManagedScheduleRuleSnapshot[],
+  year: number,
+  month: number,
+): HourlyCoveragePoint[] {
+  if (snapshot.department.kind !== 'FO') return [];
+
+  const baseRule: ManagedScheduleRuleSnapshot = {
+    id: 'coverage-projection',
+    name: 'Coverage projection',
+    description: '',
+    kind: ScheduleRuleKind.MAX_CONCURRENT_EMPLOYEES,
+    scope: ScheduleRuleScope.DEPARTMENT,
+    scopeValue: null,
+    departmentId: snapshot.department.id,
+    priority: 0,
+    severity: ScheduleRuleSeverity.SOFT,
+    isActive: true,
+    config: { maxConcurrent: 100 },
+    violationMessage: '',
+    version: 1,
+  };
+  const intervals = intervalsForRule(baseRule, snapshot);
+  const applicable = rules.filter(
+    (rule) =>
+      rule.isActive &&
+      (rule.scope !== ScheduleRuleScope.DEPARTMENT ||
+        rule.departmentId === snapshot.department.id),
+  );
+
+  const maxRules = applicable.filter(
+    (rule) =>
+      rule.kind === ScheduleRuleKind.MAX_CONCURRENT_EMPLOYEES &&
+      typeof (rule.config as { maxConcurrent?: unknown } | null)?.maxConcurrent ===
+        'number',
+  );
+  const minimumRules = applicable.filter(
+    (rule) =>
+      rule.kind === ScheduleRuleKind.MIN_STAFF_AT_TIME &&
+      typeof (rule.config as { time?: unknown; minStaff?: unknown } | null)
+        ?.time === 'string' &&
+      typeof (rule.config as { time?: unknown; minStaff?: unknown } | null)
+        ?.minStaff === 'number',
+  );
+
+  const result: HourlyCoveragePoint[] = [];
+  for (let day = 1; day <= daysInMonth(year, month); day++) {
+    for (let hour = 0; hour < 24; hour++) {
+      const targetMinute = (day - 1) * 1440 + hour * 60;
+      const active = activeIntervalsAt(intervals, targetMinute);
+      const time = String(hour).padStart(2, '0') + ':00';
+
+      const maxAllowedValues = maxRules
+        .map(
+          (rule) =>
+            (rule.config as { maxConcurrent?: number }).maxConcurrent ?? null,
+        )
+        .filter((value): value is number => value !== null);
+      const minRequiredValues = minimumRules
+        .filter(
+          (rule) =>
+            (rule.config as { time?: string }).time === time,
+        )
+        .map(
+          (rule) => (rule.config as { minStaff?: number }).minStaff ?? null,
+        )
+        .filter((value): value is number => value !== null);
+
+      const maxAllowed =
+        maxAllowedValues.length > 0 ? Math.min(...maxAllowedValues) : null;
+      const minRequired =
+        minRequiredValues.length > 0 ? Math.max(...minRequiredValues) : null;
+      const count = active.length;
+      const status =
+        maxAllowed !== null && count > maxAllowed
+          ? 'above'
+          : minRequired !== null && count < minRequired
+            ? 'below'
+            : 'within';
+
+      result.push({
+        date: dateForDay(year, month, day),
+        time,
+        count,
+        employeeIds: Array.from(
+          new Set(active.map((interval) => interval.employeeId)),
+        ).sort(),
+        shiftIds: active.map((interval) => interval.shiftId).sort(),
+        minRequired,
+        maxAllowed,
+        status,
+      });
+    }
+  }
+
+  return result;
 }
 
 export function validateManagedScheduleRules(
