@@ -186,6 +186,8 @@ function intervalsForRule(
 function maxConcurrentViolation(
   rule: ManagedScheduleRuleSnapshot,
   snapshot: SchedulePublicationSnapshot,
+  year: number,
+  month: number,
 ): SchedulePublicationRuleViolation[] {
   const config = rule.config as { maxConcurrent?: unknown } | null;
   const maxConcurrent = config?.maxConcurrent;
@@ -215,11 +217,7 @@ function maxConcurrentViolation(
     if (active.size <= maxConcurrent) continue;
 
     const affected = Array.from(active.values());
-    const at = absoluteMinuteDateTime(
-      Number(snapshot.shifts[0]?.date.slice(0, 4) ?? new Date().getUTCFullYear()),
-      Number(snapshot.shifts[0]?.date.slice(5, 7) ?? 1),
-      event.at,
-    );
+    const at = absoluteMinuteDateTime(year, month, event.at);
     return [
       {
         severity: severity(rule),
@@ -328,8 +326,9 @@ export function buildHourlyCoverage(
   const applicable = rules.filter(
     (rule) =>
       rule.isActive &&
-      (rule.scope !== ScheduleRuleScope.DEPARTMENT ||
-        rule.departmentId === snapshot.department.id),
+      (rule.scope === ScheduleRuleScope.ORGANIZATION ||
+        (rule.scope === ScheduleRuleScope.DEPARTMENT &&
+          rule.departmentId === snapshot.department.id)),
   );
 
   const maxRules = applicable.filter(
@@ -417,7 +416,7 @@ export function validateManagedScheduleRules(
 
   return applicable.flatMap((rule) => {
     if (rule.kind === ScheduleRuleKind.MAX_CONCURRENT_EMPLOYEES) {
-      return maxConcurrentViolation(rule, snapshot);
+      return maxConcurrentViolation(rule, snapshot, year, month);
     }
     if (rule.kind === ScheduleRuleKind.MIN_STAFF_AT_TIME) {
       return minStaffAtTimeViolations(rule, snapshot, year, month);
