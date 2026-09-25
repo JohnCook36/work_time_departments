@@ -1,3 +1,5 @@
+import { runtimeConfig } from '../config/runtime';
+
 export interface AuthUser {
   id: string;
   phoneE164: string;
@@ -50,9 +52,7 @@ export interface AdminOnboardingRequest extends OnboardingRequest {
   } | null;
 }
 
-const API_URL = (
-  import.meta.env.VITE_API_URL || 'http://localhost:3000'
-).replace(/\/$/, '');
+const API_URL = runtimeConfig.apiUrl;
 
 export class ApiError extends Error {
   constructor(
