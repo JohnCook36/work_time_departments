@@ -137,7 +137,7 @@ export class ShiftChangeRequestsController {
     return this.requests.getPendingForAdmin(admin);
   }
 
-  @ApiOperation({ summary: 'Manager approves: PENDING_MANAGER to MANAGER_APPROVED; does not mutate Shift. Changed source shift becomes STALE with 409' })
+  @ApiOperation({ summary: 'Manager atomically applies SWAP or COVER to mutable draft Shift and approves; stale or occupied destination returns 409; immutable publications remain unchanged until separate publish' })
   @ApiResponse({ status: 201, schema: shiftChangeResponse })
   @Post(':id/admin/approve')
   approve(

@@ -27,10 +27,22 @@ export interface CreateShiftChangeRequestInput {
   targetShiftId?: string;
 }
 
+const shiftForTransitionSelect = {
+  id: true,
+  scheduleId: true,
+  employeeId: true,
+  date: true,
+  code: true,
+  startTime: true,
+  endTime: true,
+  isOff: true,
+  updatedAt: true,
+} as const;
+
 type TransitionRequest = Prisma.ShiftChangeRequestGetPayload<{
   include: {
-    requesterShift: { select: { updatedAt: true } };
-    targetShift: { select: { updatedAt: true } };
+    requesterShift: { select: typeof shiftForTransitionSelect };
+    targetShift: { select: typeof shiftForTransitionSelect };
     requesterEmployee: { select: { departmentId: true; isActive: true } };
     targetEmployee: { select: { departmentId: true; isActive: true } };
   };
@@ -65,6 +77,9 @@ export class ShiftChangeRequestsService {
       !input.targetShiftId
     ) {
       throw new BadRequestException('SWAP requires targetShiftId');
+    }
+    if (input.kind === ShiftChangeRequestKind.COVER && input.targetShiftId) {
+      throw new BadRequestException('COVER cannot include targetShiftId');
     }
 
     const [requesterEmployee, targetEmployee, requesterShift, targetShift] =
@@ -339,47 +354,83 @@ export class ShiftChangeRequestsService {
   }
 
   async approve(admin: AuthUserContext, requestId: string) {
-    const result = await this.prisma.$transaction(
-      async (tx) => {
-        const request = await this.getForTransition(tx, requestId);
-        this.assertManagerScope(admin, request);
-        this.assertStatus(request, ShiftChangeRequestStatus.PENDING_MANAGER);
+    let result:
+      | { stale: true; request?: never }
+      | { stale: false; request: Awaited<ReturnType<ShiftChangeRequestsService['transition']>> };
+    try {
+      result = await this.prisma.$transaction(
+        async (tx) => {
+          const request = await this.getForTransition(tx, requestId);
+          this.assertManagerScope(admin, request);
+          this.assertStatus(request, ShiftChangeRequestStatus.PENDING_MANAGER);
+          await this.assertCurrentManagerScope(tx, admin, request);
 
-        if (this.isStale(request)) {
-          await this.markStale(tx, request, admin.id);
-          return { stale: true as const };
-        }
+          if (this.isStale(request)) {
+            await this.markStale(tx, request, admin.id);
+            return { stale: true as const };
+          }
 
-        const resolved = await this.transition(
-          tx,
-          request,
-          [ShiftChangeRequestStatus.PENDING_MANAGER],
-          ShiftChangeRequestStatus.MANAGER_APPROVED,
-          ShiftChangeRequestEventType.MANAGER_APPROVED,
-          admin.id,
-          {
-            managerUserId: admin.id,
-            resolvedAt: new Date(),
-          },
+          const applied = await this.applyApprovedChange(tx, request);
+          const resolved = await this.transition(
+            tx,
+            request,
+            [ShiftChangeRequestStatus.PENDING_MANAGER],
+            ShiftChangeRequestStatus.MANAGER_APPROVED,
+            ShiftChangeRequestEventType.MANAGER_APPROVED,
+            admin.id,
+            {
+              managerUserId: admin.id,
+              resolvedAt: new Date(),
+              eventMetadata: applied.metadata,
+            },
+          );
+
+          for (const departmentId of new Set([
+            request.requesterDepartmentId,
+            request.targetDepartmentId,
+          ])) {
+            await appendAuditLog(tx, {
+              actorUserId: admin.id,
+              action: AuditAction.SHIFT_CHANGE_MANAGER_APPROVED,
+              entityType: AuditEntityType.SHIFT_CHANGE_REQUEST,
+              entityId: request.id,
+              departmentId,
+            });
+          }
+          for (const scheduleId of applied.scheduleIds) {
+            await tx.schedule.update({
+              where: { id: scheduleId },
+              data: { updatedAt: new Date() },
+            });
+            for (const departmentId of new Set([
+              request.requesterDepartmentId,
+              request.targetDepartmentId,
+            ])) {
+              await appendAuditLog(tx, {
+                actorUserId: admin.id,
+                action: AuditAction.SCHEDULE_CHANGED,
+                entityType: AuditEntityType.SCHEDULE,
+                entityId: scheduleId,
+                departmentId,
+              });
+            }
+          }
+
+          return { stale: false as const, request: resolved };
+        },
+        this.transactionOptions(),
+      );
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        (error.code === 'P2002' || error.code === 'P2034')
+      ) {
+        throw new ConflictException(
+          'Shift change conflicts with a concurrent schedule update',
         );
-
-        for (const departmentId of new Set([
-          request.requesterDepartmentId,
-          request.targetDepartmentId,
-        ])) {
-          await appendAuditLog(tx, {
-            actorUserId: admin.id,
-            action: AuditAction.SHIFT_CHANGE_MANAGER_APPROVED,
-            entityType: AuditEntityType.SHIFT_CHANGE_REQUEST,
-            entityId: request.id,
-            departmentId,
-          });
-        }
-
-        return { stale: false as const, request: resolved };
-      },
-      this.transactionOptions(),
-    );
+      }
+      throw error;
+    }
 
     if (result.stale) {
       throw new ConflictException(
@@ -388,6 +439,100 @@ export class ShiftChangeRequestsService {
     }
 
     return result.request;
+  }
+
+  private async assertCurrentManagerScope(
+    tx: Prisma.TransactionClient,
+    admin: AuthUserContext,
+    request: TransitionRequest,
+  ): Promise<void> {
+    const current = await tx.user.findUnique({
+      where: { id: admin.id },
+      select: {
+        isActive: true,
+        memberships: {
+          where: { isActive: true },
+          select: { id: true, role: true, departmentId: true },
+        },
+      },
+    });
+    if (!current?.isActive) {
+      throw new ForbiddenException('Manager account is inactive');
+    }
+    this.authorization.assertCanAdministerDepartments(
+      { ...admin, memberships: current.memberships },
+      [request.requesterDepartmentId, request.targetDepartmentId],
+    );
+  }
+
+  private async applyApprovedChange(
+    tx: Prisma.TransactionClient,
+    request: TransitionRequest,
+  ): Promise<{ scheduleIds: Set<string>; metadata: Prisma.InputJsonValue }> {
+    const source = request.requesterShift;
+    const target = request.targetShift;
+    if (
+      this.isStale(request) ||
+      (request.kind === ShiftChangeRequestKind.SWAP && !target) ||
+      (request.kind === ShiftChangeRequestKind.COVER && request.targetShiftId)
+    ) {
+      throw new ConflictException(
+        'Source shift no longer matches the accepted request',
+      );
+    }
+
+    const sameDate = target && source.scheduleId === target.scheduleId &&
+      source.date.getTime() === target.date.getTime();
+    if (!sameDate) {
+      const destinations = [
+        { scheduleId: source.scheduleId, date: source.date, employeeId: request.targetEmployeeId },
+        ...(target ? [{ scheduleId: target.scheduleId, date: target.date, employeeId: request.requesterEmployeeId }] : []),
+      ];
+      const occupied = await tx.shift.findFirst({
+        where: { OR: destinations },
+        select: { id: true },
+      });
+      if (occupied) {
+        throw new ConflictException('Destination already has a shift or OFF');
+      }
+    }
+
+    const changes = target ? [source, target] : [source];
+    const metadata: Array<Record<string, unknown>> = [];
+    for (const shift of changes) {
+      const other = shift.id === source.id ? target : source;
+      const payload = sameDate && other
+        ? { code: other.code, startTime: other.startTime, endTime: other.endTime }
+        : { employeeId: shift.id === source.id ? request.targetEmployeeId : request.requesterEmployeeId };
+      const changed = await tx.shift.updateMany({
+        where: {
+          id: shift.id,
+          employeeId: shift.employeeId,
+          scheduleId: shift.scheduleId,
+          date: shift.date,
+          updatedAt: shift.updatedAt,
+          isOff: false,
+        },
+        data: payload,
+      });
+      if (changed.count !== 1) {
+        throw new ConflictException('Source shift changed during approval');
+      }
+      metadata.push({
+        shiftId: shift.id,
+        scheduleId: shift.scheduleId,
+        date: shift.date.toISOString().slice(0, 10),
+        before: sameDate
+          ? { code: shift.code, startTime: shift.startTime, endTime: shift.endTime }
+          : { employeeId: shift.employeeId },
+        after: payload,
+      });
+    }
+
+    return {
+      scheduleIds: new Set(changes.map(shift => shift.scheduleId)),
+      metadata: { appliedShifts: metadata } as Prisma.InputJsonValue,
+    };
   }
 
   async managerReject(admin: AuthUserContext, requestId: string) {
@@ -465,8 +610,8 @@ export class ShiftChangeRequestsService {
     const request = await tx.shiftChangeRequest.findUnique({
       where: { id: requestId },
       include: {
-        requesterShift: { select: { updatedAt: true } },
-        targetShift: { select: { updatedAt: true } },
+        requesterShift: { select: shiftForTransitionSelect },
+        targetShift: { select: shiftForTransitionSelect },
         requesterEmployee: {
           select: { departmentId: true, isActive: true },
         },
@@ -536,6 +681,10 @@ export class ShiftChangeRequestsService {
     }
 
     if (
+      request.requesterShift.employeeId !== request.requesterEmployeeId ||
+      request.requesterShift.isOff ||
+      !request.requesterShift.startTime ||
+      !request.requesterShift.endTime ||
       request.requesterShift.updatedAt.getTime() !==
       request.requesterShiftUpdatedAt.getTime()
     ) {
@@ -549,6 +698,10 @@ export class ShiftChangeRequestsService {
     return (
       !request.targetShift ||
       !request.targetShiftUpdatedAt ||
+      request.targetShift.employeeId !== request.targetEmployeeId ||
+      request.targetShift.isOff ||
+      !request.targetShift.startTime ||
+      !request.targetShift.endTime ||
       request.targetShift.updatedAt.getTime() !==
         request.targetShiftUpdatedAt.getTime()
     );
@@ -595,8 +748,10 @@ export class ShiftChangeRequestsService {
     extraData: {
       managerUserId?: string;
       resolvedAt?: Date;
+      eventMetadata?: Prisma.InputJsonValue;
     } = {},
   ) {
+    const { eventMetadata, ...requestData } = extraData;
     const updated = await tx.shiftChangeRequest.updateMany({
       where: {
         id: request.id,
@@ -604,7 +759,7 @@ export class ShiftChangeRequestsService {
       },
       data: {
         status: toStatus,
-        ...extraData,
+        ...requestData,
       },
     });
 
@@ -619,6 +774,7 @@ export class ShiftChangeRequestsService {
         requestId: request.id,
         eventType,
         actorUserId,
+        ...(eventMetadata === undefined ? {} : { metadata: eventMetadata }),
       },
     });
 

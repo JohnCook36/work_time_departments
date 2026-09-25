@@ -104,7 +104,8 @@ describe('OpenAPI documentation', () => {
     ]);
     expect(schemas.CreateWishDto.properties?.day).toMatchObject({ nullable: true });
     expect(schemas.CreateWishDto.required).not.toContain('day');
-    expect(document.paths['/shift-change-requests/{id}/admin/approve'].post?.summary).toContain('does not mutate Shift');
+    expect(document.paths['/shift-change-requests/{id}/admin/approve'].post?.summary).toContain('mutable draft Shift');
+    expect(document.paths['/shift-change-requests/{id}/admin/approve'].post?.summary).toContain('immutable publications remain unchanged');
   });
 
   it('serves Swagger UI, its assets and the non-empty raw JSON over HTTP', async () => {
