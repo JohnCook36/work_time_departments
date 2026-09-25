@@ -174,6 +174,7 @@ model User {
   scheduleRuleVersions       ScheduleRuleVersion[] @relation("ScheduleRuleVersionChangedBy")
   notifications              Notification[]
   notificationPreferences    NotificationPreference[]
+  scheduleAcknowledgements    ScheduleAcknowledgement[]
 }
 
 model Employee {
@@ -196,6 +197,7 @@ model Employee {
   linkRequests          OnboardingRequest[]
   requestedShiftChanges ShiftChangeRequest[] @relation("ShiftChangeRequesterEmployee")
   targetedShiftChanges  ShiftChangeRequest[] @relation("ShiftChangeTargetEmployee")
+  scheduleAcknowledgements ScheduleAcknowledgement[]
 
   @@index([departmentId])
 }
@@ -401,6 +403,7 @@ model SchedulePublication {
   schedule                Schedule   @relation(fields: [scheduleId], references: [id], onDelete: Restrict)
   department              Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
   publishedBy             User       @relation(fields: [publishedByUserId], references: [id], onDelete: Restrict)
+  acknowledgements        ScheduleAcknowledgement[]
 
   @@unique([scheduleId, departmentId, version])
   @@index([scheduleId, departmentId, createdAt])
@@ -495,4 +498,21 @@ model NotificationPreference {
 
   @@unique([userId, category])
   @@index([userId])
+}
+
+
+model ScheduleAcknowledgement {
+  id             String              @id @default(cuid())
+  publicationId  String
+  employeeId     String
+  acknowledgedByUserId String
+  acknowledgedAt DateTime            @default(now())
+  publication    SchedulePublication @relation(fields: [publicationId], references: [id], onDelete: Restrict)
+  employee       Employee            @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  acknowledgedBy User                @relation(fields: [acknowledgedByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([publicationId, employeeId])
+  @@index([publicationId, acknowledgedAt])
+  @@index([employeeId, acknowledgedAt])
+  @@index([acknowledgedByUserId, acknowledgedAt])
 }
