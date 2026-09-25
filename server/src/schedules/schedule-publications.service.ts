@@ -14,6 +14,7 @@ import {
   ScheduleRuleScope,
 } from '@prisma/client';
 
+import { validateShiftAbsenceConflicts, type ActiveAbsenceForValidation } from '../absences/absence-rule';
 import { appendAuditLog } from '../audit/audit-log';
 import { AuthUserContext } from '../auth/auth.service';
 import { AuthorizationService } from '../auth/authorization.service';
@@ -102,6 +103,13 @@ function normalizeOptionalText(
 
 function dateOnly(value: Date): string {
   return value.toISOString().slice(0, 10);
+}
+
+function monthDateRange(year: number, month: number) {
+  return {
+    start: new Date(Date.UTC(year, month - 1, 1)),
+    end: new Date(Date.UTC(year, month, 0)),
+  };
 }
 
 function diffByKey<T>(
@@ -222,12 +230,14 @@ function serializePublication(publication: {
 function validatePublicationRules(
   snapshot: SchedulePublicationSnapshot,
   rules: ManagedScheduleRuleSnapshot[],
+  absences: ActiveAbsenceForValidation[],
   year: number,
   month: number,
 ) {
   const rulesSnapshot = buildManagedRulesetSnapshot(rules);
   const violations = [
     ...validateSchedulePublicationSnapshot(snapshot, year, month),
+    ...validateShiftAbsenceConflicts(snapshot, absences),
     ...validateManagedScheduleRules(snapshot, rules, year, month),
   ];
 
@@ -391,9 +401,30 @@ export class SchedulePublicationsService {
             orderBy: [{ priority: 'desc' }, { id: 'asc' }],
           })) as ManagedScheduleRuleSnapshot[];
 
+          const period = monthDateRange(year, month);
+          const activeAbsences =
+            employeeIds.length === 0
+              ? []
+              : await tx.absence.findMany({
+                  where: {
+                    employeeId: { in: employeeIds },
+                    canceledAt: null,
+                    startDate: { lte: period.end },
+                    endDate: { gte: period.start },
+                  },
+                  select: {
+                    id: true,
+                    employeeId: true,
+                    type: true,
+                    startDate: true,
+                    endDate: true,
+                  },
+                });
+
           const ruleValidation = validatePublicationRules(
             snapshot,
             managedRules,
+            activeAbsences,
             year,
             month,
           );
@@ -671,9 +702,30 @@ export class SchedulePublicationsService {
       orderBy: [{ priority: 'desc' }, { id: 'asc' }],
     })) as ManagedScheduleRuleSnapshot[];
 
+    const period = monthDateRange(year, month);
+    const activeAbsences =
+      employeeIds.length === 0
+        ? []
+        : await this.prisma.absence.findMany({
+            where: {
+              employeeId: { in: employeeIds },
+              canceledAt: null,
+              startDate: { lte: period.end },
+              endDate: { gte: period.start },
+            },
+            select: {
+              id: true,
+              employeeId: true,
+              type: true,
+              startDate: true,
+              endDate: true,
+            },
+          });
+
     const ruleValidation = validatePublicationRules(
       snapshot,
       managedRules,
+      activeAbsences,
       year,
       month,
     );
