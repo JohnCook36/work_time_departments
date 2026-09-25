@@ -108,7 +108,7 @@ export const MobileNavigationButton = styled('button')<{ $active?: boolean }>(({
   },
 }));
 
-export const MobileMoreBackdrop = styled('button')({
+export const MobileMoreBackdrop = styled('button')(({ theme }) => ({
   display: 'none',
   '@media (max-width: 720px)': {
     display: 'block',
@@ -117,9 +117,9 @@ export const MobileMoreBackdrop = styled('button')({
     zIndex: 1180,
     border: 0,
     padding: 0,
-    background: 'rgba(0, 0, 0, 0.28)',
+    background: theme.colors.overlay,
   },
-});
+}));
 
 export const MobileMoreSheet = styled('section')(({ theme }) => ({
   display: 'none',
@@ -135,7 +135,7 @@ export const MobileMoreSheet = styled('section')(({ theme }) => ({
     borderRadius: 14,
     border: '1px solid ' + theme.colors.border,
     background: theme.colors.surface,
-    boxShadow: '0 18px 44px rgba(0, 0, 0, 0.18)',
+    boxShadow: theme.shadows.drawerMobile,
   },
 }));
 
