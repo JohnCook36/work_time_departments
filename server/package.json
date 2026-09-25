@@ -10,7 +10,7 @@
     "start:dev": "nest start --watch",
     "typecheck": "tsc --noEmit",
     "test": "jest --runInBand",
-    "test:live-db": "jest --runInBand test/integration/live-database-security.spec.ts",
+    "test:live-db": "jest --runInBand test/integration/live-database-",
     "test:watch": "jest --watch",
     "prisma:generate": "prisma generate",
     "prisma:validate": "prisma validate",

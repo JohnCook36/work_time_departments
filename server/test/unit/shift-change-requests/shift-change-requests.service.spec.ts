@@ -82,8 +82,16 @@ function requestRecord(
     resolvedAt: null,
     createdAt: snapshotTime,
     updatedAt: snapshotTime,
-    requesterShift: { updatedAt: snapshotTime },
-    targetShift: { updatedAt: snapshotTime },
+    requesterShift: {
+      id: 'requester-shift', scheduleId: 'schedule-1', employeeId: 'requester-employee',
+      date: new Date('2026-09-19T00:00:00.000Z'), code: null,
+      startTime: '08:00', endTime: '17:00', isOff: false, updatedAt: snapshotTime,
+    },
+    targetShift: {
+      id: 'target-shift', scheduleId: 'schedule-1', employeeId: 'target-employee',
+      date: new Date('2026-09-19T00:00:00.000Z'), code: null,
+      startTime: '09:00', endTime: '18:00', isOff: false, updatedAt: snapshotTime,
+    },
     requesterEmployee: {
       departmentId: 'department-a',
       isActive: true,
@@ -104,7 +112,10 @@ function prismaMock() {
     shift: {
       findFirst: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
     },
+    schedule: { update: jest.fn() },
+    user: { findUnique: jest.fn() },
     shiftChangeRequest: {
       create: jest.fn(),
       findMany: jest.fn(),
@@ -143,6 +154,16 @@ describe('ShiftChangeRequestsService', () => {
 
   beforeEach(() => {
     prisma = prismaMock();
+    prisma.shift.updateMany.mockResolvedValue({ count: 1 });
+    prisma.shift.findFirst.mockResolvedValue(null);
+    prisma.user.findUnique.mockImplementation(async () => ({
+      isActive: true,
+      memberships: [
+        { id: 'manager-a', role: RoleType.DEPARTMENT_ADMIN, departmentId: 'department-a' },
+        { id: 'manager-b', role: RoleType.DEPARTMENT_ADMIN, departmentId: 'department-b' },
+        { id: 'super-admin', role: RoleType.SUPER_ADMIN, departmentId: null },
+      ],
+    }));
     service = new ShiftChangeRequestsService(
       prisma as unknown as PrismaService,
       new AuthorizationService(),
@@ -328,7 +349,7 @@ describe('ShiftChangeRequestsService', () => {
         actorUserId: 'target-user',
       },
     });
-    expect(prisma.shift.update).not.toHaveBeenCalled();
+    expect(prisma.shift.updateMany).not.toHaveBeenCalled();
   });
 
   it('does not let another User accept the request', async () => {
@@ -497,7 +518,7 @@ describe('ShiftChangeRequestsService', () => {
         }),
       }),
     );
-    expect(prisma.auditLog.create).toHaveBeenCalledTimes(2);
+    expect(prisma.auditLog.create).toHaveBeenCalledTimes(4);
     expect(prisma.auditLog.create).toHaveBeenCalledWith({
       data: {
         actorUserId: 'admin-DEPARTMENT_ADMIN',
@@ -542,7 +563,90 @@ describe('ShiftChangeRequestsService', () => {
         }),
       }),
     );
-    expect(prisma.shift.update).not.toHaveBeenCalled();
+    expect(prisma.shift.updateMany).toHaveBeenCalledTimes(2);
+    expect(prisma.schedule.update).toHaveBeenCalledTimes(1);
+  });
+
+  it('moves both Shift owners on different dates and records technical before/after state', async () => {
+    mockTransition(requestRecord(ShiftChangeRequestStatus.PENDING_MANAGER, {
+      targetShift: {
+        id: 'target-shift', scheduleId: 'schedule-2', employeeId: 'target-employee',
+        date: new Date('2026-10-04T00:00:00.000Z'), code: 'N',
+        startTime: '20:00', endTime: '08:00', isOff: false, updatedAt: snapshotTime,
+      },
+    }));
+    await service.approve(adminUser(RoleType.SUPER_ADMIN, [null]), 'request-1');
+    expect(prisma.shift.updateMany).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      where: expect.objectContaining({ id: 'requester-shift', updatedAt: snapshotTime }),
+      data: { employeeId: 'target-employee' },
+    }));
+    expect(prisma.shift.updateMany).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      where: expect.objectContaining({ id: 'target-shift', updatedAt: snapshotTime }),
+      data: { employeeId: 'requester-employee' },
+    }));
+    expect(prisma.schedule.update).toHaveBeenCalledTimes(2);
+    expect(prisma.shiftChangeRequestEvent.create).toHaveBeenCalledWith({ data: expect.objectContaining({
+      eventType: ShiftChangeRequestEventType.MANAGER_APPROVED,
+      metadata: { appliedShifts: expect.arrayContaining([
+        expect.objectContaining({ shiftId: 'requester-shift', before: { employeeId: 'requester-employee' }, after: { employeeId: 'target-employee' } }),
+        expect.objectContaining({ shiftId: 'target-shift', before: { employeeId: 'target-employee' }, after: { employeeId: 'requester-employee' } }),
+      ]) },
+    }) });
+  });
+
+  it('exchanges only times and codes when both shifts are on the same date', async () => {
+    mockTransition(requestRecord(ShiftChangeRequestStatus.PENDING_MANAGER));
+    await service.approve(adminUser(RoleType.SUPER_ADMIN, [null]), 'request-1');
+    expect(prisma.shift.updateMany).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      data: { code: null, startTime: '09:00', endTime: '18:00' },
+    }));
+    expect(prisma.shift.updateMany).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      data: { code: null, startTime: '08:00', endTime: '17:00' },
+    }));
+    expect(prisma.shift.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('reassigns a COVER source Shift to the recipient', async () => {
+    mockTransition(requestRecord(ShiftChangeRequestStatus.PENDING_MANAGER, {
+      kind: ShiftChangeRequestKind.COVER, targetShiftId: null,
+      targetShift: null, targetShiftUpdatedAt: null,
+    }));
+    await service.approve(adminUser(RoleType.SUPER_ADMIN, [null]), 'request-1');
+    expect(prisma.shift.updateMany).toHaveBeenCalledTimes(1);
+    expect(prisma.shift.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ employeeId: 'requester-employee', isOff: false }),
+      data: { employeeId: 'target-employee' },
+    }));
+    expect(prisma.shiftChangeRequest.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: ShiftChangeRequestStatus.MANAGER_APPROVED }),
+    }));
+  });
+
+  it('rejects occupied destination including OFF before changing any Shift or status', async () => {
+    prisma.shiftChangeRequest.findUnique.mockResolvedValueOnce(requestRecord(ShiftChangeRequestStatus.PENDING_MANAGER, {
+      kind: ShiftChangeRequestKind.COVER, targetShiftId: null,
+      targetShift: null, targetShiftUpdatedAt: null,
+    }));
+    prisma.shift.findFirst.mockResolvedValueOnce({ id: 'off-or-other-shift' });
+    await expect(service.approve(adminUser(RoleType.SUPER_ADMIN, [null]), 'request-1')).rejects.toBeInstanceOf(ConflictException);
+    expect(prisma.shift.updateMany).not.toHaveBeenCalled();
+    expect(prisma.shiftChangeRequest.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects a manager whose active database membership was revoked', async () => {
+    prisma.shiftChangeRequest.findUnique.mockResolvedValueOnce(requestRecord(ShiftChangeRequestStatus.PENDING_MANAGER));
+    prisma.user.findUnique.mockResolvedValueOnce({ isActive: true, memberships: [] });
+    await expect(service.approve(adminUser(RoleType.DEPARTMENT_ADMIN, ['department-a']), 'request-1')).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.shift.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('does not record approval if a guarded source Shift update loses a race', async () => {
+    prisma.shiftChangeRequest.findUnique.mockResolvedValueOnce(requestRecord(ShiftChangeRequestStatus.PENDING_MANAGER));
+    prisma.shift.updateMany.mockResolvedValueOnce({ count: 0 });
+    await expect(service.approve(adminUser(RoleType.SUPER_ADMIN, [null]), 'request-1')).rejects.toBeInstanceOf(ConflictException);
+    expect(prisma.shiftChangeRequest.updateMany).not.toHaveBeenCalled();
+    expect(prisma.shiftChangeRequestEvent.create).not.toHaveBeenCalled();
+    expect(prisma.auditLog.create).not.toHaveBeenCalled();
   });
 
   it('marks a request STALE when a source Shift changed', async () => {
