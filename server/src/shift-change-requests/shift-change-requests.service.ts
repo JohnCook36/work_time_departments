@@ -666,7 +666,7 @@ export class ShiftChangeRequestsService {
           id: membership.id,
           role: membership.role,
           departmentId: membership.departmentId,
-          permissions: membership.permissions.map(
+          permissions: (membership.permissions ?? []).map(
             permission => permission.capability,
           ),
         })),
