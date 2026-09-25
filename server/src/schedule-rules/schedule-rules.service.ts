@@ -8,6 +8,7 @@ import {
 import {
   AuditAction,
   AuditEntityType,
+  DepartmentKind,
   PermissionCapability,
   Prisma,
   ScheduleRuleKind,
@@ -160,6 +161,23 @@ function serializeRule(rule: RuleRow, editable: boolean) {
     editable,
   };
 }
+
+const FO_PRESET_RULES = [
+  {
+    name: 'Стандарт FO · максимум 5 одновременно',
+    description: 'Не более 5 сотрудников Front Office одновременно.',
+    kind: ScheduleRuleKind.MAX_CONCURRENT_EMPLOYEES,
+    config: { maxConcurrent: 5 },
+    violationMessage: 'В Front Office одновременно работает больше 5 сотрудников.',
+  },
+  {
+    name: 'Стандарт FO · 2 сотрудника к 07:00',
+    description: 'К 07:00 в Front Office должны работать минимум 2 сотрудника.',
+    kind: ScheduleRuleKind.MIN_STAFF_AT_TIME,
+    config: { time: '07:00', minStaff: 2 },
+    violationMessage: 'К 07:00 в Front Office должно быть минимум 2 сотрудника.',
+  },
+] as const;
 
 function publicRuleSnapshot(value: Prisma.JsonValue): Prisma.JsonValue {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -387,6 +405,101 @@ export class ScheduleRulesService {
     return rules.map((rule) =>
       serializeRule(rule as RuleRow, this.canEditRule(user, rule as RuleRow)),
     );
+  }
+
+  async applyFoPreset(user: AuthUserContext, departmentId: string) {
+    const normalizedDepartmentId = requiredText(
+      departmentId,
+      'departmentId',
+      200,
+    );
+    this.authorization.assertCapability(
+      user,
+      PermissionCapability.SCHEDULE_RULE_MANAGE,
+      normalizedDepartmentId,
+    );
+
+    const department = await this.prisma.department.findFirst({
+      where: { id: normalizedDepartmentId, isActive: true },
+      select: { id: true, kind: true },
+    });
+    if (!department) {
+      throw new NotFoundException('Department not found');
+    }
+    if (department.kind !== DepartmentKind.FO) {
+      throw new BadRequestException(
+        'FO preset is available only for Front Office departments',
+      );
+    }
+
+    return this.prisma.$transaction(async tx => {
+      const lockKey = 'schedule-rule:fo-preset:' + normalizedDepartmentId;
+      await tx.$queryRaw<Array<{ locked: number }>>`
+        SELECT 1::int AS locked
+        FROM (
+          SELECT pg_advisory_xact_lock(hashtext(${lockKey}))
+        ) AS fo_preset_lock
+      `;
+
+      const existing = await tx.scheduleRule.findMany({
+        where: {
+          departmentId: normalizedDepartmentId,
+          scope: ScheduleRuleScope.DEPARTMENT,
+          isDeleted: false,
+          name: { in: FO_PRESET_RULES.map(rule => rule.name) },
+        },
+      });
+      const existingNames = new Set(existing.map(rule => rule.name));
+      const created: ReturnType<typeof serializeRule>[] = [];
+
+      for (const preset of FO_PRESET_RULES) {
+        if (existingNames.has(preset.name)) continue;
+
+        const rule = (await tx.scheduleRule.create({
+          data: {
+            name: preset.name,
+            description: preset.description,
+            kind: preset.kind,
+            scope: ScheduleRuleScope.DEPARTMENT,
+            scopeValue: null,
+            departmentId: normalizedDepartmentId,
+            priority: 900,
+            severity: ScheduleRuleSeverity.HARD,
+            isActive: true,
+            config: preset.config as unknown as Prisma.InputJsonValue,
+            violationMessage: preset.violationMessage,
+            createdByUserId: user.id,
+            updatedByUserId: user.id,
+          },
+        })) as RuleRow;
+
+        await tx.scheduleRuleVersion.create({
+          data: {
+            ruleId: rule.id,
+            version: rule.version,
+            snapshot: snapshotRule(rule) as unknown as Prisma.InputJsonValue,
+            changedByUserId: user.id,
+          },
+        });
+        await appendAuditLog(tx, {
+          actorUserId: user.id,
+          action: AuditAction.SCHEDULE_RULE_CREATED,
+          entityType: AuditEntityType.SCHEDULE_RULE,
+          entityId: rule.id,
+          departmentId: normalizedDepartmentId,
+        });
+
+        created.push(serializeRule(rule, true));
+      }
+
+      return {
+        status: 'ok' as const,
+        departmentId: normalizedDepartmentId,
+        created: created.length,
+        existing: FO_PRESET_RULES.length - created.length,
+        rules: created,
+      };
+    });
   }
 
   async createRule(
