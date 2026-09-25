@@ -4,6 +4,7 @@ import { AuditPage } from '../pages/AuditPage';
 import { LoginPage } from '../pages/LoginPage';
 import { OnboardingPage } from '../pages/OnboardingPage';
 import { NotFoundPage } from '../pages/NotFoundPage';
+import { NotificationsPage } from '../pages/NotificationsPage';
 import { PlannerPage } from '../pages/PlannerPage';
 import { MySchedulePage } from '../pages/MySchedulePage';
 import { ProfilePage } from '../pages/ProfilePage';
@@ -36,6 +37,7 @@ export function AppRouter() {
           <Route path="/shift-requests" element={<ShiftRequestsPage />} />
           <Route path="/tasks" element={<TasksPage />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
           <Route element={<CapabilityRoute capability="ROLE_MANAGE" />}>
             <Route path="/roles-access" element={<RoleAccessPage />} />
           </Route>
