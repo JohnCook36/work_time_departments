@@ -111,11 +111,12 @@ describe('OnboardingService privacy boundary', () => {
     const prisma = {
       onboardingRequest: { findMany },
     };
+    const assertCanAdministerDepartment = jest.fn();
     const authorization = {
-      assertCanAdministerDepartment: jest.fn(),
+      assertCanAdministerDepartment,
       assertCapability: jest.fn(
-        (user, _capability, departmentId) =>
-          authorization.assertCanAdministerDepartment(user, departmentId),
+        (user: AuthUserContext, _capability: unknown, departmentId: string) =>
+          assertCanAdministerDepartment(user, departmentId),
       ),
     };
     const service = new OnboardingService(
