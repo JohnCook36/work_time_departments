@@ -1153,8 +1153,6 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
           config: { maxConcurrent: 5 },
           violationMessage: 'В отделе одновременно больше 5 сотрудников.',
           version: 1,
-          createdByUserId: 'e2e-admin-user',
-          updatedByUserId: 'e2e-admin-user',
           createdAt: timestamp,
           updatedAt: timestamp,
           editable: true,
@@ -1170,7 +1168,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
             name: 'Не более 5 одновременно',
             isActive: true,
           },
-          changedByUserId: 'e2e-admin-user',
+          changedByLabel: 'Администратор правил',
           createdAt: timestamp,
         },
       ]),
@@ -1195,6 +1193,8 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
 
     await rulesDrawer.getByRole('button', { name: 'История' }).click();
     await expect(rulesDrawer.getByText(/^v1 ·/)).toBeVisible();
+    await expect(rulesDrawer.getByText('Изменил: Администратор правил')).toBeVisible();
+    await expect(rulesDrawer.getByText('e2e-admin-user')).toHaveCount(0);
 
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await rulesDrawer.getByTitle('Закрыть').click();
