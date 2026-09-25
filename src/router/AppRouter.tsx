@@ -7,6 +7,7 @@ import { NotFoundPage } from '../pages/NotFoundPage';
 import { PlannerPage } from '../pages/PlannerPage';
 import { MySchedulePage } from '../pages/MySchedulePage';
 import { ProfilePage } from '../pages/ProfilePage';
+import { RoleAccessPage } from '../pages/RoleAccessPage';
 import { TasksPage } from '../pages/TasksPage';
 import { ShiftRequestsPage } from '../pages/ShiftRequestsPage';
 import {
@@ -35,6 +36,9 @@ export function AppRouter() {
           <Route path="/shift-requests" element={<ShiftRequestsPage />} />
           <Route path="/tasks" element={<TasksPage />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route element={<CapabilityRoute capability="ROLE_MANAGE" />}>
+            <Route path="/roles-access" element={<RoleAccessPage />} />
+          </Route>
           <Route element={<CapabilityRoute capability="AUDIT_READ" />}>
             <Route path="/audit" element={<AuditPage />} />
           </Route>
