@@ -20,6 +20,11 @@ export interface NotificationPreferenceUpdateInput {
   enabled?: unknown;
 }
 
+type NotificationWriteClient = Pick<
+  Prisma.TransactionClient,
+  'notification' | 'notificationPreference'
+>;
+
 export interface CreateNotificationInput {
   recipientId: string;
   category: NotificationCategory;
@@ -190,13 +195,30 @@ export class NotificationsService {
   }
 
   async createForUser(input: CreateNotificationInput) {
+    return this.createWithClient(
+      this.prisma as unknown as NotificationWriteClient,
+      input,
+    );
+  }
+
+  async createForUserInTransaction(
+    tx: Prisma.TransactionClient,
+    input: CreateNotificationInput,
+  ) {
+    return this.createWithClient(tx, input);
+  }
+
+  private async createWithClient(
+    client: NotificationWriteClient,
+    input: CreateNotificationInput,
+  ) {
     const eventKey = input.eventKey.trim();
     if (!eventKey) throw new BadRequestException('eventKey is required');
 
     const critical = input.critical ?? false;
 
     if (!critical) {
-      const preference = await this.prisma.notificationPreference.findUnique({
+      const preference = await client.notificationPreference.findUnique({
         where: {
           userId_category: {
             userId: input.recipientId,
@@ -209,7 +231,7 @@ export class NotificationsService {
       if (preference?.enabled === false) return null;
     }
 
-    const notification = await this.prisma.notification.upsert({
+    const notification = await client.notification.upsert({
       where: {
         recipientId_eventKey: {
           recipientId: input.recipientId,
