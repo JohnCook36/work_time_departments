@@ -1,11 +1,12 @@
-import { CalendarDays, ClipboardList, LayoutDashboard, Repeat2, UserRound } from 'lucide-react';
+import { CalendarDays, ClipboardList, LayoutDashboard, Repeat2, ScrollText, UserRound } from 'lucide-react';
 
-import { hasManagementAccess, useAuthUser } from '../../auth/AuthContext';
+import { hasCapability, hasManagementAccess, useAuthUser } from '../../auth/AuthContext';
 import { NavigationBar, NavigationLink } from './AppSectionNav.styles';
 
 export function AppSectionNav() {
   const user = useAuthUser();
   const canManagePlanner = hasManagementAccess(user);
+  const canReadAudit = hasCapability(user, 'AUDIT_READ');
 
   return (
     <NavigationBar aria-label="Основная навигация">
@@ -28,6 +29,13 @@ export function AppSectionNav() {
         <UserRound size={16} />
         Профиль
       </NavigationLink>
+
+      {canReadAudit && (
+        <NavigationLink to="/audit">
+          <ScrollText size={16} />
+          Журнал
+        </NavigationLink>
+      )}
 
       {canManagePlanner && (
         <NavigationLink to="/planner">

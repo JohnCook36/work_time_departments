@@ -44,7 +44,7 @@ describe('OpenAPI documentation', () => {
 
   it.each([
     ['/health', 'get'], ['/auth/request-code', 'post'], ['/auth/verify-code', 'post'],
-    ['/auth/me', 'get'], ['/auth/logout', 'post'],
+    ['/auth/me', 'get'], ['/auth/logout', 'post'], ['/audit-events', 'get'],
     ['/onboarding/registration-request', 'post'], ['/onboarding/admin/{requestId}/approve', 'post'],
     ['/departments/manageable', 'get'], ['/departments', 'post'], ['/departments/reorder', 'patch'],
     ['/departments/{departmentId}/deactivate', 'patch'], ['/departments/{departmentId}', 'patch'],
@@ -140,6 +140,9 @@ describe('OpenAPI documentation', () => {
     expect(shiftChangeDocs).not.toMatch(
       /requesterUserId|targetUserId|managerUserId|actorUserId/,
     );
+    const auditDocs = JSON.stringify(document.paths['/audit-events']);
+    expect(auditDocs).toContain('actorLabel');
+    expect(auditDocs).not.toMatch(/actorUserId|phoneE164|privateProfile|homeAddress/);
     const workHistoryDocs = JSON.stringify({
       scheduleRules: document.paths['/schedule-rules/manageable'],
       ruleHistory: document.paths['/schedule-rules/{ruleId}/history'],

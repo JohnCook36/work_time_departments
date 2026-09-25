@@ -1,7 +1,7 @@
 import React from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuthSession } from '../auth/AuthSessionProvider';
-import { hasManagementAccess } from '../auth/AuthContext';
+import { hasCapability, hasManagementAccess } from '../auth/AuthContext';
 import { AuthUser } from '../api/auth';
 import { AuthCard, AuthPage } from '../theme/authPageUi';
 import {
@@ -62,6 +62,15 @@ export function ManagementRoute() {
   if (!user) return <Navigate to="/login" replace />;
   if (!user.employee) return <Navigate to="/onboarding" replace />;
   return hasManagementAccess(user)
+    ? <Outlet />
+    : <Navigate to="/my-schedule" replace />;
+}
+
+export function CapabilityRoute({ capability }: { capability: string }) {
+  const { user } = useAuthSession();
+  if (!user) return <Navigate to="/login" replace />;
+  if (!user.employee) return <Navigate to="/onboarding" replace />;
+  return hasCapability(user, capability)
     ? <Outlet />
     : <Navigate to="/my-schedule" replace />;
 }
