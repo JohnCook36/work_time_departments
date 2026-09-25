@@ -15,6 +15,7 @@ export interface AuthUser {
     id: string;
     role: string;
     departmentId: string | null;
+    permissions?: string[];
   }>;
 }
 
