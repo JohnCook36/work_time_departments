@@ -171,6 +171,25 @@ export interface SchedulePublicationViolation {
   employeeId: string | null;
   shiftId: string | null;
   date: string | null;
+  ruleId: string | null;
+  ruleVersion: number | null;
+  ruleName: string | null;
+  expected: number | null;
+  actual: number | null;
+  time: string | null;
+  affectedEmployeeIds: string[];
+  affectedShiftIds: string[];
+}
+
+export interface HourlyCoveragePoint {
+  date: string;
+  time: string;
+  count: number;
+  employeeIds: string[];
+  shiftIds: string[];
+  minRequired: number | null;
+  maxAllowed: number | null;
+  status: 'below' | 'within' | 'above';
 }
 
 export interface SchedulePublicationValidationResponse {
@@ -182,6 +201,7 @@ export interface SchedulePublicationValidationResponse {
   rulesVersion: string;
   canPublish: boolean;
   violations: SchedulePublicationViolation[];
+  coverage: HourlyCoveragePoint[];
 }
 
 export type ScheduleRuleKind =
