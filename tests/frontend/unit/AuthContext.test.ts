@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { hasManagementAccess } from '../../../src/auth/AuthContext';
+import { hasCapability, hasManagementAccess } from '../../../src/auth/AuthContext';
 import { AuthUser } from '../../../src/api/auth';
 
 function user(role: string): AuthUser {
@@ -40,4 +40,31 @@ describe('hasManagementAccess', () => {
       expect(hasManagementAccess(user(role))).toBe(false);
     },
   );
+});
+
+
+describe('hasCapability', () => {
+  it('treats SUPER_ADMIN and DEPARTMENT_ADMIN as effective department capability holders', () => {
+    expect(hasCapability(user('SUPER_ADMIN'), 'AUDIT_READ')).toBe(true);
+    expect(
+      hasCapability(user('DEPARTMENT_ADMIN'), 'AUDIT_READ', 'department-a'),
+    ).toBe(true);
+    expect(
+      hasCapability(user('DEPARTMENT_ADMIN'), 'AUDIT_READ', 'department-b'),
+    ).toBe(false);
+  });
+
+  it('allows DEPUTY only through explicit persisted capability', () => {
+    const deputy = user('DEPUTY');
+    deputy.memberships[0].permissions = ['AUDIT_READ'];
+
+    expect(hasCapability(deputy, 'AUDIT_READ')).toBe(true);
+    expect(
+      hasCapability(deputy, 'AUDIT_READ', 'department-a'),
+    ).toBe(true);
+    expect(
+      hasCapability(deputy, 'AUDIT_READ', 'department-b'),
+    ).toBe(false);
+    expect(hasCapability(user('DEPUTY'), 'AUDIT_READ')).toBe(false);
+  });
 });
