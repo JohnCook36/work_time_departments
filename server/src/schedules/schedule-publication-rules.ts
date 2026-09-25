@@ -85,7 +85,9 @@ export function validateSchedulePublicationSnapshot(
   }
 
   const shiftKeys = new Set<string>();
+  const employeesWithSavedCells = new Set<string>();
   for (const shift of snapshot.shifts) {
+    employeesWithSavedCells.add(shift.employeeId);
     const key = shift.employeeId + ':' + shift.date;
     if (shiftKeys.has(key)) {
       violations.push({
@@ -181,6 +183,17 @@ export function validateSchedulePublicationSnapshot(
         employeeId: shift.employeeId,
         shiftId: shift.id,
         date: shift.date,
+      });
+    }
+  }
+
+  for (const employee of snapshot.employees) {
+    if (!employeesWithSavedCells.has(employee.id)) {
+      violations.push({
+        severity: 'soft',
+        code: 'NO_SAVED_CELLS_FOR_EMPLOYEE',
+        message: 'У сотрудника нет сохранённых смен или OFF на выбранный месяц.',
+        employeeId: employee.id,
       });
     }
   }
