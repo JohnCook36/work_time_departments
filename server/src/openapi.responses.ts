@@ -119,6 +119,14 @@ export const scheduleRuleResponse = object({
   updatedAt: timestamp,
   editable: boolean,
 });
+export const scheduleRuleFoPresetResponse = object({
+  status: { type: 'string', enum: ['ok'] },
+  departmentId: text,
+  created: integer,
+  existing: integer,
+  rules: arrayOf(scheduleRuleResponse),
+});
+
 export const scheduleRuleDeletedResponse = object({
   status: { type: 'string', enum: ['ok'] },
   ruleId: text,
