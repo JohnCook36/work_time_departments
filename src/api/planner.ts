@@ -181,8 +181,6 @@ export interface ScheduleRuleResponse {
   config: Record<string, unknown>;
   violationMessage: string;
   version: number;
-  createdByUserId: string;
-  updatedByUserId: string;
   createdAt: string;
   updatedAt: string;
   editable: boolean;
@@ -192,7 +190,7 @@ export interface ScheduleRuleHistoryResponse {
   id: string;
   version: number;
   snapshot: Record<string, unknown>;
-  changedByUserId: string;
+  changedByLabel: string;
   createdAt: string;
 }
 
@@ -215,7 +213,7 @@ export interface SchedulePublicationResponse {
   scheduleId: string;
   departmentId: string;
   version: number;
-  publishedByUserId: string;
+  publishedByLabel: string;
   sourceScheduleUpdatedAt: string;
   comment: string | null;
   rulesVersion: string | null;

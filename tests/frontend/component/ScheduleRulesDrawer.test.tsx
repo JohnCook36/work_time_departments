@@ -44,8 +44,6 @@ function rule(overrides: Partial<ScheduleRuleResponse> = {}): ScheduleRuleRespon
     config: { maxConcurrent: 5 },
     violationMessage: 'В отделе одновременно больше 5 сотрудников.',
     version: 1,
-    createdByUserId: 'user-admin',
-    updatedByUserId: 'user-admin',
     createdAt: '2026-09-24T20:00:00.000Z',
     updatedAt: '2026-09-24T20:00:00.000Z',
     editable: true,
@@ -117,14 +115,14 @@ describe('ScheduleRulesDrawer', () => {
         id: 'version-2',
         version: 2,
         snapshot: { name: current.name, isActive: false },
-        changedByUserId: 'user-admin',
+        changedByLabel: 'Администратор',
         createdAt: '2026-09-24T21:00:00.000Z',
       },
       {
         id: 'version-1',
         version: 1,
         snapshot: { name: current.name, isActive: true },
-        changedByUserId: 'user-admin',
+        changedByLabel: 'Администратор',
         createdAt: '2026-09-24T20:00:00.000Z',
       },
     ]);
@@ -144,6 +142,8 @@ describe('ScheduleRulesDrawer', () => {
     await user.click(await screen.findByRole('button', { name: 'История' }));
     expect(await screen.findByText(/^v2 ·/)).toBeInTheDocument();
     expect(screen.getByText(/^v1 ·/)).toBeInTheDocument();
+    expect(screen.getAllByText('Изменил: Администратор')).toHaveLength(2);
+    expect(screen.queryByText('user-admin')).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Выключить' }));
     await waitFor(() => {

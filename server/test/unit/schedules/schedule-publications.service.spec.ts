@@ -124,6 +124,7 @@ describe('SchedulePublicationsService', () => {
       async ({ data }: { data: Record<string, unknown> }) => ({
         id: 'publication-1',
         ...data,
+        publishedBy: { employee: { displayName: 'Администратор публикации' } },
         snapshot: data.snapshot,
         diff: data.diff,
         createdAt: new Date('2026-09-02T09:00:00.000Z'),
@@ -257,9 +258,10 @@ describe('SchedulePublicationsService', () => {
       expect.objectContaining({
         id: 'publication-1',
         version: 1,
-        publishedByUserId: 'user-admin',
+        publishedByLabel: 'Администратор публикации',
       }),
     );
+    expect(result).not.toHaveProperty('publishedByUserId');
   });
 
   it('includes managed hard rules in publication readiness and blocks publish', async () => {
