@@ -4,6 +4,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
+import { PermissionCapability } from '@prisma/client';
+
 import { AuthUserContext } from '../auth/auth.service';
 import { AuthorizationService } from '../auth/authorization.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -103,7 +105,11 @@ export class WishesService {
     month: number,
   ) {
     assertPeriod(year, month);
-    this.authorization.assertCanAdministerDepartment(admin, departmentId);
+    this.authorization.assertCapability(
+      admin,
+      PermissionCapability.SCHEDULE_EDIT,
+      departmentId,
+    );
 
     const department = await this.prisma.department.findFirst({
       where: {
@@ -175,8 +181,9 @@ export class WishesService {
       throw new NotFoundException('Employee not found');
     }
 
-    this.authorization.assertCanAdministerDepartment(
+    this.authorization.assertCapability(
       admin,
+      PermissionCapability.SCHEDULE_EDIT,
       employee.departmentId,
     );
 
@@ -235,8 +242,9 @@ export class WishesService {
       throw new NotFoundException('Wish not found');
     }
 
-    this.authorization.assertCanAdministerDepartment(
+    this.authorization.assertCapability(
       admin,
+      PermissionCapability.SCHEDULE_EDIT,
       wish.employee.departmentId,
     );
 
