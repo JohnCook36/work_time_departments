@@ -211,6 +211,14 @@ export class MembershipsService {
     if (departmentId) await this.assertActiveDepartment(departmentId);
 
     return this.prisma.$transaction(async tx => {
+      const currentAdmin = await this.loadCurrentActor(tx, admin);
+      await this.assertActorCanManageAssignment(
+        currentAdmin,
+        role,
+        departmentId,
+        permissions,
+      );
+
       await this.lockAssignment(tx, employee.userId!, role, departmentId);
 
       const duplicate = await tx.membership.findFirst({
@@ -287,8 +295,9 @@ export class MembershipsService {
         );
       }
 
+      const currentAdmin = await this.loadCurrentActor(tx, admin);
       await this.assertActorCanManageAssignment(
-        admin,
+        currentAdmin,
         existing.role,
         existing.departmentId,
         permissions,
@@ -364,8 +373,9 @@ export class MembershipsService {
         throw new ConflictException('You cannot deactivate your own assignment');
       }
 
+      const currentAdmin = await this.loadCurrentActor(tx, admin);
       await this.assertActorCanManageAssignment(
-        admin,
+        currentAdmin,
         existing.role,
         existing.departmentId,
         [],
@@ -397,6 +407,47 @@ export class MembershipsService {
 
       return { status: 'ok' as const, membershipId: existing.id };
     });
+  }
+
+  private async loadCurrentActor(
+    tx: Prisma.TransactionClient,
+    admin: AuthUserContext,
+  ): Promise<AuthUserContext> {
+    const current = await tx.user.findUnique({
+      where: { id: admin.id },
+      select: {
+        isActive: true,
+        memberships: {
+          where: { isActive: true },
+          select: {
+            id: true,
+            role: true,
+            departmentId: true,
+            permissions: {
+              select: {
+                capability: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!current?.isActive) {
+      throw new ForbiddenException('Manager account is inactive');
+    }
+
+    return {
+      ...admin,
+      memberships: current.memberships.map(membership => ({
+        id: membership.id,
+        role: membership.role,
+        departmentId: membership.departmentId,
+        permissions: membership.permissions.map(
+          permission => permission.capability,
+        ),
+      })),
+    };
   }
 
   private assertRoleShape(
