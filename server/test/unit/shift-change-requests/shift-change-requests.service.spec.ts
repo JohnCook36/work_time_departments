@@ -14,6 +14,7 @@ import {
 
 import { AuthUserContext } from '../../../src/auth/auth.service';
 import { AuthorizationService } from '../../../src/auth/authorization.service';
+import { NotificationsService } from '../../../src/notifications/notifications.service';
 import { PrismaService } from '../../../src/prisma/prisma.service';
 import { ShiftChangeRequestsService } from '../../../src/shift-change-requests/shift-change-requests.service';
 
@@ -143,6 +144,7 @@ function prismaMock() {
 describe('ShiftChangeRequestsService', () => {
   let prisma: ReturnType<typeof prismaMock>;
   let service: ShiftChangeRequestsService;
+  let notifications: { createForUserInTransaction: jest.Mock };
   const requester = employeeUser(
     'requester-user',
     'requester-employee',
@@ -167,9 +169,13 @@ describe('ShiftChangeRequestsService', () => {
         { id: 'super-admin', role: RoleType.SUPER_ADMIN, departmentId: null },
       ],
     }));
+    notifications = {
+      createForUserInTransaction: jest.fn().mockResolvedValue({ id: 'notification-1' }),
+    };
     service = new ShiftChangeRequestsService(
       prisma as unknown as PrismaService,
       new AuthorizationService(),
+      notifications as unknown as NotificationsService,
     );
   });
 
@@ -476,6 +482,14 @@ describe('ShiftChangeRequestsService', () => {
         }),
       }),
     );
+    expect(notifications.createForUserInTransaction).toHaveBeenCalledWith(
+      prisma,
+      expect.objectContaining({
+        recipientId: 'target-user',
+        entityId: 'request-1',
+        eventKey: 'shift-change:request-1:CREATED',
+      }),
+    );
   });
 
   it('lets the target accept and creates TARGET_ACCEPTED without changing Shift', async () => {
@@ -498,6 +512,14 @@ describe('ShiftChangeRequestsService', () => {
       },
     });
     expect(prisma.shift.updateMany).not.toHaveBeenCalled();
+    expect(notifications.createForUserInTransaction).toHaveBeenCalledWith(
+      prisma,
+      expect.objectContaining({
+        recipientId: 'requester-user',
+        entityId: 'request-1',
+        eventKey: 'shift-change:request-1:TARGET_ACCEPTED',
+      }),
+    );
   });
 
   it('does not let another User accept the request', async () => {
@@ -528,6 +550,13 @@ describe('ShiftChangeRequestsService', () => {
         actorUserId: 'target-user',
       },
     });
+    expect(notifications.createForUserInTransaction).toHaveBeenCalledWith(
+      prisma,
+      expect.objectContaining({
+        recipientId: 'requester-user',
+        eventKey: 'shift-change:request-1:TARGET_REJECTED',
+      }),
+    );
   });
 
   it('lets the requester cancel a pending request and creates CANCELED', async () => {
