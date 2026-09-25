@@ -228,6 +228,48 @@ describe('SchedulesController API validation', () => {
     expect(authorization.assertCanAdministerDepartments).toHaveBeenCalledWith(currentUser, ['department-a']);
   });
 
+  it('returns a clear 409 when create intent targets an occupied employee/date', async () => {
+    transaction.shift.findMany.mockResolvedValue([
+      {
+        id: 'shift-existing',
+        employeeId: 'employee-1',
+        date: new Date('2026-09-07T00:00:00.000Z'),
+        code: 'E',
+        startTime: '08:00',
+        endTime: '17:00',
+        isOff: false,
+        updatedAt: new Date('2026-09-01T11:00:00.000Z'),
+      },
+    ]);
+
+    const response = await fetch(endpoint, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        departmentId: 'department-a',
+        year: 2026,
+        month: 9,
+        changes: [
+          {
+            employeeId: 'employee-1',
+            day: 7,
+            type: 'shift',
+            startTime: '10:00',
+            endTime: '19:00',
+            expectedUpdatedAt: null,
+          },
+        ],
+      }),
+    });
+    const body = (await response.json()) as { message?: string };
+
+    expect(response.status).toBe(409);
+    expect(body.message).toBe(
+      'Сотрудник уже запланирован на 07.09.2026: E · 08:00–17:00. Сначала измените или удалите существующую смену.',
+    );
+    expect(transaction.shift.upsert).not.toHaveBeenCalled();
+  });
+
   it.each([
     ['20:00', '08:00'],
     ['23:00', '05:00'],
