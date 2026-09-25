@@ -38,3 +38,35 @@ For the final candidate record:
 - backup timestamp, checksum, encrypted destination class, retention and restore duration;
 - owner of backup/auth operations;
 - final open-risk list.
+
+
+## Operational acceptance commands
+
+Repository helpers keep the production-like evidence reproducible without recording secrets or personal payloads.
+
+### Auth smoke
+
+Run against the real HTTPS backend:
+
+```bash
+AUTH_SMOKE_BASE_URL='https://api.example.test' \
+AUTH_SMOKE_PHONE='<pilot-test-number>' \
+node scripts/gate-a-auth-smoke.mjs
+```
+
+The script requests a real provider OTP, accepts the code interactively, verifies the session cookie, calls `/auth/me`, logs out and proves the old session is rejected. It does not print the phone, OTP or cookie.
+
+### Restore rehearsal
+
+Choose one encrypted scheduled backup and restore it into a pre-created empty isolated database:
+
+```bash
+BACKUP_FILE='/secure/path/wtd-YYYYMMDD-HHMMSS.dump.age' \
+BACKUP_AGE_IDENTITY='/secure/path/restore.agekey' \
+RESTORE_DATABASE_URL='postgresql://...' \
+bash server/scripts/production-restore-rehearsal.sh
+```
+
+The runner verifies the checksum, decrypts only to a protected temporary file, restores with `pg_restore --exit-on-error`, verifies Prisma migration/core-table readability and reports elapsed seconds. It refuses a non-empty restore target and refuses `RESTORE_DATABASE_URL == DATABASE_URL` when the production URL is provided.
+
+Copy `docs/gate-a-evidence-template.md` for the final #05/#25/#43/#86 sign-off. Never commit real credentials, OTPs, cookies, phone numbers, encryption identities or employee data into the evidence record.
