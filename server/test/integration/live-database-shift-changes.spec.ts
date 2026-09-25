@@ -115,6 +115,42 @@ describeLive('live PostgreSQL shift-change application', () => {
       requesterEmployee, targetEmployee, firstSchedule, secondSchedule, request };
   }
 
+  it('discovers only published same-department shifts without private fields', async () => {
+    const f = await fixture(ShiftChangeRequestKind.SWAP);
+    await publications.publishDepartmentSchedule(f.manager, f.department.id, 2026, 9);
+    const anotherUser = await prisma.user.create({ data: { phoneE164: '+79990000104' } });
+    const other = await prisma.employee.create({ data: {
+      displayName: 'Other department', departmentId: f.otherDepartment.id, userId: anotherUser.id,
+    } });
+    const inactive = await prisma.employee.create({ data: {
+      displayName: 'Inactive', departmentId: f.department.id, isActive: false,
+    } });
+    expect(await changes.discoverTargets(f.requester)).toEqual([
+      { id: f.targetEmployee.id, displayName: 'Synthetic target' },
+    ]);
+    const single = await changes.discoverTargetShift(f.requester, f.targetEmployee.id, '2026-09-28', f.source.id);
+    expect(single).toEqual({ id: f.targetShift!.id, date: '2026-09-28', code: 'N', startTime: '20:00', endTime: '08:00' });
+    expect(JSON.stringify(single)).not.toMatch(/phone|userId|employmentRate|memberships/);
+    await expect(changes.discoverTargetShift(f.requester, other.id, '2026-09-28', f.source.id)).rejects.toMatchObject({ status: 404 });
+    await expect(changes.discoverTargetShift(f.requester, inactive.id, '2026-09-28', f.source.id)).rejects.toMatchObject({ status: 404 });
+
+    await prisma.shift.update({
+      where: { id: f.targetShift!.id },
+      data: { startTime: '10:00' },
+    });
+    await expect(
+      changes.discoverTargetShift(
+        f.requester,
+        f.targetEmployee.id,
+        '2026-09-28',
+        f.source.id,
+      ),
+    ).rejects.toMatchObject({ status: 409 });
+
+    await prisma.shift.update({ where: { id: f.targetShift!.id }, data: { isOff: true, startTime: null, endTime: null, code: null } });
+    await expect(changes.discoverTargetShift(f.requester, f.targetEmployee.id, '2026-09-28', f.source.id)).rejects.toMatchObject({ status: 404 });
+  });
+
   it('atomically swaps real Shift owners across months, records audit and preserves published history', async () => {
     const f = await fixture(ShiftChangeRequestKind.SWAP, october);
     const original = await publications.publishDepartmentSchedule(f.manager, f.department.id, 2026, 9);

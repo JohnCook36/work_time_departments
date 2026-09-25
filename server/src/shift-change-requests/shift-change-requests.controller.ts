@@ -1,5 +1,5 @@
 import { ApiTags, ApiOperation, ApiResponse, ApiBadRequestResponse, ApiUnauthorizedResponse, ApiForbiddenResponse, ApiSecurity, ApiConflictResponse, ApiNotFoundResponse, ApiBody } from '@nestjs/swagger';
-import { arrayOf, shiftChangeResponse } from '../openapi.responses';
+import { arrayOf, shiftChangeResponse, shiftChangeTargetResponse, shiftChangeTargetShiftResponse } from '../openapi.responses';
 import { CreateShiftChangeRequestDto } from './shift-change-requests.dto';
 
 import {
@@ -9,6 +9,7 @@ import {
   Get,
   Param,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ShiftChangeRequestKind } from '@prisma/client';
@@ -84,6 +85,25 @@ export class ShiftChangeRequestsController {
       ),
       targetShiftId: optionalString(body?.targetShiftId, 'targetShiftId'),
     });
+  }
+
+  @ApiOperation({ summary: 'List same-department active linked employees eligible for a shift request; names only' })
+  @ApiResponse({ status: 200, schema: arrayOf(shiftChangeTargetResponse) })
+  @Get('discovery/targets')
+  discoverTargets(@CurrentUser() user: AuthUserContext) {
+    return this.requests.discoverTargets(user);
+  }
+
+  @ApiOperation({ summary: 'Look up one eligible persisted target shift for a single calendar date' })
+  @ApiResponse({ status: 200, schema: shiftChangeTargetShiftResponse })
+  @Get('discovery/targets/:employeeId/shift')
+  discoverTargetShift(
+    @CurrentUser() user: AuthUserContext,
+    @Param('employeeId') employeeId: string,
+    @Query('date') date: string,
+    @Query('sourceShiftId') sourceShiftId: string,
+  ) {
+    return this.requests.discoverTargetShift(user, employeeId, date, sourceShiftId);
   }
 
   @ApiOperation({ summary: 'Read requests made by the authenticated linked employee' })

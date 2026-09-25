@@ -9,6 +9,8 @@ import {
   RefreshCw,
   Sun,
 } from 'lucide-react';
+import { ShiftRequestComposer, eligibleSourceShifts } from '../shift-requests/ShiftRequestComposer';
+import { RequestDrawer, RequestOverlay } from '../shift-requests/ShiftRequestsScreen.styles';
 
 import {
   ApiError,
@@ -47,6 +49,7 @@ import {
   SchedulePageSubtitle,
   SchedulePageTitle,
   ShiftBody,
+  ShiftAction,
   ShiftDate,
   ShiftDayName,
   ShiftDayNumber,
@@ -82,6 +85,7 @@ export function MyScheduleScreen() {
   const [data, setData] = useState<MyScheduleResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [requestShiftId, setRequestShiftId] = useState<string | null>(null);
   const { themeMode, toggleTheme } = useAppTheme();
 
   const load = useCallback(async () => {
@@ -113,6 +117,10 @@ export function MyScheduleScreen() {
 
   const visibleShifts = useMemo(
     () => (data ? buildVisibleShifts(data) : []),
+    [data],
+  );
+  const requestableShifts = useMemo(
+    () => data ? eligibleSourceShifts(data.shifts, !!data.schedule) : [],
     [data],
   );
 
@@ -278,6 +286,9 @@ export function MyScheduleScreen() {
                             <Clock3 size={14} />
                             {hours.total} ч
                           </ShiftHours>
+                          {requestableShifts.some(item => item.id === shift.id) && (
+                            <ShiftAction type="button" onClick={() => setRequestShiftId(shift.id)}>Обмен / подмена</ShiftAction>
+                          )}
                         </ShiftRow>
                       );
                     })
@@ -292,6 +303,12 @@ export function MyScheduleScreen() {
               </>
             ) : null}
           </ScheduleCard>
+          {requestShiftId && <RequestOverlay onMouseDown={() => setRequestShiftId(null)}>
+            <RequestDrawer role="dialog" aria-modal="true" aria-label="Обмен / подмена" onMouseDown={event => event.stopPropagation()}>
+              <ShiftRequestComposer sources={requestableShifts} initialShiftId={requestShiftId}
+                onCreated={() => void load()} onConflict={load} onClose={() => setRequestShiftId(null)} />
+            </RequestDrawer>
+          </RequestOverlay>}
         </Container>
     </Page>
   );

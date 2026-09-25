@@ -134,7 +134,14 @@ export const shiftChangeResponse = object({
   requesterEmployeeId: text, requesterDepartmentId: text,
   targetEmployeeId: text, targetDepartmentId: text,
   requesterShiftId: text, targetShiftId: nullable(text), requesterShiftUpdatedAt: timestamp, targetShiftUpdatedAt: nullable(timestamp),
+  requesterEmployee: object({ displayName: text }), targetEmployee: object({ displayName: text }),
+  requesterShift: object({ date: timestamp, startTime: nullable(text), endTime: nullable(text), code: nullable(text), isOff: boolean }),
+  targetShift: nullable(object({ date: timestamp, startTime: nullable(text), endTime: nullable(text), code: nullable(text), isOff: boolean })),
   resolvedAt: nullable(timestamp), createdAt: timestamp, updatedAt: timestamp,
   events: arrayOf(object({ id: text, eventType: enumeration(ShiftChangeRequestEventType),
     metadata: { nullable: true, description: 'Optional JSON audit metadata.', oneOf: [{ type: 'object', additionalProperties: true }, { type: 'array', items: {} }, { type: 'string' }, { type: 'number' }, { type: 'boolean' }] }, createdAt: timestamp })),
+});
+export const shiftChangeTargetResponse = object({ id: text, displayName: text });
+export const shiftChangeTargetShiftResponse = object({
+  id: text, date: { type: 'string', format: 'date' }, startTime: text, endTime: text, code: nullable(text),
 });

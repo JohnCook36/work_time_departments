@@ -57,6 +57,7 @@ describe('OpenAPI documentation', () => {
     ['/schedule-rules/{ruleId}', 'patch'], ['/schedule-rules/{ruleId}', 'delete'],
     ['/schedule-rules/{ruleId}/history', 'get'],
     ['/shift-change-requests', 'post'], ['/shift-change-requests/mine', 'get'],
+    ['/shift-change-requests/discovery/targets', 'get'], ['/shift-change-requests/discovery/targets/{employeeId}/shift', 'get'],
     ['/shift-change-requests/{id}/accept', 'post'], ['/shift-change-requests/{id}/admin/approve', 'post'],
     ['/wishes/department', 'get'], ['/wishes', 'post'], ['/wishes/{wishId}', 'delete'],
   ])('discovers %s %s from the real controllers', (path, method) => {

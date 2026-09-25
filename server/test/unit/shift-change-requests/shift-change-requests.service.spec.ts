@@ -108,6 +108,7 @@ function prismaMock() {
   const mock = {
     employee: {
       findFirst: jest.fn(),
+      findMany: jest.fn(),
     },
     shift: {
       findFirst: jest.fn(),
@@ -115,6 +116,7 @@ function prismaMock() {
       updateMany: jest.fn(),
     },
     schedule: { update: jest.fn() },
+    schedulePublication: { findFirst: jest.fn() },
     user: { findUnique: jest.fn() },
     shiftChangeRequest: {
       create: jest.fn(),
@@ -156,6 +158,7 @@ describe('ShiftChangeRequestsService', () => {
     prisma = prismaMock();
     prisma.shift.updateMany.mockResolvedValue({ count: 1 });
     prisma.shift.findFirst.mockResolvedValue(null);
+    prisma.schedulePublication.findFirst.mockResolvedValue(null);
     prisma.user.findUnique.mockImplementation(async () => ({
       isActive: true,
       memberships: [
@@ -168,6 +171,121 @@ describe('ShiftChangeRequestsService', () => {
       prisma as unknown as PrismaService,
       new AuthorizationService(),
     );
+  });
+
+  it('requires a current linked Employee for discovery', async () => {
+    await expect(service.discoverTargets({ ...requester, employee: null })).rejects.toBeInstanceOf(ForbiddenException);
+    prisma.employee.findFirst.mockResolvedValue(null);
+    await expect(service.discoverTargets(requester)).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('only discovers same-department active linked employees and projects names', async () => {
+    prisma.employee.findFirst.mockResolvedValue({ id: 'requester-employee', departmentId: 'department-a' });
+    prisma.employee.findMany.mockResolvedValue([{ id: 'target-employee', displayName: 'Сотрудник Б' }]);
+    expect(await service.discoverTargets(requester)).toEqual([{ id: 'target-employee', displayName: 'Сотрудник Б' }]);
+    expect(prisma.employee.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ departmentId: 'department-a', id: { not: 'requester-employee' }, isActive: true, userId: { not: null }, user: { isActive: true } }),
+      select: { id: true, displayName: true },
+    }));
+  });
+
+  it('reads just one target published work shift by date, without phone, rate or schedule dump', async () => {
+    prisma.employee.findFirst.mockResolvedValueOnce({ id: 'requester-employee', departmentId: 'department-a' })
+      .mockResolvedValueOnce({ id: 'target-employee' });
+    prisma.shift.findFirst.mockResolvedValueOnce({
+      id: 'requester-shift', scheduleId: 'schedule-1', employeeId: 'requester-employee',
+      date: new Date('2026-09-20T00:00:00.000Z'), startTime: '07:00', endTime: '16:00',
+      code: null, isOff: false, updatedAt: snapshotTime,
+    });
+    prisma.shift.findFirst.mockResolvedValue({
+      id: 'target-shift', scheduleId: 'schedule-1', employeeId: 'target-employee',
+      date: new Date('2026-09-20T00:00:00.000Z'), startTime: '08:00', endTime: '17:00',
+      code: null, isOff: false, updatedAt: snapshotTime,
+    });
+    prisma.schedulePublication.findFirst.mockResolvedValue({
+      snapshot: {
+        department: { id: 'department-a', name: 'A', kind: 'GENERAL' },
+        employees: [],
+        shifts: [
+          { id: 'requester-shift', employeeId: 'requester-employee', date: '2026-09-20', startTime: '07:00', endTime: '16:00', code: null, isOff: false, updatedAt: snapshotTime.toISOString() },
+          { id: 'target-shift', employeeId: 'target-employee', date: '2026-09-20', startTime: '08:00', endTime: '17:00', code: null, isOff: false, updatedAt: snapshotTime.toISOString() },
+        ],
+      },
+    });
+    expect(await service.discoverTargetShift(requester, 'target-employee', '2026-09-20', 'requester-shift')).toEqual({
+      id: 'target-shift', date: '2026-09-20', startTime: '08:00', endTime: '17:00', code: null,
+    });
+    expect(prisma.shift.findFirst).toHaveBeenLastCalledWith(expect.objectContaining({
+      where: { employeeId: 'target-employee', date: new Date('2026-09-20T00:00:00.000Z'), isOff: false, startTime: { not: null }, endTime: { not: null } },
+      select: expect.objectContaining({ id: true, scheduleId: true, employeeId: true, updatedAt: true }),
+    }));
+  });
+
+  it('does not expose an unpublished target draft through discovery', async () => {
+    prisma.employee.findFirst.mockResolvedValueOnce({ id: 'requester-employee', departmentId: 'department-a' })
+      .mockResolvedValueOnce({ id: 'target-employee' });
+    prisma.shift.findFirst.mockResolvedValueOnce({
+      id: 'requester-shift', scheduleId: 'schedule-1', employeeId: 'requester-employee',
+      date: new Date('2026-09-20T00:00:00.000Z'), startTime: '07:00', endTime: '16:00',
+      code: null, isOff: false, updatedAt: snapshotTime,
+    });
+    prisma.shift.findFirst.mockResolvedValueOnce({
+      id: 'target-shift', scheduleId: 'schedule-1', employeeId: 'target-employee',
+      date: new Date('2026-09-20T00:00:00.000Z'), startTime: '10:00', endTime: '19:00',
+      code: null, isOff: false, updatedAt: new Date('2026-09-19T09:00:00.000Z'),
+    });
+    prisma.schedulePublication.findFirst.mockResolvedValue({
+      snapshot: {
+        department: { id: 'department-a', name: 'A', kind: 'GENERAL' },
+        employees: [],
+        shifts: [
+          { id: 'requester-shift', employeeId: 'requester-employee', date: '2026-09-20', startTime: '07:00', endTime: '16:00', code: null, isOff: false, updatedAt: snapshotTime.toISOString() },
+          { id: 'target-shift', employeeId: 'target-employee', date: '2026-09-20', startTime: '08:00', endTime: '17:00', code: null, isOff: false, updatedAt: snapshotTime.toISOString() },
+        ],
+      },
+    });
+
+    await expect(
+      service.discoverTargetShift(requester, 'target-employee', '2026-09-20', 'requester-shift'),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('rejects invalid dates and targets outside the same active linked department', async () => {
+    prisma.employee.findFirst
+      .mockResolvedValueOnce({ id: 'requester-employee', departmentId: 'department-a' })
+      .mockResolvedValueOnce({ id: 'requester-employee', departmentId: 'department-a' })
+      .mockResolvedValueOnce(null);
+    await expect(service.discoverTargetShift(requester, 'target-employee', '2026-02-30', 'requester-shift')).rejects.toBeInstanceOf(BadRequestException);
+    prisma.shift.findFirst.mockResolvedValueOnce({
+      id: 'requester-shift', scheduleId: 'schedule-1', employeeId: 'requester-employee',
+      date: new Date('2026-09-20T00:00:00.000Z'), startTime: '07:00', endTime: '16:00',
+      code: null, isOff: false, updatedAt: snapshotTime,
+    });
+    prisma.schedulePublication.findFirst.mockResolvedValue({
+      snapshot: {
+        department: { id: 'department-a', name: 'A', kind: 'GENERAL' },
+        employees: [],
+        shifts: [
+          { id: 'requester-shift', employeeId: 'requester-employee', date: '2026-09-20', startTime: '07:00', endTime: '16:00', code: null, isOff: false, updatedAt: snapshotTime.toISOString() },
+        ],
+      },
+    });
+    await expect(service.discoverTargetShift(requester, 'target-employee', '2026-09-20', 'requester-shift')).rejects.toMatchObject({ status: 404 });
+    expect(prisma.employee.findFirst).toHaveBeenLastCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ departmentId: 'department-a', id: { equals: 'target-employee', not: 'requester-employee' }, user: { isActive: true }, isActive: true }),
+    }));
+    expect(prisma.shift.findFirst).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses synthetic, OFF or another employee source before looking up a target shift', async () => {
+    prisma.employee.findFirst.mockResolvedValue({ id: 'requester-employee', departmentId: 'department-a' });
+    await expect(service.discoverTargetShift(requester, 'target-employee', '2026-09-20', 'default:employee:2026-09-20')).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.discoverTargetShift(requester, 'target-employee', '2026-09-20', 'someone-elses-shift')).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.employee.findFirst).toHaveBeenCalledTimes(2);
+    expect(prisma.shift.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'someone-elses-shift', employeeId: 'requester-employee', isOff: false, startTime: { not: null }, endTime: { not: null } },
+      select: expect.objectContaining({ id: true, scheduleId: true, employeeId: true, updatedAt: true }),
+    }));
   });
 
   it('does not expose account ids in shift-change response selects', async () => {
@@ -299,6 +417,36 @@ describe('ShiftChangeRequestsService', () => {
         targetShiftId: 'foreign-shift',
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects request creation when a persisted shift changed after publication', async () => {
+    prisma.employee.findFirst
+      .mockResolvedValueOnce({ id: 'requester-employee', departmentId: 'department-a' })
+      .mockResolvedValueOnce({
+        id: 'target-employee', userId: 'target-user', departmentId: 'department-a',
+        user: { isActive: true },
+      });
+    prisma.shift.findFirst.mockResolvedValueOnce({
+      id: 'requester-shift', scheduleId: 'schedule-1', employeeId: 'requester-employee',
+      date: new Date('2026-09-20T00:00:00.000Z'), code: null, startTime: '10:00', endTime: '19:00',
+      isOff: false, updatedAt: new Date('2026-09-19T09:00:00.000Z'),
+    });
+    prisma.schedulePublication.findFirst.mockResolvedValue({
+      snapshot: {
+        department: { id: 'department-a', name: 'A', kind: 'GENERAL' },
+        employees: [],
+        shifts: [
+          { id: 'requester-shift', employeeId: 'requester-employee', date: '2026-09-20', code: null, startTime: '08:00', endTime: '17:00', isOff: false, updatedAt: snapshotTime.toISOString() },
+        ],
+      },
+    });
+
+    await expect(service.create(requester, {
+      kind: ShiftChangeRequestKind.COVER,
+      targetEmployeeId: 'target-employee',
+      requesterShiftId: 'requester-shift',
+    })).rejects.toBeInstanceOf(ConflictException);
+    expect(prisma.shiftChangeRequest.create).not.toHaveBeenCalled();
   });
 
   it('creates PENDING_TARGET request and CREATED audit event', async () => {

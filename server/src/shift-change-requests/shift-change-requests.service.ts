@@ -19,6 +19,10 @@ import { appendAuditLog } from '../audit/audit-log';
 import { AuthUserContext } from '../auth/auth.service';
 import { AuthorizationService } from '../auth/authorization.service';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  parseSchedulePublicationSnapshot,
+  type PublishedShiftSnapshot,
+} from '../schedules/schedule-publications.service';
 
 export interface CreateShiftChangeRequestInput {
   kind: ShiftChangeRequestKind;
@@ -117,10 +121,7 @@ export class ShiftChangeRequestsService {
             employeeId: sessionEmployee.id,
             isOff: false,
           },
-          select: {
-            id: true,
-            updatedAt: true,
-          },
+          select: shiftForTransitionSelect,
         }),
         input.targetShiftId
           ? this.prisma.shift.findFirst({
@@ -129,10 +130,7 @@ export class ShiftChangeRequestsService {
                 employeeId: input.targetEmployeeId,
                 isOff: false,
               },
-              select: {
-                id: true,
-                updatedAt: true,
-              },
+              select: shiftForTransitionSelect,
             })
           : Promise.resolve(null),
       ]);
@@ -162,6 +160,19 @@ export class ShiftChangeRequestsService {
     if (input.targetShiftId && !targetShift) {
       throw new BadRequestException(
         'Target shift does not belong to the target employee',
+      );
+    }
+
+    await this.assertMatchesLatestPublicationIfPresent(
+      requesterEmployee.id,
+      requesterEmployee.departmentId,
+      requesterShift,
+    );
+    if (targetShift) {
+      await this.assertMatchesLatestPublicationIfPresent(
+        targetEmployee.id,
+        targetEmployee.departmentId,
+        targetShift,
       );
     }
 
@@ -201,6 +212,191 @@ export class ShiftChangeRequestsService {
       orderBy: { createdAt: 'desc' },
       select: this.requestSelect(),
     });
+  }
+
+  async discoverTargets(user: AuthUserContext) {
+    const employee = await this.requireCurrentEmployee(user);
+    return this.prisma.employee.findMany({
+      where: {
+        departmentId: employee.departmentId,
+        id: { not: employee.id },
+        isActive: true,
+        userId: { not: null },
+        user: { isActive: true },
+      },
+      orderBy: [{ position: 'asc' }, { displayName: 'asc' }],
+      select: { id: true, displayName: true },
+    });
+  }
+
+  async discoverTargetShift(user: AuthUserContext, targetEmployeeId: string, date: string, sourceShiftId: string) {
+    const employee = await this.requireCurrentEmployee(user);
+    if (!sourceShiftId || sourceShiftId.startsWith('default:')) {
+      throw new BadRequestException('A persisted source shift is required');
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+        Number.isNaN(Date.parse(date + 'T00:00:00.000Z')) ||
+        new Date(date + 'T00:00:00.000Z').toISOString().slice(0, 10) !== date) {
+      throw new BadRequestException('date must be a valid YYYY-MM-DD');
+    }
+    const source = await this.prisma.shift.findFirst({
+      where: { id: sourceShiftId, employeeId: employee.id, isOff: false,
+        startTime: { not: null }, endTime: { not: null } },
+      select: shiftForTransitionSelect,
+    });
+    if (!source) throw new ForbiddenException('Source shift does not belong to the authenticated employee');
+    await this.requireLatestPublishedShift(employee.id, employee.departmentId, source);
+    const target = await this.prisma.employee.findFirst({
+      where: {
+        id: { equals: targetEmployeeId, not: employee.id },
+        departmentId: employee.departmentId,
+        isActive: true,
+        userId: { not: null },
+        user: { isActive: true },
+      },
+      select: { id: true },
+    });
+    if (!target) throw new NotFoundException('Eligible target employee not found');
+    const shift = await this.prisma.shift.findFirst({
+      where: {
+        employeeId: target.id,
+        date: new Date(date + 'T00:00:00.000Z'),
+        isOff: false,
+        startTime: { not: null },
+        endTime: { not: null },
+      },
+      select: shiftForTransitionSelect,
+    });
+    if (!shift) throw new NotFoundException('Eligible shift not found for this date');
+    const published = await this.requireLatestPublishedShift(
+      target.id,
+      employee.departmentId,
+      shift,
+    );
+    return {
+      id: published.id,
+      date: published.date,
+      startTime: published.startTime!,
+      endTime: published.endTime!,
+      code: published.code,
+    };
+  }
+
+  private async latestPublishedShift(
+    employeeId: string,
+    departmentId: string,
+    shift: {
+      id: string;
+      scheduleId: string;
+      employeeId: string;
+      date: Date;
+      code: string | null;
+      startTime: string | null;
+      endTime: string | null;
+      isOff: boolean;
+      updatedAt: Date;
+    },
+  ): Promise<PublishedShiftSnapshot | null> {
+    const publication = await this.prisma.schedulePublication.findFirst({
+      where: {
+        scheduleId: shift.scheduleId,
+        departmentId,
+      },
+      orderBy: { version: 'desc' },
+      select: { snapshot: true },
+    });
+    if (!publication) return null;
+
+    const snapshot = parseSchedulePublicationSnapshot(publication.snapshot);
+    if (!snapshot) {
+      throw new ConflictException('Latest published schedule snapshot is invalid');
+    }
+
+    const published = snapshot.shifts.find(
+      candidate => candidate.id === shift.id && candidate.employeeId === employeeId,
+    );
+    if (
+      !published ||
+      published.isOff ||
+      !published.startTime ||
+      !published.endTime ||
+      published.date !== shift.date.toISOString().slice(0, 10) ||
+      published.code !== shift.code ||
+      published.startTime !== shift.startTime ||
+      published.endTime !== shift.endTime ||
+      published.updatedAt !== shift.updatedAt.toISOString()
+    ) {
+      return null;
+    }
+
+    return published;
+  }
+
+  private async requireLatestPublishedShift(
+    employeeId: string,
+    departmentId: string,
+    shift: Parameters<ShiftChangeRequestsService['latestPublishedShift']>[2],
+  ): Promise<PublishedShiftSnapshot> {
+    const published = await this.latestPublishedShift(
+      employeeId,
+      departmentId,
+      shift,
+    );
+    if (!published) {
+      throw new ConflictException(
+        'Shift is not current in the latest published schedule',
+      );
+    }
+    return published;
+  }
+
+  private async assertMatchesLatestPublicationIfPresent(
+    employeeId: string,
+    departmentId: string,
+    shift: Parameters<ShiftChangeRequestsService['latestPublishedShift']>[2],
+  ): Promise<void> {
+    const publication = await this.prisma.schedulePublication.findFirst({
+      where: {
+        scheduleId: shift.scheduleId,
+        departmentId,
+      },
+      orderBy: { version: 'desc' },
+      select: { snapshot: true },
+    });
+    if (!publication) return;
+
+    const snapshot = parseSchedulePublicationSnapshot(publication.snapshot);
+    if (!snapshot) {
+      throw new ConflictException('Latest published schedule snapshot is invalid');
+    }
+    const published = snapshot.shifts.find(
+      candidate => candidate.id === shift.id && candidate.employeeId === employeeId,
+    );
+    if (
+      !published ||
+      published.isOff ||
+      !published.startTime ||
+      !published.endTime ||
+      published.date !== shift.date.toISOString().slice(0, 10) ||
+      published.code !== shift.code ||
+      published.startTime !== shift.startTime ||
+      published.endTime !== shift.endTime ||
+      published.updatedAt !== shift.updatedAt.toISOString()
+    ) {
+      throw new ConflictException(
+        'Shift changed after the latest publication; publish or refresh before requesting a change',
+      );
+    }
+  }
+
+  private async requireCurrentEmployee(user: AuthUserContext) {
+    const linked = this.requireLinkedEmployee(user);
+    const employee = await this.prisma.employee.findFirst({
+      where: { id: linked.id, userId: user.id, isActive: true, user: { isActive: true } },
+      select: { id: true, departmentId: true },
+    });
+    if (!employee) throw new ForbiddenException('Active linked employee required');
+    return employee;
   }
 
   getIncoming(user: AuthUserContext) {
@@ -803,6 +999,10 @@ export class ShiftChangeRequestsService {
       targetShiftId: true,
       requesterShiftUpdatedAt: true,
       targetShiftUpdatedAt: true,
+      requesterEmployee: { select: { displayName: true } },
+      targetEmployee: { select: { displayName: true } },
+      requesterShift: { select: { date: true, startTime: true, endTime: true, code: true, isOff: true } },
+      targetShift: { select: { date: true, startTime: true, endTime: true, code: true, isOff: true } },
       resolvedAt: true,
       createdAt: true,
       updatedAt: true,
