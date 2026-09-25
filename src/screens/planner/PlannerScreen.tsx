@@ -36,6 +36,7 @@ import { usePlannerWishes } from '../../hooks/usePlannerWishes';
 import { useScheduleMutations } from '../../hooks/useScheduleMutations';
 import { useAppTheme } from '../../theme/AppThemeProvider';
 import { useAppDialog } from '../../components/dialogs/AppDialogProvider';
+import { AppSectionNav } from '../../components/navigation/AppSectionNav';
 import { PlannerHeaderScreen } from './PlannerHeaderScreen';
 import { PlannerManagementScreen } from './PlannerManagementScreen';
 import type { EmployeeCreateFormValues } from './PlannerControlsToolbar';
@@ -709,6 +710,8 @@ export function PlannerScreen() {
             serverPlannerStatus={serverPlannerStatus}
             serverPlannerError={serverPlannerError}
           />
+
+          <AppSectionNav />
 
           {canManagePlanner && (
             <PlannerManagementScreen
