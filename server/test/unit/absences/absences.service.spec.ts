@@ -147,6 +147,46 @@ describe('AbsencesService', () => {
     ).rejects.toBeInstanceOf(ConflictException);
   });
 
+  it('clears an existing comment when absence type changes to SICK', async () => {
+    prisma.absence.findUnique.mockResolvedValue({
+      id: 'absence-1',
+      employeeId: 'employee-1',
+      type: AbsenceType.VACATION,
+      startDate: new Date('2026-09-10T00:00:00.000Z'),
+      endDate: new Date('2026-09-12T00:00:00.000Z'),
+      comment: 'Old work note',
+      canceledAt: null,
+      updatedAt: new Date('2026-09-01T10:00:00.000Z'),
+      employee: { departmentId: 'department-a', isActive: true },
+    });
+    tx.absence.updateMany.mockResolvedValue({ count: 1 });
+    tx.absence.findUniqueOrThrow.mockResolvedValue({
+      id: 'absence-1',
+      employeeId: 'employee-1',
+      type: AbsenceType.SICK,
+      startDate: new Date('2026-09-10T00:00:00.000Z'),
+      endDate: new Date('2026-09-12T00:00:00.000Z'),
+      comment: null,
+      canceledAt: null,
+      createdAt: new Date('2026-09-01T09:00:00.000Z'),
+      updatedAt: new Date('2026-09-01T11:00:00.000Z'),
+    });
+
+    await service.update(admin(), 'absence-1', {
+      type: 'SICK',
+      expectedUpdatedAt: '2026-09-01T10:00:00.000Z',
+    });
+
+    expect(tx.absence.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          type: AbsenceType.SICK,
+          comment: null,
+        }),
+      }),
+    );
+  });
+
   it('uses optimistic locking when updating', async () => {
     prisma.absence.findUnique.mockResolvedValue({
       id: 'absence-1',
