@@ -208,6 +208,33 @@ export interface ScheduleRuleMutationInput {
   violationMessage: string;
 }
 
+export interface SchedulePublicationEmployeeSnapshot {
+  id: string;
+  displayName: string;
+  employmentRate: number;
+  scheduleMode: string;
+  fixedStartTime: string | null;
+  fixedEndTime: string | null;
+  roles?: string[];
+}
+
+export interface SchedulePublicationShiftSnapshot {
+  id: string;
+  employeeId: string;
+  date: string;
+  code: string | null;
+  startTime: string | null;
+  endTime: string | null;
+  isOff: boolean;
+  updatedAt: string;
+}
+
+export interface SchedulePublicationDiffEntry<T> {
+  key: string;
+  before: T | null;
+  after: T | null;
+}
+
 export interface SchedulePublicationResponse {
   id: string;
   scheduleId: string;
@@ -224,37 +251,16 @@ export interface SchedulePublicationResponse {
       name: string;
       kind: string;
     };
-    employees: Array<{
-      id: string;
-      displayName: string;
-      employmentRate: number;
-      scheduleMode: string;
-      fixedStartTime: string | null;
-      fixedEndTime: string | null;
-      roles?: string[];
-    }>;
-    shifts: Array<{
-      id: string;
-      employeeId: string;
-      date: string;
-      code: string | null;
-      startTime: string | null;
-      endTime: string | null;
-      isOff: boolean;
-      updatedAt: string;
-    }>;
+    employees: SchedulePublicationEmployeeSnapshot[];
+    shifts: SchedulePublicationShiftSnapshot[];
   };
   diff: {
-    employees: Array<{
-      key: string;
-      before: unknown;
-      after: unknown;
-    }>;
-    shifts: Array<{
-      key: string;
-      before: unknown;
-      after: unknown;
-    }>;
+    employees: Array<
+      SchedulePublicationDiffEntry<SchedulePublicationEmployeeSnapshot>
+    >;
+    shifts: Array<
+      SchedulePublicationDiffEntry<SchedulePublicationShiftSnapshot>
+    >;
   };
   createdAt: string;
 }
