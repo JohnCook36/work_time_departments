@@ -740,6 +740,15 @@ describe('EmployeesService', () => {
       isActive: true,
       memberships: [],
     });
+    authorization.assertCapability.mockImplementationOnce(
+      (user: AuthUserContext) => {
+        if (user.memberships.length === 0) {
+          throw new ForbiddenException(
+            'You do not have permission to perform this action',
+          );
+        }
+      },
+    );
 
     await expect(
       service.deactivateEmployee(
@@ -748,6 +757,12 @@ describe('EmployeesService', () => {
         { expectedUpdatedAt: updatedAt.toISOString() },
       ),
     ).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(authorization.assertCapability).toHaveBeenCalledWith(
+      expect.objectContaining({ memberships: [] }),
+      expect.anything(),
+      'department-a',
+    );
 
     expect(prisma.employee.updateMany).not.toHaveBeenCalled();
     expect(prisma.auditLog.create).not.toHaveBeenCalled();
