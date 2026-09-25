@@ -5,6 +5,12 @@ on:
     paths:
       - 'server/**'
       - '.github/workflows/backend-ci.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'server/**'
+      - '.github/workflows/backend-ci.yml'
   workflow_dispatch:
 
 permissions:
@@ -16,7 +22,7 @@ concurrency:
 
 jobs:
   check:
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64, worktime]
     timeout-minutes: 30
     services:
@@ -42,6 +48,7 @@ jobs:
     steps:
       - name: Repair workspace ownership
         shell: bash
+        working-directory: .
         run: |
           docker run --rm \
             -v "$GITHUB_WORKSPACE:/workspace" \
@@ -50,8 +57,96 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect affected backend test blocks
+        id: scope
+        shell: bash
+        working-directory: .
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+
+          full=false
+          deps=false
+          prisma=false
+          unit=false
+          contract=false
+          live=false
+          backup=false
+          build=false
+
+          if [ "$EVENT_NAME" != "pull_request" ]; then
+            full=true
+          else
+            changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
+            printf '%s\n' "$changed"
+
+            if grep -Eq '^\.github/workflows/backend-ci\.yml$|^server/(tsconfig|nest-cli)|^server/package(-lock)?\.json$' <<<"$changed"; then
+              full=true
+            fi
+
+            if grep -Eq '^server/package(-lock)?\.json$' <<<"$changed"; then
+              deps=true
+            fi
+
+            if grep -Eq '^server/prisma/' <<<"$changed"; then
+              prisma=true
+            fi
+
+            if grep -Eq '^server/src/|^server/test/unit/' <<<"$changed"; then
+              unit=true
+            fi
+
+            if grep -Eq '^server/src/|^server/test/integration/(app\.module|http-security|openapi|planner-read-api|prisma/schema|schedules/)' <<<"$changed"; then
+              contract=true
+            fi
+
+            if grep -Eq '^server/prisma/|^server/test/integration/live-database-|^server/src/(auth|employees|memberships|schedules|schedule-rules|shift-change-requests|absences|wishes|notifications|audit|onboarding|departments|prisma)/' <<<"$changed"; then
+              live=true
+            fi
+
+            if grep -Eq '^server/prisma/|^server/scripts/(ci-backup-restore-smoke|production-backup)\.sh$|^docs/database-backup-restore\.md$' <<<"$changed"; then
+              backup=true
+            fi
+
+            if grep -Eq '^server/src/|^server/prisma/|^server/(tsconfig|nest-cli)|^server/package(-lock)?\.json$' <<<"$changed"; then
+              build=true
+            fi
+          fi
+
+          if [ "$full" = true ]; then
+            deps=true
+            prisma=true
+            unit=true
+            contract=true
+            live=true
+            backup=true
+            build=true
+          fi
+
+          needs_node=false
+          if [ "$deps" = true ] || [ "$prisma" = true ] || [ "$unit" = true ] || [ "$contract" = true ] || [ "$live" = true ] || [ "$backup" = true ] || [ "$build" = true ]; then
+            needs_node=true
+          fi
+
+          {
+            echo "full=$full"
+            echo "deps=$deps"
+            echo "prisma=$prisma"
+            echo "unit=$unit"
+            echo "contract=$contract"
+            echo "live=$live"
+            echo "backup=$backup"
+            echo "build=$build"
+            echo "needs_node=$needs_node"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Setup Node
+        if: steps.scope.outputs.needs_node == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -59,26 +154,35 @@ jobs:
           cache-dependency-path: server/package-lock.json
 
       - name: Install dependencies
+        if: steps.scope.outputs.needs_node == 'true'
         run: npm ci
 
       - name: Required runtime dependency audit
-        # Prisma CLI is a dev/optional peer of @prisma/client and is intentionally
-        # excluded from the production-required dependency gate.
+        if: steps.scope.outputs.deps == 'true'
         run: npm audit --omit=dev --omit=optional --audit-level=high
 
       - name: Generate Prisma client
+        if: steps.scope.outputs.needs_node == 'true'
         run: npm run prisma:generate
 
       - name: Validate Prisma schema
+        if: steps.scope.outputs.prisma == 'true' || steps.scope.outputs.contract == 'true' || steps.scope.outputs.live == 'true' || steps.scope.outputs.backup == 'true'
         run: npm run prisma:validate
 
       - name: Apply Prisma migrations
+        if: steps.scope.outputs.contract == 'true' || steps.scope.outputs.live == 'true' || steps.scope.outputs.backup == 'true'
         run: npx prisma migrate deploy
 
-      - name: Test
-        run: npm test
+      - name: Backend unit block
+        if: steps.scope.outputs.unit == 'true'
+        run: npm test -- test/unit
 
-      - name: Live PostgreSQL security integration
+      - name: Backend contract block
+        if: steps.scope.outputs.contract == 'true'
+        run: npm test -- test/integration --testPathIgnorePatterns=live-database-
+
+      - name: Live PostgreSQL security block
+        if: steps.scope.outputs.live == 'true'
         run: npm run test:live-db
         env:
           LIVE_DATABASE_TESTS: '1'
@@ -88,10 +192,13 @@ jobs:
           AUTH_OTP_PEPPER: ci-live-db-otp-pepper-value-at-least-32-characters
 
       - name: Typecheck
+        if: steps.scope.outputs.build == 'true'
         run: npm run typecheck
 
       - name: Build
+        if: steps.scope.outputs.build == 'true'
         run: npm run build
 
-      - name: PostgreSQL backup/restore smoke
+      - name: PostgreSQL backup/restore block
+        if: steps.scope.outputs.backup == 'true'
         run: bash scripts/ci-backup-restore-smoke.sh
