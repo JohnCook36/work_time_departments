@@ -47,6 +47,10 @@ describe('WishesService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    authorization.assertCapability.mockImplementation(
+      (user: unknown, _capability: unknown, departmentId: string) =>
+        assertCanAdministerDepartment(user, departmentId),
+    );
     prisma.department.findFirst.mockResolvedValue({ id: 'department-a' });
     prisma.employee.findFirst.mockResolvedValue({
       id: 'employee-a',
