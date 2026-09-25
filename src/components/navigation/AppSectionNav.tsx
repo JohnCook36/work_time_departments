@@ -1,4 +1,3 @@
-import { Global } from '@emotion/react';
 import {
   Bell,
   CalendarDays,
@@ -53,27 +52,6 @@ export function AppSectionNav() {
 
   return (
     <>
-      <Global
-        styles={{
-          '@media (max-width: 720px)': {
-            html: {
-              height: '100%',
-              overflow: 'hidden',
-            },
-            body: {
-              height: '100%',
-              overflow: 'hidden',
-            },
-            '#root': {
-              height: 'calc(100dvh - 64px - env(safe-area-inset-bottom))',
-              overflowY: 'auto',
-              overflowX: 'hidden',
-              overscrollBehavior: 'contain',
-              scrollPaddingBottom: 16,
-            },
-          },
-        }}
-      />
 
       <NavigationBar aria-label="Основная навигация">
         <NavigationLink to="/my-schedule">
