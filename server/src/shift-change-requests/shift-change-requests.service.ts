@@ -805,6 +805,7 @@ export class ShiftChangeRequestsService {
         const request = await this.getForTransition(tx, requestId);
         this.assertManagerScope(admin, request);
         this.assertStatus(request, ShiftChangeRequestStatus.PENDING_MANAGER);
+        await this.assertCurrentManagerScope(tx, admin, request);
 
         if (this.isStale(request)) {
           await this.markStale(tx, request, admin.id);
