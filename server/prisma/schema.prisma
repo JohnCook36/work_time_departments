@@ -120,6 +120,22 @@ enum AuditEntityType {
   MEMBERSHIP
 }
 
+enum NotificationCategory {
+  SHIFT_CHANGE
+  SCHEDULE_PUBLICATION
+  TASK
+  SCHEDULE_RULE
+  SYSTEM
+}
+
+enum NotificationEntityType {
+  SHIFT_CHANGE_REQUEST
+  SCHEDULE_PUBLICATION
+  TASK
+  SCHEDULE_RULE
+  SYSTEM
+}
+
 model Department {
   id        String         @id @default(cuid())
   name      String
@@ -156,6 +172,8 @@ model User {
   createdScheduleRules       ScheduleRule[]        @relation("ScheduleRuleCreatedBy")
   updatedScheduleRules       ScheduleRule[]        @relation("ScheduleRuleUpdatedBy")
   scheduleRuleVersions       ScheduleRuleVersion[] @relation("ScheduleRuleVersionChangedBy")
+  notifications              Notification[]
+  notificationPreferences    NotificationPreference[]
 }
 
 model Employee {
@@ -446,4 +464,35 @@ model AuditLog {
   @@index([actorUserId, createdAt])
   @@index([departmentId, createdAt])
   @@index([action, createdAt])
+}
+
+
+model Notification {
+  id          String                 @id @default(cuid())
+  recipientId String
+  category    NotificationCategory
+  entityType  NotificationEntityType
+  entityId    String?
+  eventKey    String                 @db.VarChar(180)
+  critical    Boolean                @default(false)
+  readAt      DateTime?
+  createdAt   DateTime               @default(now())
+  recipient   User                   @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@unique([recipientId, eventKey])
+  @@index([recipientId, readAt, createdAt])
+  @@index([category, createdAt])
+}
+
+model NotificationPreference {
+  id        String               @id @default(cuid())
+  userId    String
+  category  NotificationCategory
+  enabled   Boolean              @default(true)
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+  user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, category])
+  @@index([userId])
 }
