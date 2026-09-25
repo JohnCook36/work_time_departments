@@ -9,6 +9,7 @@ import {
   AuditEntityType,
   EmployeeScheduleMode,
   OnboardingRequestStatus,
+  PermissionCapability,
   RoleType,
   ShiftChangeRequestStatus,
 } from '@prisma/client';
@@ -205,7 +206,11 @@ export class EmployeesService {
     admin: AuthUserContext,
     departmentId: string,
   ) {
-    this.authorization.assertCanAdministerDepartment(admin, departmentId);
+    this.authorization.assertCapability(
+      admin,
+      PermissionCapability.EMPLOYEE_MANAGE,
+      departmentId,
+    );
 
     await this.assertActiveDepartment(departmentId);
 
@@ -243,7 +248,11 @@ export class EmployeesService {
     }
 
     const departmentId = requireString(input.departmentId, 'departmentId');
-    this.authorization.assertCanAdministerDepartment(admin, departmentId);
+    this.authorization.assertCapability(
+      admin,
+      PermissionCapability.EMPLOYEE_MANAGE,
+      departmentId,
+    );
     await this.assertActiveDepartment(departmentId);
 
     const employmentRate = optionalRate(input.employmentRate) ?? 1;
@@ -303,7 +312,11 @@ export class EmployeesService {
       orderedEmployeeIds,
     );
 
-    this.authorization.assertCanAdministerDepartment(admin, departmentId);
+    this.authorization.assertCapability(
+      admin,
+      PermissionCapability.EMPLOYEE_MANAGE,
+      departmentId,
+    );
     await this.assertActiveDepartment(departmentId);
 
     return this.prisma.$transaction(async (tx) => {
@@ -401,8 +414,9 @@ export class EmployeesService {
         throw new NotFoundException('Employee not found');
       }
 
-      this.authorization.assertCanAdministerDepartment(
+      this.authorization.assertCapability(
         admin,
+        PermissionCapability.EMPLOYEE_MANAGE,
         existing.departmentId,
       );
 
@@ -560,8 +574,9 @@ export class EmployeesService {
       throw new NotFoundException('Employee not found');
     }
 
-    this.authorization.assertCanAdministerDepartment(
+    this.authorization.assertCapability(
       admin,
+      PermissionCapability.EMPLOYEE_MANAGE,
       existing.departmentId,
     );
 
