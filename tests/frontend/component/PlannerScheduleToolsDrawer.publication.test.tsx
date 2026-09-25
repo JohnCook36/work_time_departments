@@ -31,7 +31,7 @@ function publication(version: number): SchedulePublicationResponse {
     scheduleId: 'schedule-1',
     departmentId: 'department-a',
     version,
-    publishedByUserId: 'user-admin',
+    publishedByLabel: 'user-admin',
     sourceScheduleUpdatedAt: '2026-09-01T10:00:00.000Z',
     comment: version === 2 ? 'Финальный график' : 'Первая версия',
     rulesVersion: null,
