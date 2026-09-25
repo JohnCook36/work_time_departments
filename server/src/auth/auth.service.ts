@@ -96,6 +96,18 @@ export class AuthService {
       }
 
       const now = new Date();
+      const challengeRetentionMs = Math.max(
+        OTP_TTL_MS,
+        sourceRateLimit.windowMs,
+      );
+      await tx.authChallenge.deleteMany({
+        where: {
+          createdAt: {
+            lt: new Date(now.getTime() - challengeRetentionMs),
+          },
+        },
+      });
+
       const recentChallenge = await tx.authChallenge.findFirst({
         where: {
           phoneE164,
