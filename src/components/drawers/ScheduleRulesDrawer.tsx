@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { History, Plus, Trash2, X } from 'lucide-react';
 
 import {
+  applyFoCoveragePreset,
   createScheduleRule,
   deleteScheduleRule,
   getManageableScheduleRules,
@@ -200,6 +201,13 @@ export function ScheduleRulesDrawer({
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState('');
   const [deleteArmedId, setDeleteArmedId] = useState<string | null>(null);
+  const foDepartments = useMemo(
+    () => departments.filter((department) => department.kind === 'fo'),
+    [departments],
+  );
+  const [foPresetDepartmentId, setFoPresetDepartmentId] = useState(
+    () => foDepartments[0]?.id ?? '',
+  );
 
   const selectedRule = useMemo(
     () => rules.find((rule) => rule.id === selectedRuleId) ?? null,
@@ -235,12 +243,44 @@ export function ScheduleRulesDrawer({
   }, [loadRules]);
 
   useEffect(() => {
+    if (
+      foDepartments.length === 0 ||
+      foDepartments.some((department) => department.id === foPresetDepartmentId)
+    ) {
+      return;
+    }
+    setFoPresetDepartmentId(foDepartments[0].id);
+  }, [foDepartments, foPresetDepartmentId]);
+
+  useEffect(() => {
     if (form.departmentId || departments.length === 0) return;
     setForm((current) => ({
       ...current,
       departmentId: departments[0].id,
     }));
   }, [departments, form.departmentId]);
+
+  const applyFoPreset = async () => {
+    if (!serverMode || busy || !foPresetDepartmentId) return;
+    setBusy(true);
+    try {
+      const result = await applyFoCoveragePreset(foPresetDepartmentId);
+      setFeedback(
+        result.created > 0
+          ? 'Стандарт FO добавлен: ' + result.created + ' правила.'
+          : 'Стандарт FO уже настроен. Ничего не изменено.',
+      );
+      await loadRules();
+    } catch (error) {
+      setFeedback(
+        error instanceof Error
+          ? 'Не удалось применить стандарт FO: ' + error.message
+          : 'Не удалось применить стандарт FO.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const startCreate = () => {
     setSelectedRuleId(null);
@@ -414,6 +454,35 @@ export function ScheduleRulesDrawer({
               Обновить список
             </ActionButton>
           </DrawerButtonGrid>
+
+          <DrawerSectionTitle>Стандарт Front Office</DrawerSectionTitle>
+          {foDepartments.length === 0 ? (
+            <PublicationHistoryMeta>
+              Среди доступных отделов нет Front Office.
+            </PublicationHistoryMeta>
+          ) : (
+            <DrawerButtonGrid>
+              <FullWidthSelect
+                aria-label="Отдел для стандарта FO"
+                value={foPresetDepartmentId}
+                disabled={!serverMode || busy}
+                onChange={(event) => setFoPresetDepartmentId(event.target.value)}
+              >
+                {foDepartments.map((department) => (
+                  <option key={department.id} value={department.id}>
+                    {department.name}
+                  </option>
+                ))}
+              </FullWidthSelect>
+              <ActionButton
+                type="button"
+                disabled={!serverMode || busy || !foPresetDepartmentId}
+                onClick={() => void applyFoPreset()}
+              >
+                Добавить стандарт FO
+              </ActionButton>
+            </DrawerButtonGrid>
+          )}
 
           <RulesList aria-label="Список правил графика">
             {rules.length === 0 ? (
