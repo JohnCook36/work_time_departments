@@ -8,8 +8,8 @@ import {
 import {
   AuditAction,
   AuditEntityType,
+  PermissionCapability,
   Prisma,
-  RoleType,
   ScheduleRuleKind,
   ScheduleRuleScope,
   ScheduleRuleSeverity,
@@ -180,19 +180,14 @@ export class ScheduleRulesService {
   ) {}
 
   private isSuperAdmin(user: AuthUserContext): boolean {
-    return user.memberships.some(
-      (membership) => membership.role === RoleType.SUPER_ADMIN,
-    );
+    return this.authorization.isSuperAdmin(user);
   }
 
   private managedDepartmentIds(user: AuthUserContext): string[] {
-    return user.memberships
-      .filter(
-        (membership) =>
-          membership.role === RoleType.DEPARTMENT_ADMIN &&
-          membership.departmentId,
-      )
-      .map((membership) => membership.departmentId!);
+    return this.authorization.departmentIdsForCapability(
+      user,
+      PermissionCapability.SCHEDULE_RULE_MANAGE,
+    );
   }
 
   private assertCanManageScope(
@@ -206,7 +201,11 @@ export class ScheduleRulesService {
           'departmentId is required for DEPARTMENT scope',
         );
       }
-      this.authorization.assertCanAdministerDepartment(user, departmentId);
+      this.authorization.assertCapability(
+        user,
+        PermissionCapability.SCHEDULE_RULE_MANAGE,
+        departmentId,
+      );
       return;
     }
 
@@ -244,7 +243,11 @@ export class ScheduleRulesService {
     return (
       rule.scope === ScheduleRuleScope.DEPARTMENT &&
       !!rule.departmentId &&
-      this.authorization.canAdministerDepartment(user, rule.departmentId)
+      this.authorization.hasCapability(
+        user,
+        PermissionCapability.SCHEDULE_RULE_MANAGE,
+        rule.departmentId,
+      )
     );
   }
 
