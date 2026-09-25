@@ -213,6 +213,7 @@ describe('schedule publication controls', () => {
       rulesVersion: 'schedule-publication-rules-v1',
       canPublish: true,
       violations: [],
+      coverage: [],
     });
   });
 
@@ -268,8 +269,17 @@ describe('schedule publication controls', () => {
           employeeId: 'employee-1',
           shiftId: 'shift-1',
           date: '2026-09-07',
+          ruleId: null,
+          ruleVersion: null,
+          ruleName: null,
+          expected: null,
+          actual: null,
+          time: null,
+          affectedEmployeeIds: [],
+          affectedShiftIds: [],
         },
       ],
+      coverage: [],
     });
     const drawerProps = props();
 
@@ -305,6 +315,82 @@ describe('schedule publication controls', () => {
       '2026-09-07',
     );
     expect(drawerProps.onClose).toHaveBeenCalled();
+  });
+
+  it('shows structured rule context and server-provided hourly FO coverage', async () => {
+    getHistory.mockResolvedValue([]);
+    validate.mockResolvedValue({
+      departmentId: 'department-a',
+      period: { year: 2026, month: 9 },
+      rulesVersion: 'schedule-publication-rules-v1+managed-test',
+      canPublish: false,
+      violations: [
+        {
+          severity: 'hard',
+          code: 'MANAGED_MIN_STAFF_AT_TIME',
+          message: 'Недостаточно сотрудников.',
+          employeeId: null,
+          shiftId: null,
+          date: '2026-09-07',
+          ruleId: 'rule-opening',
+          ruleVersion: 3,
+          ruleName: 'Стандарт FO · открытие',
+          expected: 2,
+          actual: 1,
+          time: '07:00',
+          affectedEmployeeIds: ['employee-1'],
+          affectedShiftIds: ['shift-1'],
+        },
+      ],
+      coverage: [
+        {
+          date: '2026-09-07',
+          time: '07:00',
+          count: 1,
+          employeeIds: ['employee-1'],
+          shiftIds: ['shift-1'],
+          minRequired: 2,
+          maxAllowed: 5,
+          status: 'below',
+        },
+        {
+          date: '2026-09-07',
+          time: '08:00',
+          count: 3,
+          employeeIds: ['employee-1'],
+          shiftIds: ['shift-1'],
+          minRequired: null,
+          maxAllowed: 5,
+          status: 'within',
+        },
+      ],
+    });
+
+    render(
+      <ThemeProvider theme={getTheme('light')}>
+        <PlannerScheduleToolsDrawer {...props()} />
+      </ThemeProvider>,
+    );
+
+    const user = userEvent.setup();
+    await user.click(
+      screen.getByRole('button', { name: 'Проверить график' }),
+    );
+
+    expect(
+      await screen.findByText('Почасовое покрытие FO'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('07:00 · 1 сотрудник')).toBeInTheDocument();
+    expect(screen.getByText('Ниже минимума 2')).toBeInTheDocument();
+    expect(
+      screen.getByText('Правило: Стандарт FO · открытие · v3'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Ожидалось: 2 · фактически: 1 · 07:00'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Затронуто сотрудников: Иванов И.И.'),
+    ).toBeInTheDocument();
   });
 
   it('opens an exact immutable version snapshot from history', async () => {
