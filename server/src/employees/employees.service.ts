@@ -10,7 +10,6 @@ import {
   EmployeeScheduleMode,
   OnboardingRequestStatus,
   PermissionCapability,
-  RoleType,
   ShiftChangeRequestStatus,
 } from '@prisma/client';
 
@@ -403,6 +402,11 @@ export class EmployeesService {
                 select: {
                   role: true,
                   departmentId: true,
+                  permissions: {
+                    select: {
+                      capability: true,
+                    },
+                  },
                 },
               },
             },
@@ -432,14 +436,13 @@ export class EmployeesService {
 
       const targetHasManagementAccess =
         existing.user?.memberships.some(
-          (membership) =>
-            membership.role === RoleType.SUPER_ADMIN ||
-            membership.role === RoleType.DEPARTMENT_ADMIN,
+          membership =>
+            membership.role === 'SUPER_ADMIN' ||
+            membership.role === 'DEPARTMENT_ADMIN' ||
+            membership.permissions.length > 0,
         ) ?? false;
 
-      const adminIsSuperAdmin = admin.memberships.some(
-        (membership) => membership.role === RoleType.SUPER_ADMIN,
-      );
+      const adminIsSuperAdmin = this.authorization.isSuperAdmin(admin);
 
       if (targetHasManagementAccess && !adminIsSuperAdmin) {
         throw new ConflictException(
