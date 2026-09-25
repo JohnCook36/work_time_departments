@@ -265,12 +265,12 @@ export function ScheduleRulesDrawer({
     setBusy(true);
     try {
       const result = await applyFoCoveragePreset(foPresetDepartmentId);
+      await loadRules();
       setFeedback(
         result.created > 0
           ? 'Стандарт FO добавлен: ' + result.created + ' правила.'
           : 'Стандарт FO уже настроен. Ничего не изменено.',
       );
-      await loadRules();
     } catch (error) {
       setFeedback(
         error instanceof Error
