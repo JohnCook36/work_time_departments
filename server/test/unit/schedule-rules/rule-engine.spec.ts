@@ -200,6 +200,94 @@ describe('managed schedule rule engine', () => {
     ).toEqual([]);
   });
 
+  it('enforces the FO standard: two at 07:00 and no more than five concurrent', () => {
+    const value = snapshot();
+    value.employees = Array.from({ length: 6 }, (_, index) => ({
+      id: 'employee-' + (index + 1),
+      displayName: 'Employee ' + (index + 1),
+      employmentRate: 1,
+      scheduleMode: 'FLEXIBLE',
+      fixedStartTime: null,
+      fixedEndTime: null,
+      roles: [RoleType.EMPLOYEE],
+    }));
+    value.shifts = value.employees.map((employee, index) => ({
+      id: 'shift-' + (index + 1),
+      employeeId: employee.id,
+      date: '2026-09-01',
+      code: 'E',
+      startTime: index === 0 ? '08:00' : '06:00',
+      endTime: '17:00',
+      isOff: false,
+      updatedAt: '2026-09-01T10:00:00.000Z',
+    }));
+
+    const rules = [
+      rule({
+        id: 'fo-max',
+        name: 'Стандарт FO · максимум 5 одновременно',
+        scope: ScheduleRuleScope.DEPARTMENT,
+        departmentId: 'department-a',
+        config: { maxConcurrent: 5 },
+      }),
+      rule({
+        id: 'fo-opening',
+        name: 'Стандарт FO · 2 сотрудника к 07:00',
+        kind: ScheduleRuleKind.MIN_STAFF_AT_TIME,
+        scope: ScheduleRuleScope.DEPARTMENT,
+        departmentId: 'department-a',
+        config: { time: '07:00', minStaff: 2 },
+        violationMessage: 'Недостаточно открывающих.',
+      }),
+    ];
+
+    const violations = validateManagedScheduleRules(value, rules, 2026, 9);
+    expect(
+      violations.some(
+        item => item.code === 'MANAGED_MAX_CONCURRENT_EMPLOYEES',
+      ),
+    ).toBe(true);
+    expect(
+      violations.some(
+        item =>
+          item.code === 'MANAGED_MIN_STAFF_AT_TIME' &&
+          item.date === '2026-09-01',
+      ),
+    ).toBe(false);
+
+    const onlyOneOpening = {
+      ...value,
+      shifts: value.shifts.map((shift, index) =>
+        index === 1 ? { ...shift, startTime: '08:00' } : shift,
+      ),
+    };
+    const openingViolations = validateManagedScheduleRules(
+      onlyOneOpening,
+      rules,
+      2026,
+      9,
+    );
+    expect(
+      openingViolations.some(
+        item =>
+          item.code === 'MANAGED_MIN_STAFF_AT_TIME' &&
+          item.date === '2026-09-01',
+      ),
+    ).toBe(false);
+
+    const nightDepartment = {
+      ...value,
+      department: {
+        id: 'department-night',
+        name: 'Night',
+        kind: 'NIGHT',
+      },
+    };
+    expect(
+      validateManagedScheduleRules(nightDepartment, rules, 2026, 9),
+    ).toEqual([]);
+  });
+
   it('builds a stable rules version from normalized rule content and changes it when rule version changes', () => {
     const first = buildManagedRulesetSnapshot([rule()]);
     const same = buildManagedRulesetSnapshot([rule()]);
