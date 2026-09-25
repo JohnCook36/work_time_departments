@@ -1,5 +1,12 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 
+import { RoleType } from '@prisma/client';
+
+import type { AuthUserContext } from '../../../src/auth/auth.service';
 import { WishesService } from '../../../src/wishes/wishes.service';
 
 describe('WishesService', () => {
@@ -16,6 +23,12 @@ describe('WishesService', () => {
       create: jest.fn(),
       delete: jest.fn(),
     },
+    user: {
+      findUnique: jest.fn(),
+    },
+    $transaction: jest.fn(async (callback: (tx: any) => Promise<unknown>) =>
+      callback(prisma),
+    ),
   };
 
   const assertCanAdministerDepartment = jest.fn();
@@ -40,6 +53,17 @@ describe('WishesService', () => {
       departmentId: 'department-a',
     });
     prisma.employeeWish.findMany.mockResolvedValue([]);
+    prisma.user.findUnique.mockResolvedValue({
+      isActive: true,
+      memberships: [
+        {
+          id: 'membership-a',
+          role: RoleType.DEPARTMENT_ADMIN,
+          departmentId: 'department-a',
+          permissions: [],
+        },
+      ],
+    });
   });
 
   it('lists wishes only for the requested department and period', async () => {
@@ -168,6 +192,48 @@ describe('WishesService', () => {
         },
       ),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('rejects wish creation when current schedule-edit scope was revoked', async () => {
+    prisma.user.findUnique.mockResolvedValueOnce({
+      isActive: true,
+      memberships: [],
+    });
+    authorization.assertCapability.mockImplementation(
+      (user: AuthUserContext) => {
+        if (user.memberships.length === 0) {
+          throw new ForbiddenException(
+            'You do not have permission to perform this action',
+          );
+        }
+      },
+    );
+
+    await expect(
+      service.createWish(
+        {
+          id: 'admin',
+          phoneE164: '+70000000000',
+          employee: null,
+          memberships: [
+            {
+              id: 'membership-a',
+              role: RoleType.DEPARTMENT_ADMIN,
+              departmentId: 'department-a',
+            },
+          ],
+        },
+        {
+          employeeId: 'employee-a',
+          year: 2026,
+          month: 9,
+          day: 22,
+          text: 'Желательно выходной',
+        },
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(prisma.employeeWish.create).not.toHaveBeenCalled();
   });
 
   it('deletes a wish only after checking Employee department scope', async () => {
