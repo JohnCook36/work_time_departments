@@ -115,7 +115,7 @@ for (const viewport of [
     await expect(journal.getByText('График опубликован')).toBeVisible();
     await expect(journal.getByText('Правило графика изменено')).toBeVisible();
     await expect(page.getByText(/Анна Администратор/).first()).toBeVisible();
-    await expect(page.getByText('Front Office', { exact: true })).toBeVisible();
+    await expect(journal.getByText('Отдел: Front Office', { exact: true })).toBeVisible();
 
     await expect(page.getByText('+79990000000')).toHaveCount(0);
     await expect(page.getByText('account-admin-secret')).toHaveCount(0);
