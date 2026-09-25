@@ -44,10 +44,13 @@ const employee: AuthUser = {
 };
 
 function mobileNav() {
-  return screen.getByRole('navigation', {
-    name: 'Мобильная навигация',
-    hidden: true,
-  });
+  const nav = document.querySelector(
+    'nav[aria-label="Мобильная навигация"]',
+  );
+  if (!(nav instanceof HTMLElement)) {
+    throw new Error('Mobile navigation was not rendered');
+  }
+  return nav;
 }
 
 describe('AppSectionNav mobile model', () => {
