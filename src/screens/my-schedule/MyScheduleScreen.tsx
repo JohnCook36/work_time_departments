@@ -105,15 +105,31 @@ export function MyScheduleScreen() {
     try {
       const nextData = await getMySchedule(year, monthIndex + 1);
       setData(nextData);
-      if (nextData.schedule) {
-        const acknowledgement = await getMyScheduleAcknowledgement(
-          nextData.schedule.id,
-        );
-        setAcknowledgedAt(acknowledgement.acknowledgedAt);
-      } else {
-        setAcknowledgedAt(null);
-      }
+      setAcknowledgedAt(null);
       setAckError(null);
+
+      if (nextData.schedule) {
+        try {
+          const acknowledgement = await getMyScheduleAcknowledgement(
+            nextData.schedule.id,
+          );
+          setAcknowledgedAt(acknowledgement.acknowledgedAt);
+        } catch (acknowledgementError) {
+          if (
+            acknowledgementError instanceof ApiError &&
+            acknowledgementError.status === 401
+          ) {
+            await refreshSession();
+            return;
+          }
+
+          setAckError(
+            acknowledgementError instanceof Error
+              ? acknowledgementError.message
+              : 'Не удалось загрузить статус ознакомления',
+          );
+        }
+      }
     } catch (requestError) {
       if (requestError instanceof ApiError && requestError.status === 401) {
         await refreshSession();
