@@ -1,4 +1,8 @@
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { AbsenceType, AuditAction, AuditEntityType } from '@prisma/client';
 
 import type { AuthUserContext } from '../../../src/auth/auth.service';
@@ -22,6 +26,7 @@ describe('AbsencesService', () => {
       findUniqueOrThrow: jest.fn(),
     },
     auditLog: { create: jest.fn() },
+    user: { findUnique: jest.fn() },
   };
 
   const prisma = {
@@ -65,6 +70,26 @@ describe('AbsencesService', () => {
       updatedAt: new Date('2026-09-01T10:00:00.000Z'),
     });
     tx.auditLog.create.mockResolvedValue({ id: 'audit-1' });
+    tx.user.findUnique.mockResolvedValue({
+      isActive: true,
+      memberships: [
+        {
+          id: 'membership-a',
+          role: 'DEPARTMENT_ADMIN',
+          departmentId: 'department-a',
+          permissions: [],
+        },
+      ],
+    });
+    authorization.assertCapability.mockImplementation(
+      (user: AuthUserContext) => {
+        if (user.memberships.length === 0) {
+          throw new ForbiddenException(
+            'You do not have permission to perform this action',
+          );
+        }
+      },
+    );
   });
 
   it('creates a scoped structured absence and audits no comment content', async () => {
@@ -185,6 +210,34 @@ describe('AbsencesService', () => {
         }),
       }),
     );
+  });
+
+  it('rejects update when current schedule-edit scope was revoked', async () => {
+    prisma.absence.findUnique.mockResolvedValue({
+      id: 'absence-1',
+      employeeId: 'employee-1',
+      type: AbsenceType.VACATION,
+      startDate: new Date('2026-09-10T00:00:00.000Z'),
+      endDate: new Date('2026-09-12T00:00:00.000Z'),
+      comment: null,
+      canceledAt: null,
+      updatedAt: new Date('2026-09-01T10:00:00.000Z'),
+      employee: { departmentId: 'department-a', isActive: true },
+    });
+    tx.user.findUnique.mockResolvedValueOnce({
+      isActive: true,
+      memberships: [],
+    });
+
+    await expect(
+      service.update(admin(), 'absence-1', {
+        endDate: '2026-09-13',
+        expectedUpdatedAt: '2026-09-01T10:00:00.000Z',
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(tx.absence.updateMany).not.toHaveBeenCalled();
+    expect(tx.auditLog.create).not.toHaveBeenCalled();
   });
 
   it('uses optimistic locking when updating', async () => {
