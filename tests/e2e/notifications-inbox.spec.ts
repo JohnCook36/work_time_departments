@@ -71,7 +71,12 @@ for (const viewport of [
     ];
 
     await page.route('**/notifications', route => {
-      if (route.request().method() !== 'GET') return route.fallback();
+      if (
+        route.request().resourceType() === 'document' ||
+        route.request().method() !== 'GET'
+      ) {
+        return route.fallback();
+      }
       return reply(route, { items, nextCursor: null });
     });
 
