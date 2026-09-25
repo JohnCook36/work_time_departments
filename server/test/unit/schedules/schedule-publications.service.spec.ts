@@ -36,6 +36,7 @@ describe('SchedulePublicationsService', () => {
     schedule: { upsert: jest.fn() },
     shift: { findMany: jest.fn() },
     scheduleRule: { findMany: jest.fn() },
+    absence: { findMany: jest.fn() },
     schedulePublication: {
       findFirst: jest.fn(),
       create: jest.fn(),
@@ -48,6 +49,7 @@ describe('SchedulePublicationsService', () => {
     schedule: { findUnique: jest.fn() },
     shift: { findMany: jest.fn() },
     scheduleRule: { findMany: jest.fn() },
+    absence: { findMany: jest.fn() },
     schedulePublication: {
       findMany: jest.fn(),
       findFirst: jest.fn(),
@@ -135,6 +137,7 @@ describe('SchedulePublicationsService', () => {
     transaction.shift.findMany.mockResolvedValue([shift]);
     transaction.schedulePublication.findFirst.mockResolvedValue(null);
     transaction.scheduleRule.findMany.mockResolvedValue([]);
+    transaction.absence.findMany.mockResolvedValue([]);
     transaction.schedulePublication.create.mockImplementation(
       async ({ data }: { data: Record<string, unknown> }) => ({
         id: 'publication-1',
@@ -150,6 +153,7 @@ describe('SchedulePublicationsService', () => {
     prisma.schedule.findUnique.mockResolvedValue({ id: 'schedule-1' });
     prisma.shift.findMany.mockResolvedValue([shift]);
     prisma.scheduleRule.findMany.mockResolvedValue([]);
+    prisma.absence.findMany.mockResolvedValue([]);
   });
 
   it('returns structured validation result without creating a publication', async () => {
@@ -174,6 +178,38 @@ describe('SchedulePublicationsService', () => {
     });
     expect(transaction.schedulePublication.create).not.toHaveBeenCalled();
     expect(transaction.auditLog.create).not.toHaveBeenCalled();
+  });
+
+  it('returns SHIFT_OVERLAPS_ABSENCE and blocks publication readiness', async () => {
+    prisma.absence.findMany.mockResolvedValue([
+      {
+        id: 'absence-1',
+        employeeId: 'employee-1',
+        type: 'VACATION',
+        startDate: new Date('2026-09-07T00:00:00.000Z'),
+        endDate: new Date('2026-09-09T00:00:00.000Z'),
+      },
+    ]);
+
+    const result = await service.validateDepartmentSchedule(
+      admin(),
+      'department-a',
+      2026,
+      9,
+    );
+
+    expect(result.canPublish).toBe(false);
+    expect(result.violations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          severity: 'hard',
+          code: 'SHIFT_OVERLAPS_ABSENCE',
+          employeeId: 'employee-1',
+          shiftId: 'shift-1',
+          date: '2026-09-07',
+        }),
+      ]),
+    );
   });
 
   it('returns hard violations and blocks publish readiness for an invalid draft', async () => {
