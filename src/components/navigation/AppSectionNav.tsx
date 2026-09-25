@@ -56,8 +56,14 @@ export function AppSectionNav() {
       <Global
         styles={{
           '@media (max-width: 720px)': {
+            html: {
+              scrollPaddingBottom: 'calc(84px + env(safe-area-inset-bottom))',
+            },
             body: {
-              paddingBottom: 'calc(72px + env(safe-area-inset-bottom))',
+              paddingBottom: 'calc(84px + env(safe-area-inset-bottom))',
+            },
+            'button, a, input, select, textarea': {
+              scrollMarginBottom: 'calc(84px + env(safe-area-inset-bottom))',
             },
           },
         }}
@@ -156,7 +162,10 @@ export function AppSectionNav() {
             <ClipboardList size={20} />
             Задачи
           </MobileNavigationLink>
-          <MobileNavigationLink to="/shift-requests">
+          <MobileNavigationLink
+            to="/shift-requests"
+            aria-label="Обмен сменами"
+          >
             <Repeat2 size={20} />
             Обмен
           </MobileNavigationLink>
