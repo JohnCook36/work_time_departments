@@ -10,6 +10,7 @@ import {
   AuditEntityType,
   OnboardingRequestStatus,
   OnboardingRequestType,
+  PermissionCapability,
   RoleType,
 } from '@prisma/client';
 
@@ -202,20 +203,10 @@ export class OnboardingService {
   }
 
   async listAdminDepartments(admin: AuthUserContext) {
-    const isSuperAdmin = admin.memberships.some(
-      (membership) => membership.role === RoleType.SUPER_ADMIN,
-    );
-
-    const departmentIds = Array.from(
-      new Set(
-        admin.memberships
-          .filter(
-            (membership) =>
-              membership.role === RoleType.DEPARTMENT_ADMIN &&
-              membership.departmentId,
-          )
-          .map((membership) => membership.departmentId as string),
-      ),
+    const isSuperAdmin = this.authorization.isSuperAdmin(admin);
+    const departmentIds = this.authorization.departmentIdsForCapability(
+      admin,
+      PermissionCapability.ONBOARDING_REVIEW,
     );
 
     if (!isSuperAdmin && departmentIds.length === 0) {
@@ -242,7 +233,11 @@ export class OnboardingService {
     admin: AuthUserContext,
     departmentId: string,
   ) {
-    this.authorization.assertCanAdministerDepartment(admin, departmentId);
+    this.authorization.assertCapability(
+      admin,
+      PermissionCapability.ONBOARDING_REVIEW,
+      departmentId,
+    );
 
     return this.prisma.onboardingRequest.findMany({
       where: {
@@ -271,8 +266,9 @@ export class OnboardingService {
       throw new NotFoundException('Onboarding request not found');
     }
 
-    this.authorization.assertCanAdministerDepartment(
+    this.authorization.assertCapability(
       admin,
+      PermissionCapability.ONBOARDING_REVIEW,
       request.departmentId,
     );
 
@@ -464,8 +460,9 @@ export class OnboardingService {
       throw new NotFoundException('Onboarding request not found');
     }
 
-    this.authorization.assertCanAdministerDepartment(
+    this.authorization.assertCapability(
       admin,
+      PermissionCapability.ONBOARDING_REVIEW,
       request.departmentId,
     );
 
