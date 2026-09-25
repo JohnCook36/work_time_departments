@@ -111,8 +111,9 @@ for (const viewport of [
     await expect(
       page.getByRole('heading', { name: 'Журнал действий' }),
     ).toBeVisible();
-    await expect(page.getByText('График опубликован')).toBeVisible();
-    await expect(page.getByText('Правило графика изменено')).toBeVisible();
+    const journal = page.getByLabel('События журнала');
+    await expect(journal.getByText('График опубликован')).toBeVisible();
+    await expect(journal.getByText('Правило графика изменено')).toBeVisible();
     await expect(page.getByText('Анна Администратор', { exact: true })).toBeVisible();
     await expect(page.getByText('Front Office', { exact: true })).toBeVisible();
 
@@ -121,7 +122,7 @@ for (const viewport of [
 
     await page.getByRole('button', { name: 'Показать ещё' }).click();
     await expect(
-      page.getByText('Заявка сотрудника подтверждена'),
+      journal.getByText('Заявка сотрудника подтверждена'),
     ).toBeVisible();
 
     expect(
