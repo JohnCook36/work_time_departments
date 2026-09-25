@@ -1,4 +1,8 @@
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+} from '@nestjs/common';
 import {
   AuditAction,
   AuditEntityType,
@@ -743,7 +747,7 @@ describe('EmployeesService', () => {
         'employee-a',
         { expectedUpdatedAt: updatedAt.toISOString() },
       ),
-    ).rejects.toThrow();
+    ).rejects.toBeInstanceOf(ForbiddenException);
 
     expect(prisma.employee.updateMany).not.toHaveBeenCalled();
     expect(prisma.auditLog.create).not.toHaveBeenCalled();
