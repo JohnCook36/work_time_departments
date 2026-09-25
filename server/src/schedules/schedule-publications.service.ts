@@ -187,7 +187,9 @@ function serializePublication(publication: {
   scheduleId: string;
   departmentId: string;
   version: number;
-  publishedByUserId: string;
+  publishedBy?: {
+    employee: { displayName: string } | null;
+  } | null;
   sourceScheduleUpdatedAt: Date;
   comment: string | null;
   rulesVersion: string | null;
@@ -201,7 +203,8 @@ function serializePublication(publication: {
     scheduleId: publication.scheduleId,
     departmentId: publication.departmentId,
     version: publication.version,
-    publishedByUserId: publication.publishedByUserId,
+    publishedByLabel:
+      publication.publishedBy?.employee?.displayName ?? 'Администратор',
     sourceScheduleUpdatedAt: publication.sourceScheduleUpdatedAt.toISOString(),
     comment: publication.comment,
     rulesVersion: publication.rulesVersion,
@@ -445,7 +448,13 @@ export class SchedulePublicationsService {
               scheduleId: true,
               departmentId: true,
               version: true,
-              publishedByUserId: true,
+              publishedBy: {
+                select: {
+                  employee: {
+                    select: { displayName: true },
+                  },
+                },
+              },
               sourceScheduleUpdatedAt: true,
               comment: true,
               rulesVersion: true,
@@ -662,7 +671,13 @@ export class SchedulePublicationsService {
         scheduleId: true,
         departmentId: true,
         version: true,
-        publishedByUserId: true,
+        publishedBy: {
+          select: {
+            employee: {
+              select: { displayName: true },
+            },
+          },
+        },
         sourceScheduleUpdatedAt: true,
         comment: true,
         rulesVersion: true,
@@ -708,7 +723,13 @@ export class SchedulePublicationsService {
         scheduleId: true,
         departmentId: true,
         version: true,
-        publishedByUserId: true,
+        publishedBy: {
+          select: {
+            employee: {
+              select: { displayName: true },
+            },
+          },
+        },
         sourceScheduleUpdatedAt: true,
         comment: true,
         rulesVersion: true,
