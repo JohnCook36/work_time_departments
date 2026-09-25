@@ -73,7 +73,7 @@ export function getOccupiedShiftNotice(
     '.' +
     String(year);
 
-  if (entry.type === 'shift') {
+  if (entry.type === 'shift' && entry.shift) {
     const shift = entry.shift;
     const label =
       (shift.code ? shift.code + ' · ' : '') +
