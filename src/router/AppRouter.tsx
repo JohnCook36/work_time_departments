@@ -1,5 +1,6 @@
 import React from 'react';
 import { Route, Routes } from 'react-router-dom';
+import { AuditPage } from '../pages/AuditPage';
 import { LoginPage } from '../pages/LoginPage';
 import { OnboardingPage } from '../pages/OnboardingPage';
 import { NotFoundPage } from '../pages/NotFoundPage';
@@ -10,6 +11,7 @@ import { TasksPage } from '../pages/TasksPage';
 import { ShiftRequestsPage } from '../pages/ShiftRequestsPage';
 import {
   AuthenticatedHomeRoute,
+  CapabilityRoute,
   LoginRoute,
   ManagementRoute,
   OnboardingRoute,
@@ -33,6 +35,9 @@ export function AppRouter() {
           <Route path="/shift-requests" element={<ShiftRequestsPage />} />
           <Route path="/tasks" element={<TasksPage />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route element={<CapabilityRoute capability="AUDIT_READ" />}>
+            <Route path="/audit" element={<AuditPage />} />
+          </Route>
           <Route element={<ManagementRoute />}>
             <Route path="/planner" element={<PlannerPage />} />
           </Route>
