@@ -470,12 +470,41 @@ export class AuthService {
   private assertOtpDeliveryConfigured(): void {
     if (process.env.NODE_ENV !== 'production') return;
 
-    this.assertOtpDeliveryConfigured();
-    const url = process.env.AUTH_OTP_PROVIDER_URL!.trim();
-    const token = process.env.AUTH_OTP_PROVIDER_TOKEN!.trim();
+    const url = process.env.AUTH_OTP_PROVIDER_URL?.trim();
+    const token = process.env.AUTH_OTP_PROVIDER_TOKEN?.trim();
     const rawTimeoutMs = process.env.AUTH_OTP_PROVIDER_TIMEOUT_MS;
     const timeoutMs = rawTimeoutMs ? Number(rawTimeoutMs) : 5000;
-    const parsedUrl = new URL(url);
+
+    if (!url || !token) {
+      throw new ServiceUnavailableException(
+        'SMS OTP provider is not configured',
+      );
+    }
+
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(url);
+    } catch {
+      throw new ServiceUnavailableException(
+        'SMS OTP provider is not configured correctly',
+      );
+    }
+
+    if (parsedUrl.protocol !== 'https:') {
+      throw new ServiceUnavailableException(
+        'SMS OTP provider URL must use HTTPS in production',
+      );
+    }
+
+    if (
+      !Number.isInteger(timeoutMs) ||
+      timeoutMs < 1000 ||
+      timeoutMs > 15000
+    ) {
+      throw new ServiceUnavailableException(
+        'SMS OTP provider timeout is not configured correctly',
+      );
+    }
   }
 
   private async deliverOtp(phoneE164: string, code: string): Promise<void> {
