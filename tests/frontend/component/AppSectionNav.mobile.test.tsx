@@ -106,7 +106,7 @@ describe('AppSectionNav mobile model', () => {
     ).toBeInTheDocument();
   });
 
-  it('does not expose unavailable secondary management links', () => {
+  it('exposes department-admin secondary management links', () => {
     renderNav({
       ...employee,
       memberships: [
@@ -129,17 +129,17 @@ describe('AppSectionNav mobile model', () => {
     );
     expect(more).toBeInstanceOf(HTMLElement);
     expect(
-      within(more as HTMLElement).queryByRole('link', {
+      within(more as HTMLElement).getByRole('link', {
         name: /Журнал/,
         hidden: true,
       }),
-    ).toBeNull();
+    ).toBeInTheDocument();
     expect(
-      within(more as HTMLElement).queryByRole('link', {
+      within(more as HTMLElement).getByRole('link', {
         name: /Роли и доступ/,
         hidden: true,
       }),
-    ).toBeNull();
+    ).toBeInTheDocument();
   });
 
   it('gives a capability-bearing deputy a More sheet without planner access', () => {
