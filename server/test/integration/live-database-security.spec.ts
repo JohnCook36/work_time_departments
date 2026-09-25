@@ -159,6 +159,37 @@ describeLive('live PostgreSQL security boundaries', () => {
     expect(afterLogout.status).toBe(401);
   });
 
+  it('prunes OTP challenges older than the active retention window before creating a new one', async () => {
+    const now = Date.now();
+    const stale = await prisma.authChallenge.create({
+      data: {
+        phoneE164: '+79990000040',
+        codeHash: 'a'.repeat(64),
+        expiresAt: new Date(now - 10 * 60 * 1000),
+        consumedAt: new Date(now - 10 * 60 * 1000),
+        createdAt: new Date(now - 11 * 60 * 1000),
+      },
+    });
+    const recent = await prisma.authChallenge.create({
+      data: {
+        phoneE164: '+79990000041',
+        codeHash: 'b'.repeat(64),
+        expiresAt: new Date(now - 8 * 60 * 1000),
+        consumedAt: new Date(now - 8 * 60 * 1000),
+        createdAt: new Date(now - 9 * 60 * 1000),
+      },
+    });
+
+    await requestCode('+79990000042');
+
+    expect(
+      await prisma.authChallenge.findUnique({ where: { id: stale.id } }),
+    ).toBeNull();
+    expect(
+      await prisma.authChallenge.findUnique({ where: { id: recent.id } }),
+    ).not.toBeNull();
+  });
+
   it('allows only one request-code challenge inside the cooldown under concurrency', async () => {
     const phone = '+79990000004';
 
