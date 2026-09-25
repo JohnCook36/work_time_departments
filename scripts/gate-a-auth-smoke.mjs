@@ -69,6 +69,18 @@ const setCookie = verifyResponse.headers.get('set-cookie');
 if (!setCookie) {
   throw new Error('verify-code did not return a session cookie');
 }
+
+const cookieAttributes = setCookie
+  .split(';')
+  .slice(1)
+  .map((part) => part.trim().toLowerCase());
+
+for (const requiredAttribute of ['httponly', 'secure', 'samesite=lax']) {
+  if (!cookieAttributes.includes(requiredAttribute)) {
+    throw new Error(`verify-code session cookie is missing required production attribute: ${requiredAttribute}`);
+  }
+}
+
 const sessionCookie = setCookie.split(';', 1)[0];
 
 const meResponse = await fetch(`${baseUrl}/auth/me`, {
@@ -92,4 +104,4 @@ console.log('Gate A auth smoke: PASS');
 console.log(`Origin: ${parsedBase.origin}`);
 console.log(`Started (UTC): ${startedAt.toISOString()}`);
 console.log(`Finished (UTC): ${finishedAt.toISOString()}`);
-console.log('Verified: request-code -> provider OTP -> verify -> session -> /auth/me -> logout -> revoked-session rejection');
+console.log('Verified: request-code -> provider OTP -> verify -> Secure/HttpOnly/SameSite=Lax session -> /auth/me -> logout -> revoked-session rejection');
