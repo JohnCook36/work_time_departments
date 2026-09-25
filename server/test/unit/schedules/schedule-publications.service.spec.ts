@@ -175,6 +175,21 @@ describe('SchedulePublicationsService', () => {
       rulesVersion: SCHEDULE_PUBLICATION_RULES_VERSION,
       canPublish: true,
       violations: [],
+      coverage: expect.any(Array),
+    });
+    expect(result.coverage).toHaveLength(30 * 24);
+    expect(
+      result.coverage.find(
+        (point) =>
+          point.date === '2026-09-07' && point.time === '08:00',
+      ),
+    ).toMatchObject({
+      count: 1,
+      employeeIds: ['employee-1'],
+      shiftIds: ['shift-1'],
+      minRequired: null,
+      maxAllowed: null,
+      status: 'within',
     });
     expect(transaction.schedulePublication.create).not.toHaveBeenCalled();
     expect(transaction.auditLog.create).not.toHaveBeenCalled();
@@ -359,9 +374,27 @@ describe('SchedulePublicationsService', () => {
         expect.objectContaining({
           severity: 'hard',
           code: 'MANAGED_MIN_STAFF_AT_TIME',
+          ruleId: 'rule-opening',
+          ruleVersion: 1,
+          ruleName: 'Открытие',
+          expected: 1,
+          actual: 0,
+          time: '07:00',
+          affectedEmployeeIds: [],
+          affectedShiftIds: [],
         }),
       ]),
     );
+    expect(
+      validation.coverage.find(
+        (point) =>
+          point.date === '2026-09-07' && point.time === '07:00',
+      ),
+    ).toMatchObject({
+      count: 0,
+      minRequired: 1,
+      status: 'below',
+    });
 
     await expect(
       service.publishDepartmentSchedule(

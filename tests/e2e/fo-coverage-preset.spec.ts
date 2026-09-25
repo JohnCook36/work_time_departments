@@ -100,6 +100,54 @@ for (const viewport of [
     await page.route('**/schedule-rules/manageable', route =>
       reply(route, rules),
     );
+    await page.route('**/schedule-data/department/validation?**', route =>
+      reply(route, {
+        departmentId: 'department-1',
+        period: { year: 2026, month: 9 },
+        rulesVersion: 'schedule-publication-rules-v1+managed-e2e',
+        canPublish: false,
+        violations: [
+          {
+            severity: 'hard',
+            code: 'MANAGED_MIN_STAFF_AT_TIME',
+            message: 'К 07:00 в Front Office должно быть минимум 2 сотрудника.',
+            employeeId: null,
+            shiftId: null,
+            date: '2026-09-15',
+            ruleId: 'fo-opening',
+            ruleVersion: 1,
+            ruleName: 'Стандарт FO · 2 сотрудника к 07:00',
+            expected: 2,
+            actual: 1,
+            time: '07:00',
+            affectedEmployeeIds: [],
+            affectedShiftIds: [],
+          },
+        ],
+        coverage: [
+          {
+            date: '2026-09-15',
+            time: '07:00',
+            count: 1,
+            employeeIds: [],
+            shiftIds: [],
+            minRequired: 2,
+            maxAllowed: 5,
+            status: 'below',
+          },
+          {
+            date: '2026-09-15',
+            time: '08:00',
+            count: 3,
+            employeeIds: [],
+            shiftIds: [],
+            minRequired: null,
+            maxAllowed: 5,
+            status: 'within',
+          },
+        ],
+      }),
+    );
     await page.route(
       '**/schedule-rules/presets/fo/department-1',
       route => {
@@ -220,5 +268,34 @@ for (const viewport of [
     ).toBe(true);
     await rulesDrawer.getByTitle('Закрыть').click();
     expect(await toolsTrigger.boundingBox()).toEqual(triggerBefore);
+
+    await toolsTrigger.click();
+    const toolsDrawer = page.locator('aside').filter({
+      has: page.getByText('Управление графиком', { exact: true }),
+    });
+    await expect(toolsDrawer).toBeVisible();
+    await toolsDrawer.getByRole('button', { name: 'Проверить график' }).click();
+
+    await expect(
+      toolsDrawer.getByText('Почасовое покрытие FO'),
+    ).toBeVisible();
+    await expect(
+      toolsDrawer.getByText('07:00 · 1 сотрудник'),
+    ).toBeVisible();
+    await expect(
+      toolsDrawer.getByText('Ниже минимума 2'),
+    ).toBeVisible();
+    await expect(
+      toolsDrawer.getByText('Правило: Стандарт FO · 2 сотрудника к 07:00 · v1'),
+    ).toBeVisible();
+    await expect(
+      toolsDrawer.getByText('Ожидалось: 2 · фактически: 1 · 07:00'),
+    ).toBeVisible();
+
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
   });
 }

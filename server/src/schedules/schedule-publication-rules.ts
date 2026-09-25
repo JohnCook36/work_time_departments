@@ -14,6 +14,14 @@ export interface SchedulePublicationRuleViolation {
   employeeId?: string;
   shiftId?: string;
   date?: string;
+  ruleId?: string;
+  ruleVersion?: number;
+  ruleName?: string;
+  expected?: number;
+  actual?: number;
+  time?: string;
+  affectedEmployeeIds?: string[];
+  affectedShiftIds?: string[];
 }
 
 const SHIFT_TIME_PATTERN = /^(?:[01]\d|2[0-3]):[0-5]\d$/;

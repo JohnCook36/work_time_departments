@@ -304,8 +304,17 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
             employeeId: 'employee-1',
             shiftId: 'shift-1',
             date: '2026-09-07',
+            ruleId: null,
+            ruleVersion: null,
+            ruleName: null,
+            expected: null,
+            actual: null,
+            time: null,
+            affectedEmployeeIds: [],
+            affectedShiftIds: [],
           },
         ],
+        coverage: [],
       }),
     );
 

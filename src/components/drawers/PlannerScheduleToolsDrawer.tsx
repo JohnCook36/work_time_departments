@@ -13,10 +13,12 @@ import {
   getDepartmentSchedulePublication,
   getDepartmentSchedulePublications,
   publishDepartmentSchedule,
+  HourlyCoveragePoint,
   SchedulePublicationEmployeeSnapshot,
   SchedulePublicationResponse,
   SchedulePublicationShiftSnapshot,
   SchedulePublicationValidationResponse,
+  SchedulePublicationViolation,
   validateDepartmentSchedule,
 } from '../../api/planner';
 import { Department, Employee } from '../../domain/models';
@@ -115,6 +117,55 @@ function publicationEmployeeName(
   return employeeId;
 }
 
+
+function violationRuleLabel(
+  violation: SchedulePublicationViolation,
+): string | null {
+  if (!violation.ruleName) return null;
+  return (
+    'Правило: ' +
+    violation.ruleName +
+    (violation.ruleVersion !== null
+      ? ' · v' + violation.ruleVersion
+      : '')
+  );
+}
+
+function violationExpectedActualLabel(
+  violation: SchedulePublicationViolation,
+): string | null {
+  if (violation.expected === null || violation.actual === null) return null;
+  return (
+    'Ожидалось: ' +
+    violation.expected +
+    ' · фактически: ' +
+    violation.actual +
+    (violation.time ? ' · ' + violation.time : '')
+  );
+}
+
+function coverageStatusLabel(point: HourlyCoveragePoint): string {
+  if (point.status === 'below') {
+    return (
+      'Ниже минимума' +
+      (point.minRequired !== null ? ' ' + point.minRequired : '')
+    );
+  }
+  if (point.status === 'above') {
+    return (
+      'Выше лимита' +
+      (point.maxAllowed !== null ? ' ' + point.maxAllowed : '')
+    );
+  }
+
+  const limits = [
+    point.minRequired !== null ? 'минимум ' + point.minRequired : '',
+    point.maxAllowed !== null ? 'максимум ' + point.maxAllowed : '',
+  ].filter(Boolean);
+
+  return limits.length > 0 ? 'В норме · ' + limits.join(', ') : 'Покрытие';
+}
+
 interface PlannerScheduleToolsDrawerProps {
   departments: Department[];
   employees: Employee[];
@@ -192,6 +243,7 @@ export function PlannerScheduleToolsDrawer({
     useState<SchedulePublicationResponse | null>(null);
   const [validationResult, setValidationResult] =
     useState<SchedulePublicationValidationResponse | null>(null);
+  const [coverageDate, setCoverageDate] = useState('');
 
   useEffect(() => {
     if (
@@ -208,6 +260,7 @@ export function PlannerScheduleToolsDrawer({
 
   useEffect(() => {
     setValidationResult(null);
+    setCoverageDate('');
   }, [publicationDepartmentId, year, monthIndex]);
 
   const loadPublicationHistory = useCallback(async () => {
@@ -269,6 +322,14 @@ export function PlannerScheduleToolsDrawer({
         monthIndex + 1,
       );
       setValidationResult(result);
+      setCoverageDate((current) => {
+        const dates = Array.from(
+          new Set(result.coverage.map((point) => point.date)),
+        );
+        const today = new Date().toISOString().slice(0, 10);
+        if (current && dates.includes(current)) return current;
+        return dates.includes(today) ? today : dates[0] ?? '';
+      });
       setPublicationFeedback(
         result.canPublish
           ? 'Проверка пройдена: жёстких нарушений нет.'
@@ -305,6 +366,14 @@ export function PlannerScheduleToolsDrawer({
         monthIndex + 1,
       );
       setValidationResult(validation);
+      setCoverageDate((current) => {
+        const dates = Array.from(
+          new Set(validation.coverage.map((point) => point.date)),
+        );
+        const today = new Date().toISOString().slice(0, 10);
+        if (current && dates.includes(current)) return current;
+        return dates.includes(today) ? today : dates[0] ?? '';
+      });
 
       if (!validation.canPublish) {
         setPublicationFeedback(
@@ -372,6 +441,15 @@ export function PlannerScheduleToolsDrawer({
       setPublicationBusy(false);
     }
   };
+
+  const coverageDates = validationResult
+    ? Array.from(new Set(validationResult.coverage.map((point) => point.date)))
+    : [];
+  const selectedCoverage = validationResult
+    ? validationResult.coverage.filter(
+        (point) => point.date === coverageDate,
+      )
+    : [];
 
   return (
     <DrawerOverlay onMouseDown={onClose}>
@@ -610,6 +688,45 @@ export function PlannerScheduleToolsDrawer({
                   Версия правил: {validationResult.rulesVersion}
                 </PublicationHistoryMeta>
 
+                {validationResult.coverage.length > 0 && (
+                  <>
+                    <ValidationGroupTitle>
+                      Почасовое покрытие FO
+                    </ValidationGroupTitle>
+                    <FormGroup>
+                      <FormLabel htmlFor="coverage-date">
+                        День покрытия
+                      </FormLabel>
+                      <FullWidthSelect
+                        id="coverage-date"
+                        value={coverageDate}
+                        onChange={(event) =>
+                          setCoverageDate(event.target.value)
+                        }
+                      >
+                        {coverageDates.map((date) => (
+                          <option key={date} value={date}>
+                            {date}
+                          </option>
+                        ))}
+                      </FullWidthSelect>
+                    </FormGroup>
+                    {selectedCoverage.map((point) => (
+                      <ValidationItem
+                        key={'coverage-' + point.date + '-' + point.time}
+                      >
+                        <strong>
+                          {point.time} · {point.count}{' '}
+                          {point.count === 1 ? 'сотрудник' : 'сотрудников'}
+                        </strong>
+                        <PublicationHistoryMeta>
+                          {coverageStatusLabel(point)}
+                        </PublicationHistoryMeta>
+                      </ValidationItem>
+                    ))}
+                  </>
+                )}
+
                 <ValidationGroupTitle>
                   Жёсткие нарушения ·{' '}
                   {
@@ -648,6 +765,29 @@ export function PlannerScheduleToolsDrawer({
                               'График отдела'}
                             {violation.date ? ' · ' + violation.date : ''}
                           </PublicationHistoryMeta>
+                          {violationRuleLabel(violation) && (
+                            <PublicationHistoryMeta>
+                              {violationRuleLabel(violation)}
+                            </PublicationHistoryMeta>
+                          )}
+                          {violationExpectedActualLabel(violation) && (
+                            <PublicationHistoryMeta>
+                              {violationExpectedActualLabel(violation)}
+                            </PublicationHistoryMeta>
+                          )}
+                          {violation.affectedEmployeeIds.length > 0 && (
+                            <PublicationHistoryMeta>
+                              Затронуто сотрудников:{' '}
+                              {violation.affectedEmployeeIds
+                                .map(
+                                  (employeeId) =>
+                                    employees.find(
+                                      (item) => item.id === employeeId,
+                                    )?.name ?? employeeId,
+                                )
+                                .join(', ')}
+                            </PublicationHistoryMeta>
+                          )}
                           {violation.employeeId && violation.date && (
                             <ActionButton
                               type="button"
@@ -705,6 +845,29 @@ export function PlannerScheduleToolsDrawer({
                               'График отдела'}
                             {violation.date ? ' · ' + violation.date : ''}
                           </PublicationHistoryMeta>
+                          {violationRuleLabel(violation) && (
+                            <PublicationHistoryMeta>
+                              {violationRuleLabel(violation)}
+                            </PublicationHistoryMeta>
+                          )}
+                          {violationExpectedActualLabel(violation) && (
+                            <PublicationHistoryMeta>
+                              {violationExpectedActualLabel(violation)}
+                            </PublicationHistoryMeta>
+                          )}
+                          {violation.affectedEmployeeIds.length > 0 && (
+                            <PublicationHistoryMeta>
+                              Затронуто сотрудников:{' '}
+                              {violation.affectedEmployeeIds
+                                .map(
+                                  (employeeId) =>
+                                    employees.find(
+                                      (item) => item.id === employeeId,
+                                    )?.name ?? employeeId,
+                                )
+                                .join(', ')}
+                            </PublicationHistoryMeta>
+                          )}
                           {violation.employeeId && violation.date && (
                             <ActionButton
                               type="button"

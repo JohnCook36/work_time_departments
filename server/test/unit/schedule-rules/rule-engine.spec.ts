@@ -6,6 +6,7 @@ import {
 } from '@prisma/client';
 
 import {
+  buildHourlyCoverage,
   buildManagedRulesetSnapshot,
   buildRulesVersion,
   ManagedScheduleRuleSnapshot,
@@ -104,6 +105,16 @@ describe('managed schedule rule engine', () => {
       }),
     ]);
     expect(violations[0].message).toContain('лимит: 1');
+    expect(violations[0]).toMatchObject({
+      ruleId: 'rule-1',
+      ruleVersion: 1,
+      ruleName: 'Rule',
+      expected: 1,
+      actual: 2,
+      time: '20:00',
+      affectedEmployeeIds: ['employee-1', 'employee-2'],
+      affectedShiftIds: ['shift-1', 'shift-2'],
+    });
   });
 
   it('keeps a soft minimum-staff rule non-blocking and counts overnight coverage', () => {
@@ -308,6 +319,62 @@ describe('managed schedule rule engine', () => {
     expect(
       validateManagedScheduleRules(nightDepartment, rules, 2026, 9),
     ).toEqual([]);
+  });
+
+  it('builds hourly FO coverage from the same working intervals and rule thresholds', () => {
+    const value = snapshot();
+    value.department.kind = 'FO';
+
+    const coverage = buildHourlyCoverage(
+      value,
+      [
+        rule({
+          scope: ScheduleRuleScope.DEPARTMENT,
+          departmentId: 'department-a',
+          config: { maxConcurrent: 1 },
+        }),
+        rule({
+          id: 'opening',
+          name: 'Opening',
+          kind: ScheduleRuleKind.MIN_STAFF_AT_TIME,
+          scope: ScheduleRuleScope.DEPARTMENT,
+          departmentId: 'department-a',
+          config: { time: '07:00', minStaff: 2 },
+        }),
+      ],
+      2026,
+      9,
+    );
+
+    expect(coverage).toHaveLength(30 * 24);
+    expect(
+      coverage.find(
+        (point) => point.date === '2026-09-01' && point.time === '20:00',
+      ),
+    ).toMatchObject({
+      count: 2,
+      maxAllowed: 1,
+      minRequired: null,
+      status: 'above',
+      employeeIds: ['employee-1', 'employee-2'],
+    });
+    expect(
+      coverage.find(
+        (point) => point.date === '2026-09-02' && point.time === '07:00',
+      ),
+    ).toMatchObject({
+      count: 2,
+      minRequired: 2,
+      maxAllowed: 1,
+      status: 'above',
+    });
+  });
+
+  it('does not expose FO hourly coverage for a NIGHT department', () => {
+    const value = snapshot();
+    value.department.kind = 'NIGHT';
+
+    expect(buildHourlyCoverage(value, [rule()], 2026, 9)).toEqual([]);
   });
 
   it('builds a stable rules version from normalized rule content and changes it when rule version changes', () => {
