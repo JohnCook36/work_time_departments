@@ -34,6 +34,8 @@ export interface CreateNotificationInput {
   critical?: boolean;
 }
 
+const NOTIFICATION_RETENTION_MS = 180 * 24 * 60 * 60 * 1000;
+
 const notificationSelect = {
   id: true,
   category: true,
@@ -83,6 +85,7 @@ export class NotificationsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async listOwn(userId: string, query: NotificationListQuery) {
+    await this.cleanupExpired();
     const limit = parseLimit(query.limit);
     const cursor =
       typeof query.cursor === 'string' && query.cursor.trim()
@@ -119,6 +122,7 @@ export class NotificationsService {
   }
 
   async unreadCount(userId: string) {
+    await this.cleanupExpired();
     const count = await this.prisma.notification.count({
       where: { recipientId: userId, readAt: null },
     });
@@ -206,6 +210,16 @@ export class NotificationsService {
     input: CreateNotificationInput,
   ) {
     return this.createWithClient(tx, input);
+  }
+
+  private async cleanupExpired(): Promise<void> {
+    await this.prisma.notification.deleteMany({
+      where: {
+        createdAt: {
+          lt: new Date(Date.now() - NOTIFICATION_RETENTION_MS),
+        },
+      },
+    });
   }
 
   private async createWithClient(
