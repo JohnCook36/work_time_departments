@@ -256,6 +256,15 @@ export class AuthService {
 
     const result = await this.prisma.$transaction(async (tx) => {
       const consumeTime = new Date();
+      await tx.authSession.deleteMany({
+        where: {
+          OR: [
+            { expiresAt: { lte: consumeTime } },
+            { revokedAt: { not: null } },
+          ],
+        },
+      });
+
       const consumedChallenge = await tx.authChallenge.updateMany({
         where: {
           id: challenge.id,
