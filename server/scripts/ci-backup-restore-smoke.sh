@@ -4,18 +4,20 @@ set -euo pipefail
 SOURCE_DB="${BACKUP_SMOKE_SOURCE_DB:-work_time_departments_test}"
 RESTORE_DB="${BACKUP_SMOKE_RESTORE_DB:-work_time_departments_restore}"
 DB_USER="${BACKUP_SMOKE_DB_USER:-ci}"
+POSTGRES_PUBLISHED_PORT="${BACKUP_SMOKE_POSTGRES_PUBLISHED_PORT:-5432}"
 PROBE_ID="backup-restore-probe"
 DUMP_PATH="${RUNNER_TEMP:-/tmp}/work_time_departments-backup-smoke.dump"
 
 container_id="$(
   docker ps \
     --filter ancestor=postgres:17-alpine \
+    --filter "publish=${POSTGRES_PUBLISHED_PORT}" \
     --format '{{.ID}}' \
     | head -n 1
 )"
 
 if [[ -z "${container_id}" ]]; then
-  echo "PostgreSQL service container was not found" >&2
+  echo "PostgreSQL service container published on port ${POSTGRES_PUBLISHED_PORT} was not found" >&2
   exit 1
 fi
 

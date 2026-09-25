@@ -5,16 +5,20 @@ on:
     paths:
       - 'server/**'
       - '.github/workflows/backend-ci.yml'
-  push:
-    branches:
-      - main
-    paths:
-      - 'server/**'
-      - '.github/workflows/backend-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Linux, X64, worktime]
+    timeout-minutes: 30
     services:
       postgres:
         image: postgres:17-alpine
@@ -23,7 +27,7 @@ jobs:
           POSTGRES_USER: ci
           POSTGRES_PASSWORD: ci
         ports:
-          - 5432:5432
+          - 55432:5432
         options: >-
           --health-cmd "pg_isready -U ci -d work_time_departments_test"
           --health-interval 5s
@@ -33,8 +37,17 @@ jobs:
       run:
         working-directory: server
     env:
-      DATABASE_URL: postgresql://ci:ci@localhost:5432/work_time_departments_test?schema=public
+      DATABASE_URL: postgresql://ci:ci@localhost:55432/work_time_departments_test?schema=public
+      BACKUP_SMOKE_POSTGRES_PUBLISHED_PORT: '55432'
     steps:
+      - name: Repair workspace ownership
+        shell: bash
+        run: |
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/workspace" \
+            alpine:3.20 \
+            sh -c "chown -R $(id -u):$(id -g) /workspace"
+
       - name: Checkout
         uses: actions/checkout@v4
 
