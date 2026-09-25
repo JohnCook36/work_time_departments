@@ -329,3 +329,21 @@ export const RuleHistoryPanel = styled('div')(({ theme }) => ({
   borderRadius: 10,
   border: '1px solid ' + theme.colors.border,
 }));
+
+
+export const OccupiedShiftSlot = styled('div')({
+  minHeight: 58,
+  marginBottom: 12,
+});
+
+export const OccupiedShiftNotice = styled('div')(({ theme }) => ({
+  minHeight: 58,
+  padding: '10px 12px',
+  borderRadius: 10,
+  border: '1px solid ' + theme.colors.danger,
+  background: theme.colors.dangerSoft,
+  color: theme.colors.danger,
+  fontSize: 12,
+  lineHeight: '18px',
+  fontWeight: 700,
+}));
