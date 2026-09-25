@@ -1,5 +1,5 @@
 import type { SchemaObject } from '@nestjs/swagger';
-import { AuditAction, AuditEntityType, DepartmentKind, EmployeeScheduleMode, OnboardingRequestStatus, OnboardingRequestType, PermissionCapability, RoleType, ScheduleRuleKind, ScheduleRuleScope, ScheduleRuleSeverity, ShiftChangeRequestEventType, ShiftChangeRequestKind, ShiftChangeRequestStatus } from '@prisma/client';
+import { AuditAction, AuditEntityType, DepartmentKind, EmployeeScheduleMode, NotificationCategory, NotificationEntityType, OnboardingRequestStatus, OnboardingRequestType, PermissionCapability, RoleType, ScheduleRuleKind, ScheduleRuleScope, ScheduleRuleSeverity, ShiftChangeRequestEventType, ShiftChangeRequestKind, ShiftChangeRequestStatus } from '@prisma/client';
 
 // Wire response shapes selected/serialized by the services, never database records or fixtures.
 const text: SchemaObject = { type: 'string' };
@@ -63,6 +63,36 @@ export const membershipDeactivatedResponse = object({
   ...okResponse.properties,
   membershipId: text,
 });
+
+export const notificationResponse = object({
+  id: text,
+  category: enumeration(NotificationCategory),
+  entityType: enumeration(NotificationEntityType),
+  entityId: nullable(text),
+  eventKey: text,
+  critical: boolean,
+  readAt: nullable(timestamp),
+  createdAt: timestamp,
+});
+export const notificationPageResponse = object({
+  items: arrayOf(notificationResponse),
+  nextCursor: nullable(text),
+});
+export const notificationUnreadCountResponse = object({ count: integer });
+export const notificationReadResponse = object({
+  ...okResponse.properties,
+  notificationId: text,
+});
+export const notificationReadAllResponse = object({
+  ...okResponse.properties,
+  updated: integer,
+});
+export const notificationPreferenceResponse = object({
+  category: enumeration(NotificationCategory),
+  enabled: boolean,
+  configurable: boolean,
+});
+export const notificationPreferencesResponse = arrayOf(notificationPreferenceResponse);
 
 export const codeSentResponse = object({ status: { type: 'string', enum: ['sent'] }, expiresInSeconds: integer });
 export const verifyCodeResponse = object({ expiresAt: timestamp, user: object({ id: text, phoneE164: text, onboardingRequired: boolean }) });
