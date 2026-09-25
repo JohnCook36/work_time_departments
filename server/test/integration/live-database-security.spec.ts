@@ -159,6 +159,49 @@ describeLive('live PostgreSQL security boundaries', () => {
     expect(afterLogout.status).toBe(401);
   });
 
+  it('prunes expired and revoked auth sessions during authentication traffic', async () => {
+    const user = await prisma.user.create({
+      data: { phoneE164: '+79990000050' },
+    });
+    const expired = await prisma.authSession.create({
+      data: {
+        userId: user.id,
+        tokenHash: 'expired-session-hash',
+        expiresAt: new Date(Date.now() - 60_000),
+      },
+    });
+    const revoked = await prisma.authSession.create({
+      data: {
+        userId: user.id,
+        tokenHash: 'revoked-session-hash',
+        expiresAt: new Date(Date.now() + 60_000),
+        revokedAt: new Date(),
+      },
+    });
+    const active = await prisma.authSession.create({
+      data: {
+        userId: user.id,
+        tokenHash: 'active-session-hash',
+        expiresAt: new Date(Date.now() + 60_000),
+      },
+    });
+
+    const phone = '+79990000051';
+    await requestCode(phone);
+    const verification = await verifyCode(phone);
+    expect(verification.status).toBe(201);
+
+    expect(
+      await prisma.authSession.findUnique({ where: { id: expired.id } }),
+    ).toBeNull();
+    expect(
+      await prisma.authSession.findUnique({ where: { id: revoked.id } }),
+    ).toBeNull();
+    expect(
+      await prisma.authSession.findUnique({ where: { id: active.id } }),
+    ).not.toBeNull();
+  });
+
   it('prunes OTP challenges older than the active retention window before creating a new one', async () => {
     const now = Date.now();
     const stale = await prisma.authChallenge.create({
