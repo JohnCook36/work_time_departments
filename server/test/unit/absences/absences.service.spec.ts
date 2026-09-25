@@ -13,7 +13,14 @@ function admin(): AuthUserContext {
     id: 'admin-1',
     phoneE164: '+79990000001',
     employee: null,
-    memberships: [],
+    memberships: [
+      {
+        id: 'membership-a',
+        role: 'DEPARTMENT_ADMIN' as never,
+        departmentId: 'department-a',
+        permissions: [],
+      },
+    ],
   };
 }
 
