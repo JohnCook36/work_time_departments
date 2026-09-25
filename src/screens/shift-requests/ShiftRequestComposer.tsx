@@ -112,7 +112,12 @@ export function ShiftRequestComposer({ sources, initialShiftId, onCreated, onCon
         {source && <RequestText>Вы отдаёте: {source.date} · {source.startTime}–{source.endTime}</RequestText>}
         {kind === 'SWAP' && targetShift && <RequestText>Вы получаете: {targetShift.date} · {targetShift.startTime}–{targetShift.endTime}</RequestText>}
         {kind === 'COVER' && targetId && <RequestText>Сотрудника просят принять вашу смену.</RequestText>}
-        <RequestFeedback role="status" $error={!!feedback || !!lookupError}>{feedback || lookupError}</RequestFeedback>
+        <RequestFeedback
+          role={lookupError || (feedback && feedback !== 'Запрос отправлен сотруднику.') ? 'alert' : 'status'}
+          $error={!!lookupError || (!!feedback && feedback !== 'Запрос отправлен сотруднику.')}
+        >
+          {feedback || lookupError}
+        </RequestFeedback>
         <RequestActions>
           <RequestButton type="button" disabled={busy || !source || !targetId || (kind === 'SWAP' && !targetShift)} onClick={() => void submit()}>Отправить запрос</RequestButton>
           {onClose && <RequestButton type="button" onClick={onClose}>Закрыть</RequestButton>}
