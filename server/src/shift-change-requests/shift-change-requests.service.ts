@@ -154,6 +154,7 @@ export class ShiftChangeRequestsService {
         'Target employee is not linked to an active account',
       );
     }
+    const targetUserId = targetEmployee.userId;
 
     if (!requesterShift) {
       throw new ForbiddenException(
@@ -188,7 +189,7 @@ export class ShiftChangeRequestsService {
         requesterUserId: user.id,
         requesterEmployeeId: requesterEmployee.id,
         requesterDepartmentId: requesterEmployee.departmentId,
-        targetUserId: targetEmployee.userId,
+        targetUserId,
         targetEmployeeId: targetEmployee.id,
         targetDepartmentId: targetEmployee.departmentId,
         requesterShiftId: requesterShift.id,
@@ -206,7 +207,7 @@ export class ShiftChangeRequestsService {
       });
 
       await this.notifications.createForUserInTransaction(tx, {
-        recipientId: targetEmployee.userId,
+        recipientId: targetUserId,
         category: NotificationCategory.SHIFT_CHANGE,
         entityType: NotificationEntityType.SHIFT_CHANGE_REQUEST,
         entityId: created.id,
