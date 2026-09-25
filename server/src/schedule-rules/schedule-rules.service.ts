@@ -141,9 +141,35 @@ function snapshotRule(rule: RuleRow) {
 
 function serializeRule(rule: RuleRow, editable: boolean) {
   return {
-    ...snapshotRule(rule),
+    id: rule.id,
+    name: rule.name,
+    description: rule.description,
+    kind: rule.kind,
+    scope: rule.scope,
+    scopeValue: rule.scopeValue,
+    departmentId: rule.departmentId,
+    priority: rule.priority,
+    severity: rule.severity,
+    isActive: rule.isActive,
+    isDeleted: rule.isDeleted,
+    config: rule.config,
+    violationMessage: rule.violationMessage,
+    version: rule.version,
+    createdAt: rule.createdAt.toISOString(),
+    updatedAt: rule.updatedAt.toISOString(),
     editable,
   };
+}
+
+function publicRuleSnapshot(value: Prisma.JsonValue): Prisma.JsonValue {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return value;
+  }
+
+  const snapshot = { ...(value as Prisma.JsonObject) };
+  delete snapshot.createdByUserId;
+  delete snapshot.updatedByUserId;
+  return snapshot;
 }
 
 @Injectable()
@@ -546,13 +572,23 @@ export class ScheduleRulesService {
         id: true,
         version: true,
         snapshot: true,
-        changedByUserId: true,
+        changedBy: {
+          select: {
+            employee: {
+              select: { displayName: true },
+            },
+          },
+        },
         createdAt: true,
       },
     });
 
     return versions.map((version) => ({
-      ...version,
+      id: version.id,
+      version: version.version,
+      snapshot: publicRuleSnapshot(version.snapshot),
+      changedByLabel:
+        version.changedBy.employee?.displayName ?? 'Администратор',
       createdAt: version.createdAt.toISOString(),
     }));
   }
