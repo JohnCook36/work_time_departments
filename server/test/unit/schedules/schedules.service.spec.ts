@@ -69,16 +69,21 @@ describe('SchedulesService', () => {
     ),
   };
 
+  const assertCanAdministerDepartment = jest.fn();
+  const assertCanAdministerDepartments = jest.fn();
   const authorization = {
-    assertCanAdministerDepartment: jest.fn(),
-    assertCanAdministerDepartments: jest.fn(),
+    assertCanAdministerDepartment,
+    assertCanAdministerDepartments,
     assertCapability: jest.fn(
-      (user, _capability, departmentId) =>
-        authorization.assertCanAdministerDepartment(user, departmentId),
+      (user: AuthUserContext, _capability: unknown, departmentId: string) =>
+        assertCanAdministerDepartment(user, departmentId),
     ),
     assertCapabilityForDepartments: jest.fn(
-      (user, _capability, departmentIds) =>
-        authorization.assertCanAdministerDepartments(user, departmentIds),
+      (
+        user: AuthUserContext,
+        _capability: unknown,
+        departmentIds: readonly string[],
+      ) => assertCanAdministerDepartments(user, departmentIds),
     ),
   };
 
