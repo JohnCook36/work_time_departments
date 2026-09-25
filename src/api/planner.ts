@@ -208,6 +208,14 @@ export interface ScheduleRuleMutationInput {
   violationMessage: string;
 }
 
+export interface ScheduleRuleFoPresetResponse {
+  status: 'ok';
+  departmentId: string;
+  created: number;
+  existing: number;
+  rules: ScheduleRuleResponse[];
+}
+
 export interface SchedulePublicationEmployeeSnapshot {
   id: string;
   displayName: string;
@@ -656,6 +664,15 @@ export async function loadPlannerServerSnapshot(
 
 export function getManageableScheduleRules() {
   return apiRequest<ScheduleRuleResponse[]>('/schedule-rules/manageable');
+}
+
+export function applyFoCoveragePreset(departmentId: string) {
+  return apiRequest<ScheduleRuleFoPresetResponse>(
+    '/schedule-rules/presets/fo/' + encodeURIComponent(departmentId),
+    {
+      method: 'POST',
+    },
+  );
 }
 
 export function createScheduleRule(input: ScheduleRuleMutationInput) {
