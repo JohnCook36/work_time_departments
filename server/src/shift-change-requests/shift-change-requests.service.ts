@@ -8,6 +8,8 @@ import {
 import {
   AuditAction,
   AuditEntityType,
+  NotificationCategory,
+  NotificationEntityType,
   PermissionCapability,
   Prisma,
   ShiftChangeRequestEventType,
@@ -18,6 +20,7 @@ import {
 import { appendAuditLog } from '../audit/audit-log';
 import { AuthUserContext } from '../auth/auth.service';
 import { AuthorizationService } from '../auth/authorization.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   parseSchedulePublicationSnapshot,
@@ -57,6 +60,7 @@ export class ShiftChangeRequestsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly authorization: AuthorizationService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async create(
@@ -176,7 +180,8 @@ export class ShiftChangeRequestsService {
       );
     }
 
-    return this.prisma.shiftChangeRequest.create({
+    return this.prisma.$transaction(async (tx) => {
+      const created = await tx.shiftChangeRequest.create({
       data: {
         kind: input.kind,
         status: ShiftChangeRequestStatus.PENDING_TARGET,
@@ -198,7 +203,18 @@ export class ShiftChangeRequestsService {
         },
       },
       select: this.requestSelect(),
-    });
+      });
+
+      await this.notifications.createForUserInTransaction(tx, {
+        recipientId: targetEmployee.userId,
+        category: NotificationCategory.SHIFT_CHANGE,
+        entityType: NotificationEntityType.SHIFT_CHANGE_REQUEST,
+        entityId: created.id,
+        eventKey: 'shift-change:' + created.id + ':CREATED',
+      });
+
+      return created;
+    }, this.transactionOptions());
   }
 
   getMine(user: AuthUserContext) {
@@ -471,6 +487,13 @@ export class ShiftChangeRequestsService {
           user.id,
         );
 
+        await this.notifyShiftChange(
+          tx,
+          request.requesterUserId,
+          request.id,
+          ShiftChangeRequestEventType.TARGET_ACCEPTED,
+        );
+
         return { stale: false as const, request: resolved };
       },
       this.transactionOptions(),
@@ -494,7 +517,7 @@ export class ShiftChangeRequestsService {
         this.assertTarget(request, user);
         this.assertStatus(request, ShiftChangeRequestStatus.PENDING_TARGET);
 
-        return this.transition(
+        const resolved = await this.transition(
           tx,
           request,
           [ShiftChangeRequestStatus.PENDING_TARGET],
@@ -503,6 +526,13 @@ export class ShiftChangeRequestsService {
           user.id,
           { resolvedAt: new Date() },
         );
+        await this.notifyShiftChange(
+          tx,
+          request.requesterUserId,
+          request.id,
+          ShiftChangeRequestEventType.TARGET_REJECTED,
+        );
+        return resolved;
       },
       this.transactionOptions(),
     );
@@ -530,7 +560,7 @@ export class ShiftChangeRequestsService {
         ];
         this.assertOneOfStatuses(request, cancelable);
 
-        return this.transition(
+        const resolved = await this.transition(
           tx,
           request,
           cancelable,
@@ -539,6 +569,13 @@ export class ShiftChangeRequestsService {
           user.id,
           { resolvedAt: new Date() },
         );
+        await this.notifyShiftChange(
+          tx,
+          request.targetUserId,
+          request.id,
+          ShiftChangeRequestEventType.CANCELED,
+        );
+        return resolved;
       },
       this.transactionOptions(),
     );
@@ -576,7 +613,37 @@ export class ShiftChangeRequestsService {
             },
           );
 
-          for (const departmentId of new Set([
+          await Promise.all([
+            this.notifyShiftChange(
+              tx,
+              request.requesterUserId,
+              request.id,
+              ShiftChangeRequestEventType.MANAGER_APPROVED,
+            ),
+            this.notifyShiftChange(
+              tx,
+              request.targetUserId,
+              request.id,
+              ShiftChangeRequestEventType.MANAGER_APPROVED,
+            ),
+          ]);
+
+          await Promise.all([
+          this.notifyShiftChange(
+            tx,
+            request.requesterUserId,
+            request.id,
+            ShiftChangeRequestEventType.MANAGER_REJECTED,
+          ),
+          this.notifyShiftChange(
+            tx,
+            request.targetUserId,
+            request.id,
+            ShiftChangeRequestEventType.MANAGER_REJECTED,
+          ),
+        ]);
+
+        for (const departmentId of new Set([
             request.requesterDepartmentId,
             request.targetDepartmentId,
           ])) {
@@ -796,6 +863,21 @@ export class ShiftChangeRequestsService {
     }
 
     return result.request;
+  }
+
+  private notifyShiftChange(
+    tx: Prisma.TransactionClient,
+    recipientId: string,
+    requestId: string,
+    eventType: ShiftChangeRequestEventType,
+  ) {
+    return this.notifications.createForUserInTransaction(tx, {
+      recipientId,
+      category: NotificationCategory.SHIFT_CHANGE,
+      entityType: NotificationEntityType.SHIFT_CHANGE_REQUEST,
+      entityId: requestId,
+      eventKey: 'shift-change:' + requestId + ':' + eventType,
+    });
   }
 
   private requireLinkedEmployee(user: AuthUserContext) {
