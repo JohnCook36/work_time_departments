@@ -372,15 +372,23 @@ describe('ScheduleRulesService', () => {
       {
         id: 'version-2',
         version: 2,
-        snapshot: { version: 2 },
-        changedByUserId: 'user-admin',
+        snapshot: {
+          version: 2,
+          createdByUserId: 'user-original',
+          updatedByUserId: 'user-admin',
+        },
+        changedBy: { employee: { displayName: 'Администратор правил' } },
         createdAt: new Date('2026-09-24T21:00:00.000Z'),
       },
       {
         id: 'version-1',
         version: 1,
-        snapshot: { version: 1 },
-        changedByUserId: 'user-admin',
+        snapshot: {
+          version: 1,
+          createdByUserId: 'user-original',
+          updatedByUserId: 'user-original',
+        },
+        changedBy: { employee: null },
         createdAt: new Date('2026-09-24T20:00:00.000Z'),
       },
     ]);
@@ -390,12 +398,17 @@ describe('ScheduleRulesService', () => {
     expect(result).toEqual([
       expect.objectContaining({
         version: 2,
+        changedByLabel: 'Администратор правил',
         createdAt: '2026-09-24T21:00:00.000Z',
       }),
       expect.objectContaining({
         version: 1,
+        changedByLabel: 'Администратор',
         createdAt: '2026-09-24T20:00:00.000Z',
       }),
     ]);
+    expect(result[0]).not.toHaveProperty('changedByUserId');
+    expect(result[0].snapshot).not.toHaveProperty('createdByUserId');
+    expect(result[0].snapshot).not.toHaveProperty('updatedByUserId');
   });
 });
