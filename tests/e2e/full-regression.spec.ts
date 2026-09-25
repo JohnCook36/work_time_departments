@@ -1090,3 +1090,114 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
     await expect(dialog).toHaveCount(0);
   });
 }
+
+
+for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+  test(`managed schedule rules drawer is usable at ${viewport.width}px`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await page.clock.setFixedTime(new Date('2026-09-15T12:00:00Z'));
+
+    const timestamp = '2026-09-10T10:00:00.000Z';
+    const reply = (route: Route, body: unknown, status = 200) =>
+      route.fulfill({
+        status,
+        contentType: 'application/json',
+        headers: {
+          'Access-Control-Allow-Origin': 'http://127.0.0.1:4174',
+          'Access-Control-Allow-Credentials': 'true',
+          'Access-Control-Allow-Headers': 'Content-Type',
+          'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
+        },
+        body: JSON.stringify(body),
+      });
+
+    await page.route('**/departments/manageable', (route) =>
+      reply(route, [
+        {
+          id: 'department-1',
+          name: 'Front Office',
+          kind: 'FO',
+          position: 0,
+          updatedAt: timestamp,
+        },
+      ]),
+    );
+    await page.route('**/wishes/department?**', (route) => reply(route, []));
+    await page.route('**/schedule-data/department?**', (route) =>
+      reply(route, {
+        period: { year: 2026, month: 9 },
+        schedule: { id: 'schedule-1', updatedAt: timestamp },
+        department: {
+          id: 'department-1',
+          name: 'Front Office',
+          kind: 'FO',
+        },
+        employees: [],
+        shifts: [],
+      }),
+    );
+    await page.route('**/schedule-rules/manageable', (route) =>
+      reply(route, [
+        {
+          id: 'rule-1',
+          name: 'Не более 5 одновременно',
+          description: 'Ограничение Front Office',
+          kind: 'MAX_CONCURRENT_EMPLOYEES',
+          scope: 'DEPARTMENT',
+          scopeValue: null,
+          departmentId: 'department-1',
+          priority: 100,
+          severity: 'HARD',
+          isActive: true,
+          isDeleted: false,
+          config: { maxConcurrent: 5 },
+          violationMessage: 'В отделе одновременно больше 5 сотрудников.',
+          version: 1,
+          createdByUserId: 'e2e-admin-user',
+          updatedByUserId: 'e2e-admin-user',
+          createdAt: timestamp,
+          updatedAt: timestamp,
+          editable: true,
+        },
+      ]),
+    );
+    await page.route('**/schedule-rules/rule-1/history', (route) =>
+      reply(route, [
+        {
+          id: 'rule-version-1',
+          version: 1,
+          snapshot: {
+            name: 'Не более 5 одновременно',
+            isActive: true,
+          },
+          changedByUserId: 'e2e-admin-user',
+          createdAt: timestamp,
+        },
+      ]),
+    );
+
+    await page.goto('http://127.0.0.1:4174/planner');
+
+    const toolsTrigger = page.getByRole('button', { name: 'Управление графиком' });
+    const triggerBefore = await toolsTrigger.boundingBox();
+    await toolsTrigger.click();
+    await page.getByRole('button', { name: 'Управление правилами' }).click();
+
+    const rulesDrawer = page.locator('aside').filter({
+      has: page.getByText('Правила графика', { exact: true }),
+    });
+    await expect(rulesDrawer).toBeVisible();
+    await expect(rulesDrawer.getByText('Не более 5 одновременно')).toBeVisible();
+    await expect(rulesDrawer.getByText('Жёсткое', { exact: true })).toBeVisible();
+    await expect(
+      rulesDrawer.getByText('Активно', { exact: true }).first(),
+    ).toBeVisible();
+
+    await rulesDrawer.getByRole('button', { name: 'История' }).click();
+    await expect(rulesDrawer.getByText(/^v1 ·/)).toBeVisible();
+
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await rulesDrawer.getByTitle('Закрыть').click();
+    expect(await toolsTrigger.boundingBox()).toEqual(triggerBefore);
+  });
+}

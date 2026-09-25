@@ -154,6 +154,62 @@ export interface SchedulePublicationValidationResponse {
   violations: SchedulePublicationViolation[];
 }
 
+export type ScheduleRuleKind =
+  | 'MAX_CONCURRENT_EMPLOYEES'
+  | 'MIN_STAFF_AT_TIME';
+
+export type ScheduleRuleScope =
+  | 'ORGANIZATION'
+  | 'DEPARTMENT'
+  | 'ROLE'
+  | 'SHIFT_TYPE';
+
+export type ScheduleRuleSeverity = 'HARD' | 'SOFT';
+
+export interface ScheduleRuleResponse {
+  id: string;
+  name: string;
+  description: string;
+  kind: ScheduleRuleKind;
+  scope: ScheduleRuleScope;
+  scopeValue: string | null;
+  departmentId: string | null;
+  priority: number;
+  severity: ScheduleRuleSeverity;
+  isActive: boolean;
+  isDeleted: boolean;
+  config: Record<string, unknown>;
+  violationMessage: string;
+  version: number;
+  createdByUserId: string;
+  updatedByUserId: string;
+  createdAt: string;
+  updatedAt: string;
+  editable: boolean;
+}
+
+export interface ScheduleRuleHistoryResponse {
+  id: string;
+  version: number;
+  snapshot: Record<string, unknown>;
+  changedByUserId: string;
+  createdAt: string;
+}
+
+export interface ScheduleRuleMutationInput {
+  name: string;
+  description: string;
+  kind: ScheduleRuleKind;
+  scope: ScheduleRuleScope;
+  scopeValue?: string | null;
+  departmentId?: string | null;
+  priority: number;
+  severity: ScheduleRuleSeverity;
+  isActive: boolean;
+  config: Record<string, string | number>;
+  violationMessage: string;
+}
+
 export interface SchedulePublicationResponse {
   id: string;
   scheduleId: string;
@@ -163,6 +219,7 @@ export interface SchedulePublicationResponse {
   sourceScheduleUpdatedAt: string;
   comment: string | null;
   rulesVersion: string | null;
+  rulesSnapshot?: Record<string, unknown> | null;
   snapshot: {
     department: {
       id: string;
@@ -176,6 +233,7 @@ export interface SchedulePublicationResponse {
       scheduleMode: string;
       fixedStartTime: string | null;
       fixedEndTime: string | null;
+      roles?: string[];
     }>;
     shifts: Array<{
       id: string;
@@ -589,6 +647,49 @@ export async function loadPlannerServerSnapshot(
     responses,
     departments,
     departmentWishResponses.flat(),
+  );
+}
+
+export function getManageableScheduleRules() {
+  return apiRequest<ScheduleRuleResponse[]>('/schedule-rules/manageable');
+}
+
+export function createScheduleRule(input: ScheduleRuleMutationInput) {
+  return apiRequest<ScheduleRuleResponse>('/schedule-rules', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function updateScheduleRule(
+  ruleId: string,
+  input: Partial<ScheduleRuleMutationInput> & { expectedUpdatedAt: string },
+) {
+  return apiRequest<ScheduleRuleResponse>(
+    '/schedule-rules/' + encodeURIComponent(ruleId),
+    {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    },
+  );
+}
+
+export function deleteScheduleRule(
+  ruleId: string,
+  expectedUpdatedAt: string,
+) {
+  return apiRequest<{ status: 'ok'; ruleId: string }>(
+    '/schedule-rules/' + encodeURIComponent(ruleId),
+    {
+      method: 'DELETE',
+      body: JSON.stringify({ expectedUpdatedAt }),
+    },
+  );
+}
+
+export function getScheduleRuleHistory(ruleId: string) {
+  return apiRequest<ScheduleRuleHistoryResponse[]>(
+    '/schedule-rules/' + encodeURIComponent(ruleId) + '/history',
   );
 }
 

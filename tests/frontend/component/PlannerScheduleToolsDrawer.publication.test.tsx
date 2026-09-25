@@ -121,6 +121,7 @@ function props() {
     onFillOffAll: vi.fn(),
     onClearAll: vi.fn(),
     onNavigateToValidationIssue: vi.fn(),
+    onManageRules: vi.fn(),
     onClose: vi.fn(),
   };
 }
