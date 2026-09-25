@@ -40,6 +40,14 @@ jobs:
       DATABASE_URL: postgresql://ci:ci@localhost:55432/work_time_departments_test?schema=public
       BACKUP_SMOKE_POSTGRES_PUBLISHED_PORT: '55432'
     steps:
+      - name: Repair workspace ownership
+        shell: bash
+        run: |
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/workspace" \
+            alpine:3.20 \
+            sh -c "chown -R $(id -u):$(id -g) /workspace"
+
       - name: Checkout
         uses: actions/checkout@v4
 
