@@ -1,5 +1,5 @@
 import { ApiTags, ApiOperation, ApiResponse, ApiBadRequestResponse, ApiUnauthorizedResponse, ApiForbiddenResponse, ApiSecurity, ApiConflictResponse, ApiNotFoundResponse, ApiBody, ApiQuery } from '@nestjs/swagger';
-import { departmentScheduleResponse, personalScheduleResponse, scheduleAppliedResponse, schedulePublicationListResponse, schedulePublicationResponse, schedulePublicationValidationResponse } from '../openapi.responses';
+import { departmentScheduleResponse, personalScheduleResponse, scheduleAcknowledgementListResponse, scheduleAcknowledgementResponse, scheduleAcknowledgementStatusResponse, scheduleAppliedResponse, schedulePublicationListResponse, schedulePublicationResponse, schedulePublicationValidationResponse } from '../openapi.responses';
 import { ApplyPlannerChangesDto, ApplyDepartmentChangesDto, MaterializeFixedWeekdaysDto, PublishDepartmentScheduleDto } from './schedules.dto';
 
 import {
@@ -259,6 +259,7 @@ export class SchedulesController {
   }
 
   @ApiOperation({ summary: 'Acknowledge one immutable published schedule version as the linked employee' })
+  @ApiResponse({ status: 201, schema: scheduleAcknowledgementResponse })
   @Post('me/publication-acknowledgements')
   acknowledgePublication(
     @CurrentUser() user: AuthUserContext,
@@ -272,6 +273,7 @@ export class SchedulesController {
 
   @ApiOperation({ summary: 'Read current employee acknowledgement status for one publication' })
   @ApiQuery({ name: 'publicationId', required: true, schema: { type: 'string' } })
+  @ApiResponse({ status: 200, schema: scheduleAcknowledgementStatusResponse })
   @Get('me/publication-acknowledgement')
   getOwnAcknowledgement(
     @CurrentUser() user: AuthUserContext,
@@ -285,6 +287,7 @@ export class SchedulesController {
 
   @ApiOperation({ summary: 'List scoped employee acknowledgement statuses for one publication' })
   @ApiQuery({ name: 'publicationId', required: true, schema: { type: 'string' } })
+  @ApiResponse({ status: 200, schema: scheduleAcknowledgementListResponse })
   @Get('department/publication-acknowledgements')
   listPublicationAcknowledgements(
     @CurrentUser() user: AuthUserContext,
