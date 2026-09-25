@@ -109,7 +109,7 @@ jobs:
               live=true
             fi
 
-            if grep -Eq '^server/prisma/|^server/scripts/(ci-backup-restore-smoke|production-backup)\.sh$|^docs/database-backup-restore\.md$' <<<"$changed"; then
+            if grep -Eq '^server/prisma/|^server/scripts/(ci-backup-restore-smoke|production-backup|production-restore-rehearsal)\.sh$|^docs/database-backup-restore\.md$' <<<"$changed"; then
               backup=true
             fi
 
@@ -198,6 +198,10 @@ jobs:
       - name: Build
         if: steps.scope.outputs.build == 'true'
         run: npm run build
+
+      - name: Production backup/restore script syntax
+        if: steps.scope.outputs.backup == 'true'
+        run: bash -n scripts/production-backup.sh scripts/production-restore-rehearsal.sh
 
       - name: PostgreSQL backup/restore block
         if: steps.scope.outputs.backup == 'true'
