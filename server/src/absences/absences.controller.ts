@@ -15,11 +15,13 @@ import {
   ApiForbiddenResponse,
   ApiOperation,
   ApiQuery,
+  ApiResponse,
   ApiSecurity,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 
+import { absenceCanceledResponse, absenceListResponse, absenceResponse } from '../openapi.responses';
 import type { AuthUserContext } from '../auth/auth.service';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { SessionAuthGuard } from '../auth/session-auth.guard';
@@ -48,6 +50,7 @@ export class AbsencesController {
   @ApiQuery({ name: 'departmentId', required: true })
   @ApiQuery({ name: 'from', required: false })
   @ApiQuery({ name: 'to', required: false })
+  @ApiResponse({ status: 200, schema: absenceListResponse })
   @Get()
   list(
     @CurrentUser() user: AuthUserContext,
@@ -64,6 +67,7 @@ export class AbsencesController {
   }
 
   @ApiOperation({ summary: 'Create structured absence for a managed employee' })
+  @ApiResponse({ status: 201, schema: absenceResponse })
   @Post()
   create(
     @CurrentUser() user: AuthUserContext,
@@ -73,6 +77,7 @@ export class AbsencesController {
   }
 
   @ApiOperation({ summary: 'Edit active structured absence with optimistic locking' })
+  @ApiResponse({ status: 200, schema: absenceResponse })
   @Patch(':absenceId')
   update(
     @CurrentUser() user: AuthUserContext,
@@ -87,6 +92,7 @@ export class AbsencesController {
   }
 
   @ApiOperation({ summary: 'Soft-cancel structured absence' })
+  @ApiResponse({ status: 201, schema: absenceCanceledResponse })
   @Post(':absenceId/cancel')
   cancel(
     @CurrentUser() user: AuthUserContext,
