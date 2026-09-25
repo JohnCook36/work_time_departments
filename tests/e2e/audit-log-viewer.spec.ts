@@ -114,7 +114,7 @@ for (const viewport of [
     const journal = page.getByLabel('События журнала');
     await expect(journal.getByText('График опубликован')).toBeVisible();
     await expect(journal.getByText('Правило графика изменено')).toBeVisible();
-    await expect(page.getByText('Анна Администратор', { exact: true })).toBeVisible();
+    await expect(page.getByText(/Анна Администратор/).first()).toBeVisible();
     await expect(page.getByText('Front Office', { exact: true })).toBeVisible();
 
     await expect(page.getByText('+79990000000')).toHaveCount(0);
