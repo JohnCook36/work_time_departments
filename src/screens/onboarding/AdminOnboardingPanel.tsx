@@ -246,43 +246,47 @@ export function AdminOnboardingPanel() {
         )}
       </AdminTrigger>
 
-      {showPendingNotification && pendingCount > 0 && !open && (
-        <PendingNotification role="status" aria-live="polite">
-          <PendingNotificationHeader>
-            <div>
-              <PendingNotificationTitle>
-                {pendingCount === 1
-                  ? 'Новая заявка на привязку аккаунта'
-                  : 'Новые заявки на привязку аккаунтов'}
-              </PendingNotificationTitle>
-              <PendingNotificationText>
-                {pendingCount === 1
-                  ? 'Один сотрудник ожидает подтверждения руководителем.'
-                  : pendingCount +
-                    ' сотрудников ожидают подтверждения руководителем.'}
-              </PendingNotificationText>
-            </div>
+      {showPendingNotification &&
+        pendingCount > 0 &&
+        !open &&
+        createPortal(
+          <PendingNotification role="status" aria-live="polite">
+            <PendingNotificationHeader>
+              <div>
+                <PendingNotificationTitle>
+                  {pendingCount === 1
+                    ? 'Новая заявка на привязку аккаунта'
+                    : 'Новые заявки на привязку аккаунтов'}
+                </PendingNotificationTitle>
+                <PendingNotificationText>
+                  {pendingCount === 1
+                    ? 'Один сотрудник ожидает подтверждения руководителем.'
+                    : pendingCount +
+                      ' сотрудников ожидают подтверждения руководителем.'}
+                </PendingNotificationText>
+              </div>
 
-            <IconButton
-              type="button"
-              title="Скрыть уведомление"
-              onClick={() => setShowPendingNotification(false)}
-            >
-              <X size={16} />
-            </IconButton>
-          </PendingNotificationHeader>
+              <IconButton
+                type="button"
+                title="Скрыть уведомление"
+                onClick={() => setShowPendingNotification(false)}
+              >
+                <X size={16} />
+              </IconButton>
+            </PendingNotificationHeader>
 
-          <PendingNotificationActions>
-            <ActionButton
-              type="button"
-              $variant="primary"
-              onClick={openPanel}
-            >
-              Открыть заявки
-            </ActionButton>
-          </PendingNotificationActions>
-        </PendingNotification>
-      )}
+            <PendingNotificationActions>
+              <ActionButton
+                type="button"
+                $variant="primary"
+                onClick={openPanel}
+              >
+                Открыть заявки
+              </ActionButton>
+            </PendingNotificationActions>
+          </PendingNotification>,
+          document.body,
+        )}
 
       {createPortal(
         <AnimatePresence>
