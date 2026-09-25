@@ -1,4 +1,4 @@
-import { CalendarDays, ClipboardList, LayoutDashboard, Repeat2, ScrollText, UserRound } from 'lucide-react';
+import { CalendarDays, ClipboardList, LayoutDashboard, Repeat2, ScrollText, ShieldCheck, UserRound } from 'lucide-react';
 
 import { hasCapability, hasManagementAccess, useAuthUser } from '../../auth/AuthContext';
 import { NavigationBar, NavigationLink } from './AppSectionNav.styles';
@@ -7,6 +7,7 @@ export function AppSectionNav() {
   const user = useAuthUser();
   const canManagePlanner = hasManagementAccess(user);
   const canReadAudit = hasCapability(user, 'AUDIT_READ');
+  const canManageRoles = hasCapability(user, 'ROLE_MANAGE');
 
   return (
     <NavigationBar aria-label="Основная навигация">
@@ -29,6 +30,13 @@ export function AppSectionNav() {
         <UserRound size={16} />
         Профиль
       </NavigationLink>
+
+      {canManageRoles && (
+        <NavigationLink to="/roles-access">
+          <ShieldCheck size={16} />
+          Роли и доступ
+        </NavigationLink>
+      )}
 
       {canReadAudit && (
         <NavigationLink to="/audit">
