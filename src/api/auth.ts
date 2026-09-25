@@ -265,3 +265,34 @@ export function getMySchedule(year: number, month: number) {
     '/schedule-data/me?' + params.toString(),
   );
 }
+
+
+export type ScheduleAcknowledgementState =
+  | 'ACKNOWLEDGED'
+  | 'NOT_ACKNOWLEDGED';
+
+export interface ScheduleAcknowledgementStatus {
+  publicationId: string;
+  employeeId: string;
+  status: ScheduleAcknowledgementState;
+  acknowledgedAt: string | null;
+}
+
+export function getMyScheduleAcknowledgement(publicationId: string) {
+  const params = new URLSearchParams({ publicationId });
+  return apiRequest<ScheduleAcknowledgementStatus>(
+    '/schedule-data/me/publication-acknowledgement?' + params.toString(),
+  );
+}
+
+export function acknowledgeMySchedule(publicationId: string) {
+  return apiRequest<{
+    id: string;
+    publicationId: string;
+    employeeId: string;
+    acknowledgedAt: string;
+  }>('/schedule-data/me/publication-acknowledgements', {
+    method: 'POST',
+    body: JSON.stringify({ publicationId }),
+  });
+}
