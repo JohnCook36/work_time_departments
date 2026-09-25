@@ -139,6 +139,18 @@ describe('OpenAPI documentation', () => {
     expect(shiftChangeDocs).not.toMatch(
       /requesterUserId|targetUserId|managerUserId|actorUserId/,
     );
+    const workHistoryDocs = JSON.stringify({
+      scheduleRules: document.paths['/schedule-rules/manageable'],
+      ruleHistory: document.paths['/schedule-rules/{ruleId}/history'],
+      publicationHistory:
+        document.paths['/schedule-data/department/publications'],
+      publication:
+        document.paths['/schedule-data/department/publication'],
+    });
+    expect(workHistoryDocs).not.toMatch(
+      /createdByUserId|updatedByUserId|changedByUserId|publishedByUserId/,
+    );
+    expect(workHistoryDocs).toMatch(/changedByLabel|publishedByLabel/);
     for (const path of ['/employees?departmentId=example', '/auth/me', '/schedule-data/me?year=2026&month=9']) {
       expect((await fetch(url + path)).status).toBe(401);
     }
