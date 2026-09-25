@@ -19,7 +19,7 @@ async function mockSession(
   page: Page,
   role: 'EMPLOYEE' | 'DEPARTMENT_ADMIN' | 'DEPUTY',
 ) {
-  await page.route('http://localhost:3000/**', async route => {
+  await page.route(/https?:\/\/(?:localhost|127\.0\.0\.1):3000\/.*/, async route => {
     const url = new URL(route.request().url());
     const path = url.pathname;
     if (route.request().method() === 'OPTIONS') return reply(route, {});
