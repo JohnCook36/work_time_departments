@@ -255,20 +255,42 @@ describe('managed schedule rule engine', () => {
       ),
     ).toBe(false);
 
-    const onlyOneOpening = {
+    const exactlyOneOpening = {
       ...value,
-      shifts: value.shifts.map((shift, index) =>
-        index === 1 ? { ...shift, startTime: '08:00' } : shift,
-      ),
+      shifts: value.shifts.map((shift, index) => ({
+        ...shift,
+        startTime: index === 1 ? '06:00' : '08:00',
+      })),
     };
-    const openingViolations = validateManagedScheduleRules(
-      onlyOneOpening,
+    const oneOpeningViolations = validateManagedScheduleRules(
+      exactlyOneOpening,
       rules,
       2026,
       9,
     );
     expect(
-      openingViolations.some(
+      oneOpeningViolations.some(
+        item =>
+          item.code === 'MANAGED_MIN_STAFF_AT_TIME' &&
+          item.date === '2026-09-01',
+      ),
+    ).toBe(true);
+
+    const exactlyTwoOpenings = {
+      ...value,
+      shifts: value.shifts.map((shift, index) => ({
+        ...shift,
+        startTime: index === 1 || index === 2 ? '06:00' : '08:00',
+      })),
+    };
+    const twoOpeningViolations = validateManagedScheduleRules(
+      exactlyTwoOpenings,
+      rules,
+      2026,
+      9,
+    );
+    expect(
+      twoOpeningViolations.some(
         item =>
           item.code === 'MANAGED_MIN_STAFF_AT_TIME' &&
           item.date === '2026-09-01',
