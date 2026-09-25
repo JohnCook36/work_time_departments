@@ -70,6 +70,7 @@ describe('ScheduleRulesService', () => {
       create: jest.fn(),
       updateMany: jest.fn(),
       findUnique: jest.fn(),
+      findMany: jest.fn(),
     },
     scheduleRuleVersion: {
       create: jest.fn(),
@@ -77,6 +78,7 @@ describe('ScheduleRulesService', () => {
     auditLog: {
       create: jest.fn(),
     },
+    $queryRaw: jest.fn(),
   };
 
   const prisma = {
@@ -140,6 +142,79 @@ describe('ScheduleRulesService', () => {
       id: 'version-1',
     });
     transaction.auditLog.create.mockResolvedValue({ id: 'audit-1' });
+  });
+
+  it('idempotently applies the standard FO preset without overwriting existing preset rules', async () => {
+    prisma.department.findFirst.mockResolvedValue({
+      id: 'department-a',
+      kind: 'FO',
+    });
+    transaction.scheduleRule.findMany.mockResolvedValue([
+      ruleRow({
+        id: 'existing-max',
+        name: 'Стандарт FO · максимум 5 одновременно',
+      }),
+    ]);
+    transaction.$queryRaw.mockResolvedValue([{ locked: 1 }]);
+    transaction.scheduleRule.create.mockResolvedValue(
+      ruleRow({
+        id: 'preset-opening',
+        name: 'Стандарт FO · 2 сотрудника к 07:00',
+        kind: ScheduleRuleKind.MIN_STAFF_AT_TIME,
+        config: { time: '07:00', minStaff: 2 },
+        priority: 900,
+      }),
+    );
+
+    const result = await service.applyFoPreset(
+      departmentAdmin(),
+      'department-a',
+    );
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        status: 'ok',
+        departmentId: 'department-a',
+        created: 1,
+        existing: 1,
+      }),
+    );
+    expect(transaction.scheduleRule.create).toHaveBeenCalledTimes(1);
+    expect(transaction.scheduleRule.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        name: 'Стандарт FO · 2 сотрудника к 07:00',
+        departmentId: 'department-a',
+        scope: ScheduleRuleScope.DEPARTMENT,
+        severity: ScheduleRuleSeverity.HARD,
+        priority: 900,
+        config: { time: '07:00', minStaff: 2 },
+      }),
+    });
+    expect(transaction.scheduleRuleVersion.create).toHaveBeenCalledTimes(1);
+    expect(transaction.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: AuditAction.SCHEDULE_RULE_CREATED,
+        entityType: AuditEntityType.SCHEDULE_RULE,
+        entityId: 'preset-opening',
+        departmentId: 'department-a',
+      }),
+      select: { id: true },
+    });
+  });
+
+  it('rejects FO preset for a non-FO department', async () => {
+    prisma.department.findFirst.mockResolvedValue({
+      id: 'department-a',
+      kind: 'NIGHT',
+    });
+
+    await expect(
+      service.applyFoPreset(departmentAdmin(), 'department-a'),
+    ).rejects.toThrow(
+      'FO preset is available only for Front Office departments',
+    );
+
+    expect(transaction.scheduleRule.create).not.toHaveBeenCalled();
   });
 
   it('creates a department rule with version 1 and audit trail', async () => {
