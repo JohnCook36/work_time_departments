@@ -679,7 +679,7 @@ export function PlannerScheduleToolsDrawer({
                     {new Date(publication.createdAt).toLocaleString('ru-RU')}
                   </strong>
                   <PublicationHistoryMeta>
-                    Автор: {publication.publishedByUserId}
+                    Автор: {publication.publishedByLabel}
                   </PublicationHistoryMeta>
                   <PublicationHistoryMeta>
                     Изменения: смен {publication.diff.shifts.length},
