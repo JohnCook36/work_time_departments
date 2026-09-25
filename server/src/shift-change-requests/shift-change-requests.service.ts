@@ -8,6 +8,7 @@ import {
 import {
   AuditAction,
   AuditEntityType,
+  PermissionCapability,
   Prisma,
   RoleType,
   ShiftChangeRequestEventType,
@@ -655,8 +656,9 @@ export class ShiftChangeRequestsService {
     if (!current?.isActive) {
       throw new ForbiddenException('Manager account is inactive');
     }
-    this.authorization.assertCanAdministerDepartments(
+    this.authorization.assertCapabilityForDepartments(
       { ...admin, memberships: current.memberships },
+      PermissionCapability.SHIFT_CHANGE_APPROVE,
       [request.requesterDepartmentId, request.targetDepartmentId],
     );
   }
@@ -842,10 +844,11 @@ export class ShiftChangeRequestsService {
     admin: AuthUserContext,
     request: TransitionRequest,
   ): void {
-    this.authorization.assertCanAdministerDepartments(admin, [
-      request.requesterDepartmentId,
-      request.targetDepartmentId,
-    ]);
+    this.authorization.assertCapabilityForDepartments(
+      admin,
+      PermissionCapability.SHIFT_CHANGE_APPROVE,
+      [request.requesterDepartmentId, request.targetDepartmentId],
+    );
   }
 
   private assertStatus(
