@@ -1,5 +1,5 @@
 import type { SchemaObject } from '@nestjs/swagger';
-import { DepartmentKind, EmployeeScheduleMode, OnboardingRequestStatus, OnboardingRequestType, RoleType, ScheduleRuleKind, ScheduleRuleScope, ScheduleRuleSeverity, ShiftChangeRequestEventType, ShiftChangeRequestKind, ShiftChangeRequestStatus } from '@prisma/client';
+import { DepartmentKind, EmployeeScheduleMode, OnboardingRequestStatus, OnboardingRequestType, PermissionCapability, RoleType, ScheduleRuleKind, ScheduleRuleScope, ScheduleRuleSeverity, ShiftChangeRequestEventType, ShiftChangeRequestKind, ShiftChangeRequestStatus } from '@prisma/client';
 
 // Wire response shapes selected/serialized by the services, never database records or fixtures.
 const text: SchemaObject = { type: 'string' };
@@ -29,7 +29,12 @@ export const employeeResponse = object({ ...employeeSummaryResponse.properties, 
 export const currentUserResponse = object({
   id: text, phoneE164: text,
   employee: nullable(object({ ...employeeSummaryResponse.properties, departmentName: text, ...workPattern })),
-  memberships: arrayOf(object({ id: text, role: enumeration(RoleType), departmentId: nullable(text) })),
+  memberships: arrayOf(object({
+    id: text,
+    role: enumeration(RoleType),
+    departmentId: nullable(text),
+    permissions: arrayOf(enumeration(PermissionCapability)),
+  })),
 });
 export const codeSentResponse = object({ status: { type: 'string', enum: ['sent'] }, expiresInSeconds: integer });
 export const verifyCodeResponse = object({ expiresAt: timestamp, user: object({ id: text, phoneE164: text, onboardingRequired: boolean }) });
