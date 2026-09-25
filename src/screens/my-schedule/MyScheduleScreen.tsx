@@ -16,7 +16,9 @@ import {
   ApiError,
   MyScheduleResponse,
   MyScheduleShift,
+  acknowledgeMySchedule,
   getMySchedule,
+  getMyScheduleAcknowledgement,
   logout,
 } from '../../api/auth';
 import { useAuthUser } from '../../auth/AuthContext';
@@ -31,6 +33,11 @@ import { Container, IconButton, Page } from '../../theme/styles';
 import { DAY_NAMES_SHORT, MONTH_NAMES } from '../../utils/calendar';
 import { useAppTheme } from '../../theme/AppThemeProvider';
 import {
+  AcknowledgementButton,
+  AcknowledgementCopy,
+  AcknowledgementMeta,
+  AcknowledgementPanel,
+  AcknowledgementTitle,
   EmployeeMeta,
   EmployeeName,
   EmployeeSummary,
@@ -86,6 +93,9 @@ export function MyScheduleScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [requestShiftId, setRequestShiftId] = useState<string | null>(null);
+  const [acknowledgedAt, setAcknowledgedAt] = useState<string | null>(null);
+  const [ackBusy, setAckBusy] = useState(false);
+  const [ackError, setAckError] = useState<string | null>(null);
   const { themeMode, toggleTheme } = useAppTheme();
 
   const load = useCallback(async () => {
@@ -93,7 +103,33 @@ export function MyScheduleScreen() {
     setError(null);
 
     try {
-      setData(await getMySchedule(year, monthIndex + 1));
+      const nextData = await getMySchedule(year, monthIndex + 1);
+      setData(nextData);
+      setAcknowledgedAt(null);
+      setAckError(null);
+
+      if (nextData.schedule) {
+        try {
+          const acknowledgement = await getMyScheduleAcknowledgement(
+            nextData.schedule.id,
+          );
+          setAcknowledgedAt(acknowledgement.acknowledgedAt);
+        } catch (acknowledgementError) {
+          if (
+            acknowledgementError instanceof ApiError &&
+            acknowledgementError.status === 401
+          ) {
+            await refreshSession();
+            return;
+          }
+
+          setAckError(
+            acknowledgementError instanceof Error
+              ? acknowledgementError.message
+              : 'Не удалось загрузить статус ознакомления',
+          );
+        }
+      }
     } catch (requestError) {
       if (requestError instanceof ApiError && requestError.status === 401) {
         await refreshSession();
@@ -144,6 +180,25 @@ export function MyScheduleScreen() {
     const next = new Date(year, monthIndex + delta, 1);
     setYear(next.getFullYear());
     setMonthIndex(next.getMonth());
+  };
+
+  const handleAcknowledge = async () => {
+    if (!data?.schedule || ackBusy) return;
+
+    setAckBusy(true);
+    setAckError(null);
+    try {
+      const acknowledgement = await acknowledgeMySchedule(data.schedule.id);
+      setAcknowledgedAt(acknowledgement.acknowledgedAt);
+    } catch (requestError) {
+      setAckError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Не удалось подтвердить ознакомление',
+      );
+    } finally {
+      setAckBusy(false);
+    }
   };
 
   const handleLogout = async () => {
@@ -247,6 +302,42 @@ export function MyScheduleScreen() {
                     ))}
                   </TotalsGrid>
                 </EmployeeSummary>
+
+                {data.schedule && (
+                  <AcknowledgementPanel>
+                    <AcknowledgementCopy>
+                      <AcknowledgementTitle>
+                        {acknowledgedAt
+                          ? 'С графиком ознакомлен'
+                          : 'Подтвердите ознакомление с графиком'}
+                      </AcknowledgementTitle>
+                      <AcknowledgementMeta>
+                        {acknowledgedAt
+                          ? 'Подтверждено ' +
+                            new Intl.DateTimeFormat('ru-RU', {
+                              dateStyle: 'short',
+                              timeStyle: 'short',
+                            }).format(new Date(acknowledgedAt))
+                          : 'Подтверждение относится только к этой опубликованной версии.'}
+                      </AcknowledgementMeta>
+                      {ackError && (
+                        <AcknowledgementMeta role="alert">
+                          {ackError}
+                        </AcknowledgementMeta>
+                      )}
+                    </AcknowledgementCopy>
+                    {!acknowledgedAt && (
+                      <AcknowledgementButton
+                        type="button"
+                        $variant="primary"
+                        disabled={ackBusy}
+                        onClick={() => void handleAcknowledge()}
+                      >
+                        {ackBusy ? 'Сохраняем…' : 'Ознакомлен'}
+                      </AcknowledgementButton>
+                    )}
+                  </AcknowledgementPanel>
+                )}
 
                 <ShiftList>
                   {visibleShifts.length === 0 ? (

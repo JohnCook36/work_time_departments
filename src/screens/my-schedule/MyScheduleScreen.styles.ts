@@ -241,3 +241,40 @@ export const ScheduleFooterNote = styled('div')(({ theme }) => ({
 export const LogoutButton = styled(ActionButton)({
   minHeight: 38,
 });
+
+
+export const AcknowledgementPanel = styled('section')(({ theme }) => ({
+  marginTop: 12,
+  minHeight: 68,
+  padding: 12,
+  borderRadius: 12,
+  border: '1px solid ' + theme.colors.border,
+  background: theme.colors.surfaceElevated,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 12,
+  flexWrap: 'wrap',
+}));
+
+export const AcknowledgementCopy = styled('div')({
+  display: 'grid',
+  gap: 3,
+  minWidth: 0,
+});
+
+export const AcknowledgementTitle = styled('div')({
+  fontSize: 13,
+  fontWeight: 800,
+});
+
+export const AcknowledgementMeta = styled('div')(({ theme }) => ({
+  color: theme.colors.textMuted,
+  fontSize: 11,
+  lineHeight: 1.45,
+}));
+
+export const AcknowledgementButton = styled(ActionButton)({
+  minHeight: 38,
+  flex: '0 0 auto',
+});
