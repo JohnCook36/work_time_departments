@@ -13,7 +13,9 @@ import {
   getDepartmentSchedulePublication,
   getDepartmentSchedulePublications,
   publishDepartmentSchedule,
+  SchedulePublicationEmployeeSnapshot,
   SchedulePublicationResponse,
+  SchedulePublicationShiftSnapshot,
   SchedulePublicationValidationResponse,
   validateDepartmentSchedule,
 } from '../../api/planner';
@@ -38,6 +40,9 @@ import {
   DrawerSection,
   DrawerSectionTitle,
   HiddenFileInput,
+  PublicationDiffChange,
+  PublicationDiffItem,
+  PublicationDiffList,
   PublicationFeedback,
   PublicationHistoryItem,
   PublicationHistoryList,
@@ -52,6 +57,60 @@ import {
 interface PrintRange {
   key: string;
   label: string;
+}
+
+function formatPublicationShift(
+  shift: SchedulePublicationShiftSnapshot | null,
+): string {
+  if (!shift) return 'нет смены';
+  if (shift.isOff) return 'OFF';
+
+  const time =
+    (shift.startTime || '—') + '–' + (shift.endTime || '—');
+  return shift.code ? shift.code + ' · ' + time : time;
+}
+
+function formatPublicationEmployee(
+  employee: SchedulePublicationEmployeeSnapshot | null,
+): string {
+  if (!employee) return 'нет сотрудника';
+
+  const pattern =
+    employee.scheduleMode === 'FIXED_WEEKDAYS' &&
+    employee.fixedStartTime &&
+    employee.fixedEndTime
+      ? '5/2 ' + employee.fixedStartTime + '–' + employee.fixedEndTime
+      : employee.scheduleMode;
+
+  return (
+    employee.displayName +
+    ' · ставка ' +
+    employee.employmentRate +
+    ' · ' +
+    pattern
+  );
+}
+
+function publicationEmployeeName(
+  publication: SchedulePublicationResponse,
+  employeeId: string,
+): string {
+  const current = publication.snapshot.employees.find(
+    employee => employee.id === employeeId,
+  );
+  if (current) return current.displayName;
+
+  for (const change of publication.diff.employees) {
+    const candidate =
+      change.after?.id === employeeId
+        ? change.after
+        : change.before?.id === employeeId
+          ? change.before
+          : null;
+    if (candidate) return candidate.displayName;
+  }
+
+  return employeeId;
 }
 
 interface PlannerScheduleToolsDrawerProps {
@@ -717,6 +776,65 @@ export function PlannerScheduleToolsDrawer({
                 <PublicationHistoryMeta>
                   Комментарий: {selectedPublication.comment || 'без комментария'}
                 </PublicationHistoryMeta>
+
+                <strong>Изменения смен</strong>
+                {selectedPublication.diff.shifts.length === 0 ? (
+                  <PublicationHistoryMeta>
+                    Изменений смен относительно предыдущей версии нет.
+                  </PublicationHistoryMeta>
+                ) : (
+                  <PublicationDiffList>
+                    {selectedPublication.diff.shifts.map((change) => {
+                      const shift = change.after ?? change.before;
+                      const employeeId = shift?.employeeId ?? change.key.split(':')[0];
+                      const date = shift?.date ?? change.key.split(':').slice(1).join(':');
+
+                      return (
+                        <PublicationDiffItem key={change.key}>
+                          <strong>
+                            {publicationEmployeeName(
+                              selectedPublication,
+                              employeeId,
+                            )}{' '}
+                            · {date}
+                          </strong>
+                          <PublicationDiffChange>
+                            Было: {formatPublicationShift(change.before)}
+                          </PublicationDiffChange>
+                          <PublicationDiffChange>
+                            Стало: {formatPublicationShift(change.after)}
+                          </PublicationDiffChange>
+                        </PublicationDiffItem>
+                      );
+                    })}
+                  </PublicationDiffList>
+                )}
+
+                <strong>Изменения сотрудников</strong>
+                {selectedPublication.diff.employees.length === 0 ? (
+                  <PublicationHistoryMeta>
+                    Данные сотрудников относительно предыдущей версии не менялись.
+                  </PublicationHistoryMeta>
+                ) : (
+                  <PublicationDiffList>
+                    {selectedPublication.diff.employees.map((change) => (
+                      <PublicationDiffItem key={change.key}>
+                        <strong>
+                          {(change.after ?? change.before)?.displayName ??
+                            change.key}
+                        </strong>
+                        <PublicationDiffChange>
+                          Было: {formatPublicationEmployee(change.before)}
+                        </PublicationDiffChange>
+                        <PublicationDiffChange>
+                          Стало: {formatPublicationEmployee(change.after)}
+                        </PublicationDiffChange>
+                      </PublicationDiffItem>
+                    ))}
+                  </PublicationDiffList>
+                )}
+
+                <strong>Снимок версии</strong>
                 {selectedPublication.snapshot.shifts.length === 0 ? (
                   <PublicationHistoryMeta>
                     В этой версии сохранённых смен нет.
@@ -724,13 +842,12 @@ export function PlannerScheduleToolsDrawer({
                 ) : (
                   selectedPublication.snapshot.shifts.map((shift) => (
                     <PublicationHistoryMeta key={shift.id}>
-                      {shift.date} · {shift.employeeId} ·{' '}
-                      {shift.isOff
-                        ? 'OFF'
-                        : (shift.code ? shift.code + ' ' : '') +
-                          (shift.startTime || '—') +
-                          '–' +
-                          (shift.endTime || '—')}
+                      {shift.date} ·{' '}
+                      {publicationEmployeeName(
+                        selectedPublication,
+                        shift.employeeId,
+                      )}{' '}
+                      · {formatPublicationShift(shift)}
                     </PublicationHistoryMeta>
                   ))
                 )}

@@ -45,7 +45,7 @@ function publication(version: number): SchedulePublicationResponse {
         {
           id: 'employee-1',
           displayName: 'Иванов И.И.',
-          employmentRate: 1,
+          employmentRate: version === 2 ? 0.75 : 1,
           scheduleMode: 'FLEXIBLE',
           fixedStartTime: null,
           fixedEndTime: null,
@@ -57,8 +57,8 @@ function publication(version: number): SchedulePublicationResponse {
           employeeId: 'employee-1',
           date: '2026-09-07',
           code: null,
-          startTime: '08:00',
-          endTime: '17:00',
+          startTime: version === 2 ? '09:00' : '08:00',
+          endTime: version === 2 ? '18:00' : '17:00',
           isOff: false,
           updatedAt: '2026-09-01T10:00:00.000Z',
         },
@@ -67,16 +67,84 @@ function publication(version: number): SchedulePublicationResponse {
     diff: {
       employees:
         version === 2
-          ? [{ key: 'employee-1', before: {}, after: {} }]
+          ? [
+              {
+                key: 'employee-1',
+                before: {
+                  id: 'employee-1',
+                  displayName: 'Иванов И.И.',
+                  employmentRate: 1,
+                  scheduleMode: 'FLEXIBLE',
+                  fixedStartTime: null,
+                  fixedEndTime: null,
+                },
+                after: {
+                  id: 'employee-1',
+                  displayName: 'Иванов И.И.',
+                  employmentRate: 0.75,
+                  scheduleMode: 'FLEXIBLE',
+                  fixedStartTime: null,
+                  fixedEndTime: null,
+                },
+              },
+            ]
           : [],
       shifts:
         version === 2
           ? [
-              { key: 'employee-1:2026-09-07', before: {}, after: {} },
-              { key: 'employee-1:2026-09-08', before: null, after: {} },
+              {
+                key: 'employee-1:2026-09-07',
+                before: {
+                  id: 'shift-1',
+                  employeeId: 'employee-1',
+                  date: '2026-09-07',
+                  code: null,
+                  startTime: '08:00',
+                  endTime: '17:00',
+                  isOff: false,
+                  updatedAt: '2026-09-01T10:00:00.000Z',
+                },
+                after: {
+                  id: 'shift-2',
+                  employeeId: 'employee-1',
+                  date: '2026-09-07',
+                  code: null,
+                  startTime: '09:00',
+                  endTime: '18:00',
+                  isOff: false,
+                  updatedAt: '2026-09-02T10:00:00.000Z',
+                },
+              },
+              {
+                key: 'employee-1:2026-09-08',
+                before: null,
+                after: {
+                  id: 'shift-added',
+                  employeeId: 'employee-1',
+                  date: '2026-09-08',
+                  code: null,
+                  startTime: '10:00',
+                  endTime: '19:00',
+                  isOff: false,
+                  updatedAt: '2026-09-02T10:00:00.000Z',
+                },
+              },
             ]
           : [
-              { key: 'employee-1:2026-09-07', before: null, after: {} },
+              {
+                key: 'employee-1:2026-09-07',
+                before: null,
+                after: {
+                  id: 'shift-1',
+                  employeeId: 'employee-1',
+                  date: '2026-09-07',
+                  code: null,
+                  startTime: '08:00',
+                  endTime: '17:00',
+                  isOff: false,
+                  updatedAt: '2026-09-01T10:00:00.000Z',
+                },
+              },
             ],
     },
     createdAt: '2026-09-0' + version + 'T09:00:00.000Z',
@@ -256,8 +324,45 @@ describe('schedule publication controls', () => {
     expect(screen.queryByText('user-admin')).not.toBeInTheDocument();
     expect(screen.getByText('Сотрудников: 1 · смен: 1')).toBeInTheDocument();
     expect(
-      screen.getByText(/2026-09-07 · employee-1 · 08:00–17:00/),
+      screen.getByText(/2026-09-07 · Иванов И\.И\. · 08:00–17:00/),
     ).toBeInTheDocument();
+  });
+
+  it('renders immutable publication diff with employee names and before/after values', async () => {
+    getHistory.mockResolvedValue([publication(2), publication(1)]);
+    getPublication.mockResolvedValue(publication(2));
+
+    render(
+      <ThemeProvider theme={getTheme('light')}>
+        <PlannerScheduleToolsDrawer {...props()} />
+      </ThemeProvider>,
+    );
+
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByRole('button', { name: 'Открыть v2' }),
+    );
+
+    expect(await screen.findByText('Изменения смен')).toBeInTheDocument();
+    expect(
+      screen.getByText('Иванов И.И. · 2026-09-07'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Было: 08:00–17:00')).toBeInTheDocument();
+    expect(screen.getByText('Стало: 09:00–18:00')).toBeInTheDocument();
+    expect(
+      screen.getByText('Иванов И.И. · 2026-09-08'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Было: нет смены')).toBeInTheDocument();
+    expect(screen.getByText('Стало: 10:00–19:00')).toBeInTheDocument();
+
+    expect(await screen.findByText('Изменения сотрудников')).toBeInTheDocument();
+    expect(
+      screen.getByText('Было: Иванов И.И. · ставка 1 · FLEXIBLE'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Стало: Иванов И.И. · ставка 0.75 · FLEXIBLE'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('employee-1 · 2026-09-07')).not.toBeInTheDocument();
   });
 
   it('does not call publication API in local demo mode', async () => {

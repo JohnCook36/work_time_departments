@@ -205,13 +205,34 @@ export const ValidationBadge = styled('span')<{
 export const PublicationVersionDetail = styled('div')(({ theme }) => ({
   display: 'grid',
   alignContent: 'start',
-  gap: 6,
+  gap: 8,
   minHeight: 56,
-  maxHeight: 200,
+  maxHeight: 360,
   overflowY: 'auto',
   padding: 10,
   borderRadius: 10,
   border: '1px solid ' + theme.colors.border,
+}));
+
+export const PublicationDiffList = styled('div')({
+  display: 'grid',
+  gap: 7,
+});
+
+export const PublicationDiffItem = styled('div')(({ theme }) => ({
+  display: 'grid',
+  gap: 3,
+  padding: 8,
+  borderRadius: 8,
+  border: '1px solid ' + theme.colors.border,
+  background: theme.colors.surface,
+  fontSize: 12,
+  lineHeight: '17px',
+}));
+
+export const PublicationDiffChange = styled('div')(({ theme }) => ({
+  color: theme.colors.textMuted,
+  overflowWrap: 'anywhere',
 }));
 
 
