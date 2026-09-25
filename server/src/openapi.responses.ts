@@ -1,5 +1,5 @@
 import type { SchemaObject } from '@nestjs/swagger';
-import { DepartmentKind, EmployeeScheduleMode, OnboardingRequestStatus, OnboardingRequestType, PermissionCapability, RoleType, ScheduleRuleKind, ScheduleRuleScope, ScheduleRuleSeverity, ShiftChangeRequestEventType, ShiftChangeRequestKind, ShiftChangeRequestStatus } from '@prisma/client';
+import { AuditAction, AuditEntityType, DepartmentKind, EmployeeScheduleMode, OnboardingRequestStatus, OnboardingRequestType, PermissionCapability, RoleType, ScheduleRuleKind, ScheduleRuleScope, ScheduleRuleSeverity, ShiftChangeRequestEventType, ShiftChangeRequestKind, ShiftChangeRequestStatus } from '@prisma/client';
 
 // Wire response shapes selected/serialized by the services, never database records or fixtures.
 const text: SchemaObject = { type: 'string' };
@@ -10,6 +10,20 @@ const enumeration = (values: Record<string, string>): SchemaObject => ({ type: '
 const nullable = (schema: SchemaObject): SchemaObject => ({ ...schema, nullable: true });
 export const arrayOf = (items: SchemaObject): SchemaObject => ({ type: 'array', items });
 const object = (properties: Record<string, SchemaObject>): SchemaObject => ({ type: 'object', properties, required: Object.keys(properties) });
+
+export const auditEventResponse = object({
+  id: text,
+  action: enumeration(AuditAction),
+  entityType: enumeration(AuditEntityType),
+  entityId: text,
+  departmentId: nullable(text),
+  actorLabel: text,
+  createdAt: timestamp,
+});
+export const auditPageResponse = object({
+  items: arrayOf(auditEventResponse),
+  nextCursor: nullable(text),
+});
 
 export const okResponse = object({ status: { type: 'string', enum: ['ok'] } });
 export const reorderResponse = object({ ...okResponse.properties, reordered: integer });
