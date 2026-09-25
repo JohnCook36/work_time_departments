@@ -7,7 +7,7 @@ import {
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomInt } from 'node:crypto';
 import { PermissionCapability, RoleType } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
@@ -70,7 +70,7 @@ export class AuthService {
     }
 
     const pepper = this.getOtpPepper();
-    const code = this.getDevelopmentOtpCode();
+    const code = this.getOtpCode();
     const sourceHash = requestSource
       ? hashAuthRequestSource(requestSource, pepper)
       : null;
@@ -156,6 +156,8 @@ export class AuthService {
           maxAttempts: OTP_MAX_ATTEMPTS,
         },
       });
+
+      await this.deliverOtp(phoneE164, code);
     });
 
     return {
@@ -187,6 +189,8 @@ export class AuthService {
         error instanceof Error ? error.message : 'Invalid authentication data',
       );
     }
+
+    await this.cleanupInactiveSessions();
 
     const challenge = await this.prisma.authChallenge.findFirst({
       where: {
@@ -305,6 +309,7 @@ export class AuthService {
   }
 
   async getCurrentUser(rawToken: string): Promise<AuthUserContext> {
+    await this.cleanupInactiveSessions();
     const tokenHash = hashSessionToken(rawToken);
 
     const session = await this.prisma.authSession.findUnique({
@@ -433,11 +438,12 @@ export class AuthService {
     return pepper;
   }
 
-  private getDevelopmentOtpCode(): string {
-    if (
-      process.env.NODE_ENV === 'production' ||
-      process.env.AUTH_ALLOW_DEV_OTP !== 'true'
-    ) {
+  private getOtpCode(): string {
+    if (process.env.NODE_ENV === 'production') {
+      return randomInt(0, 1_000_000).toString().padStart(6, '0');
+    }
+
+    if (process.env.AUTH_ALLOW_DEV_OTP !== 'true') {
       throw new ServiceUnavailableException(
         'SMS OTP provider is not configured',
       );
@@ -458,5 +464,77 @@ export class AuthService {
         'Development OTP code must contain exactly 6 digits',
       );
     }
+  }
+
+  private async deliverOtp(phoneE164: string, code: string): Promise<void> {
+    if (process.env.NODE_ENV !== 'production') return;
+
+    const url = process.env.AUTH_OTP_PROVIDER_URL?.trim();
+    const token = process.env.AUTH_OTP_PROVIDER_TOKEN?.trim();
+    const rawTimeoutMs = process.env.AUTH_OTP_PROVIDER_TIMEOUT_MS;
+    const timeoutMs = rawTimeoutMs ? Number(rawTimeoutMs) : 5000;
+
+    if (!url || !token) {
+      throw new ServiceUnavailableException(
+        'SMS OTP provider is not configured',
+      );
+    }
+
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(url);
+    } catch {
+      throw new ServiceUnavailableException(
+        'SMS OTP provider is not configured correctly',
+      );
+    }
+
+    if (parsedUrl.protocol !== 'https:') {
+      throw new ServiceUnavailableException(
+        'SMS OTP provider URL must use HTTPS in production',
+      );
+    }
+
+    if (
+      !Number.isInteger(timeoutMs) ||
+      timeoutMs < 1000 ||
+      timeoutMs > 15000
+    ) {
+      throw new ServiceUnavailableException(
+        'SMS OTP provider timeout is not configured correctly',
+      );
+    }
+
+    try {
+      const response = await fetch(parsedUrl, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: 'Bearer ' + token,
+        },
+        body: JSON.stringify({ phoneE164, code }),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+
+      if (!response.ok) {
+        throw new Error('provider rejected delivery');
+      }
+    } catch {
+      throw new ServiceUnavailableException(
+        'OTP delivery provider failed',
+      );
+    }
+  }
+
+  private async cleanupInactiveSessions(): Promise<void> {
+    const now = new Date();
+    await this.prisma.authSession.deleteMany({
+      where: {
+        OR: [
+          { expiresAt: { lte: now } },
+          { revokedAt: { not: null } },
+        ],
+      },
+    });
   }
 }
