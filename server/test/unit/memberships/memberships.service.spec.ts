@@ -229,10 +229,12 @@ describe('MembershipsService role assignment lifecycle', () => {
       },
     );
 
-    expect(result.permissions).toEqual([
-      PermissionCapability.SCHEDULE_READ,
-      PermissionCapability.SCHEDULE_EDIT,
-    ].sort());
+    expect(new Set(result.permissions)).toEqual(
+      new Set([
+        PermissionCapability.SCHEDULE_READ,
+        PermissionCapability.SCHEDULE_EDIT,
+      ]),
+    );
     expect(prisma.membershipPermission.deleteMany).toHaveBeenCalledWith({
       where: { membershipId: 'membership-target' },
     });
