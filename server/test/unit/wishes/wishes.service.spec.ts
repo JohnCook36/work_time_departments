@@ -18,8 +18,13 @@ describe('WishesService', () => {
     },
   };
 
+  const assertCanAdministerDepartment = jest.fn();
   const authorization = {
-    assertCanAdministerDepartment: jest.fn(),
+    assertCanAdministerDepartment,
+    assertCapability: jest.fn(
+      (user: unknown, _capability: unknown, departmentId: string) =>
+        assertCanAdministerDepartment(user, departmentId),
+    ),
   };
 
   const service = new WishesService(

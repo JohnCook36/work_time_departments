@@ -8,7 +8,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
-import { RoleType } from '@prisma/client';
+import { PermissionCapability, RoleType } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -44,6 +44,7 @@ export interface AuthUserContext {
     id: string;
     role: RoleType;
     departmentId: string | null;
+    permissions?: PermissionCapability[];
   }>;
 }
 
@@ -310,6 +311,13 @@ export class AuthService {
             },
             memberships: {
               where: { isActive: true },
+              include: {
+                permissions: {
+                  select: {
+                    capability: true,
+                  },
+                },
+              },
             },
           },
         },
@@ -349,6 +357,9 @@ export class AuthService {
         id: membership.id,
         role: membership.role,
         departmentId: membership.departmentId,
+        permissions: membership.permissions.map(
+          permission => permission.capability,
+        ),
       })),
     };
   }

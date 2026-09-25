@@ -57,8 +57,18 @@ describe('EmployeesService', () => {
     $transaction: jest.fn(),
   };
 
+  const assertCanAdministerDepartment = jest.fn();
   const authorization = {
-    assertCanAdministerDepartment: jest.fn(),
+    assertCanAdministerDepartment,
+    assertCapability: jest.fn(
+      (user: AuthUserContext, _capability: unknown, departmentId: string) =>
+        assertCanAdministerDepartment(user, departmentId),
+    ),
+    isSuperAdmin: jest.fn((user: AuthUserContext) =>
+      user.memberships.some(
+        membership => membership.role === 'SUPER_ADMIN',
+      ),
+    ),
   };
 
   const service = new EmployeesService(

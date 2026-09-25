@@ -2,6 +2,7 @@ import type { INestApplication } from '@nestjs/common';
 import {
   AuditAction,
   AuditEntityType,
+  PermissionCapability,
   RoleType,
   ScheduleRuleKind,
   ScheduleRuleScope,
@@ -286,6 +287,87 @@ describeLive('live PostgreSQL security boundaries', () => {
       { headers: { cookie } },
     );
     expect(foreignEmployees.status).toBe(403);
+
+    const foreignSchedule = await fetch(
+      baseUrl +
+        '/schedule-data/department?departmentId=' +
+        encodeURIComponent(foreignDepartment.id) +
+        '&year=2026&month=9',
+      { headers: { cookie } },
+    );
+    expect(foreignSchedule.status).toBe(403);
+  });
+
+  it('loads persisted Deputy capabilities and enforces them per department', async () => {
+    const phone = '+79990000033';
+    await requestCode(phone);
+    const verification = await verifyCode(phone);
+    expect(verification.status).toBe(201);
+    const cookie = sessionCookie(verification);
+
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { phoneE164: phone },
+    });
+    const ownDepartment = await prisma.department.create({
+      data: { name: 'Deputy capability department', position: 1 },
+    });
+    const foreignDepartment = await prisma.department.create({
+      data: { name: 'Deputy foreign department', position: 2 },
+    });
+
+    const membership = await prisma.membership.create({
+      data: {
+        userId: user.id,
+        departmentId: ownDepartment.id,
+        role: RoleType.DEPUTY,
+      },
+    });
+    await prisma.membershipPermission.create({
+      data: {
+        membershipId: membership.id,
+        capability: PermissionCapability.SCHEDULE_READ,
+      },
+    });
+
+    const current = await fetch(baseUrl + '/auth/me', {
+      headers: { cookie },
+    });
+    expect(current.status).toBe(200);
+    expect(await current.json()).toMatchObject({
+      memberships: [
+        expect.objectContaining({
+          id: membership.id,
+          role: RoleType.DEPUTY,
+          departmentId: ownDepartment.id,
+          permissions: [PermissionCapability.SCHEDULE_READ],
+        }),
+      ],
+    });
+
+    const manageable = await fetch(baseUrl + '/departments/manageable', {
+      headers: { cookie },
+    });
+    expect(manageable.status).toBe(200);
+    expect(
+      ((await manageable.json()) as Array<{ id: string }>).map(
+        department => department.id,
+      ),
+    ).toEqual([ownDepartment.id]);
+
+    const ownSchedule = await fetch(
+      baseUrl +
+        '/schedule-data/department?departmentId=' +
+        encodeURIComponent(ownDepartment.id) +
+        '&year=2026&month=9',
+      { headers: { cookie } },
+    );
+    expect(ownSchedule.status).toBe(200);
+
+    const ownEmployees = await fetch(
+      baseUrl + '/employees?departmentId=' + encodeURIComponent(ownDepartment.id),
+      { headers: { cookie } },
+    );
+    expect(ownEmployees.status).toBe(403);
 
     const foreignSchedule = await fetch(
       baseUrl +

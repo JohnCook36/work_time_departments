@@ -8,8 +8,8 @@ import {
 import {
   AuditAction,
   AuditEntityType,
+  PermissionCapability,
   Prisma,
-  RoleType,
   ShiftChangeRequestEventType,
   ShiftChangeRequestKind,
   ShiftChangeRequestStatus,
@@ -413,16 +413,11 @@ export class ShiftChangeRequestsService {
   }
 
   getPendingForAdmin(admin: AuthUserContext) {
-    const isSuperAdmin = admin.memberships.some(
-      (membership) => membership.role === RoleType.SUPER_ADMIN,
+    const isSuperAdmin = this.authorization.isSuperAdmin(admin);
+    const departmentIds = this.authorization.departmentIdsForCapability(
+      admin,
+      PermissionCapability.SHIFT_CHANGE_APPROVE,
     );
-    const departmentIds = admin.memberships
-      .filter(
-        (membership) =>
-          membership.role === RoleType.DEPARTMENT_ADMIN &&
-          membership.departmentId !== null,
-      )
-      .map((membership) => membership.departmentId as string);
 
     if (!isSuperAdmin && departmentIds.length === 0) {
       throw new ForbiddenException(
@@ -648,15 +643,35 @@ export class ShiftChangeRequestsService {
         isActive: true,
         memberships: {
           where: { isActive: true },
-          select: { id: true, role: true, departmentId: true },
+          select: {
+            id: true,
+            role: true,
+            departmentId: true,
+            permissions: {
+              select: {
+                capability: true,
+              },
+            },
+          },
         },
       },
     });
     if (!current?.isActive) {
       throw new ForbiddenException('Manager account is inactive');
     }
-    this.authorization.assertCanAdministerDepartments(
-      { ...admin, memberships: current.memberships },
+    this.authorization.assertCapabilityForDepartments(
+      {
+        ...admin,
+        memberships: current.memberships.map(membership => ({
+          id: membership.id,
+          role: membership.role,
+          departmentId: membership.departmentId,
+          permissions: (membership.permissions ?? []).map(
+            permission => permission.capability,
+          ),
+        })),
+      },
+      PermissionCapability.SHIFT_CHANGE_APPROVE,
       [request.requesterDepartmentId, request.targetDepartmentId],
     );
   }
@@ -842,10 +857,11 @@ export class ShiftChangeRequestsService {
     admin: AuthUserContext,
     request: TransitionRequest,
   ): void {
-    this.authorization.assertCanAdministerDepartments(admin, [
-      request.requesterDepartmentId,
-      request.targetDepartmentId,
-    ]);
+    this.authorization.assertCapabilityForDepartments(
+      admin,
+      PermissionCapability.SHIFT_CHANGE_APPROVE,
+      [request.requesterDepartmentId, request.targetDepartmentId],
+    );
   }
 
   private assertStatus(

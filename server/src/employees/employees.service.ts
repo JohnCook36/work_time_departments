@@ -9,7 +9,7 @@ import {
   AuditEntityType,
   EmployeeScheduleMode,
   OnboardingRequestStatus,
-  RoleType,
+  PermissionCapability,
   ShiftChangeRequestStatus,
 } from '@prisma/client';
 
@@ -205,7 +205,11 @@ export class EmployeesService {
     admin: AuthUserContext,
     departmentId: string,
   ) {
-    this.authorization.assertCanAdministerDepartment(admin, departmentId);
+    this.authorization.assertCapability(
+      admin,
+      PermissionCapability.EMPLOYEE_MANAGE,
+      departmentId,
+    );
 
     await this.assertActiveDepartment(departmentId);
 
@@ -243,7 +247,11 @@ export class EmployeesService {
     }
 
     const departmentId = requireString(input.departmentId, 'departmentId');
-    this.authorization.assertCanAdministerDepartment(admin, departmentId);
+    this.authorization.assertCapability(
+      admin,
+      PermissionCapability.EMPLOYEE_MANAGE,
+      departmentId,
+    );
     await this.assertActiveDepartment(departmentId);
 
     const employmentRate = optionalRate(input.employmentRate) ?? 1;
@@ -303,7 +311,11 @@ export class EmployeesService {
       orderedEmployeeIds,
     );
 
-    this.authorization.assertCanAdministerDepartment(admin, departmentId);
+    this.authorization.assertCapability(
+      admin,
+      PermissionCapability.EMPLOYEE_MANAGE,
+      departmentId,
+    );
     await this.assertActiveDepartment(departmentId);
 
     return this.prisma.$transaction(async (tx) => {
@@ -390,6 +402,11 @@ export class EmployeesService {
                 select: {
                   role: true,
                   departmentId: true,
+                  permissions: {
+                    select: {
+                      capability: true,
+                    },
+                  },
                 },
               },
             },
@@ -401,8 +418,9 @@ export class EmployeesService {
         throw new NotFoundException('Employee not found');
       }
 
-      this.authorization.assertCanAdministerDepartment(
+      this.authorization.assertCapability(
         admin,
+        PermissionCapability.EMPLOYEE_MANAGE,
         existing.departmentId,
       );
 
@@ -418,14 +436,13 @@ export class EmployeesService {
 
       const targetHasManagementAccess =
         existing.user?.memberships.some(
-          (membership) =>
-            membership.role === RoleType.SUPER_ADMIN ||
-            membership.role === RoleType.DEPARTMENT_ADMIN,
+          membership =>
+            membership.role === 'SUPER_ADMIN' ||
+            membership.role === 'DEPARTMENT_ADMIN' ||
+            (membership.permissions?.length ?? 0) > 0,
         ) ?? false;
 
-      const adminIsSuperAdmin = admin.memberships.some(
-        (membership) => membership.role === RoleType.SUPER_ADMIN,
-      );
+      const adminIsSuperAdmin = this.authorization.isSuperAdmin(admin);
 
       if (targetHasManagementAccess && !adminIsSuperAdmin) {
         throw new ConflictException(
@@ -560,8 +577,9 @@ export class EmployeesService {
       throw new NotFoundException('Employee not found');
     }
 
-    this.authorization.assertCanAdministerDepartment(
+    this.authorization.assertCapability(
       admin,
+      PermissionCapability.EMPLOYEE_MANAGE,
       existing.departmentId,
     );
 
@@ -575,8 +593,9 @@ export class EmployeesService {
         : requireString(input.departmentId, 'departmentId');
 
     if (requestedDepartmentId !== existing.departmentId) {
-      this.authorization.assertCanAdministerDepartment(
+      this.authorization.assertCapability(
         admin,
+        PermissionCapability.EMPLOYEE_MANAGE,
         requestedDepartmentId,
       );
       await this.assertActiveDepartment(requestedDepartmentId);

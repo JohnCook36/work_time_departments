@@ -8,6 +8,7 @@ import {
   AuditAction,
   AuditEntityType,
   EmployeeScheduleMode,
+  PermissionCapability,
   Prisma,
 } from '@prisma/client';
 
@@ -185,7 +186,11 @@ export class SchedulesService {
     ) {
       throw new BadRequestException('departmentIds must contain 1–100 unique department ids');
     }
-    this.authorization.assertCanAdministerDepartments(admin, departmentIds);
+    this.authorization.assertCapabilityForDepartments(
+      admin,
+      PermissionCapability.SCHEDULE_EDIT,
+      departmentIds,
+    );
     const today = new Date();
     const earliest = new Date(Date.UTC(
       today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate(),
@@ -275,7 +280,11 @@ export class SchedulesService {
     month: number,
   ) {
     assertPeriod(year, month);
-    this.authorization.assertCanAdministerDepartment(admin, departmentId);
+    this.authorization.assertCapability(
+      admin,
+      PermissionCapability.SCHEDULE_READ,
+      departmentId,
+    );
 
     const department = await this.prisma.department.findFirst({
       where: {
@@ -553,7 +562,11 @@ export class SchedulesService {
     changes: ScheduleCellChange[],
   ) {
     assertPeriod(year, month);
-    this.authorization.assertCanAdministerDepartment(admin, departmentId);
+    this.authorization.assertCapability(
+      admin,
+      PermissionCapability.SCHEDULE_EDIT,
+      departmentId,
+    );
 
     const employeeIds = this.validateScheduleChanges(
       changes,
@@ -631,8 +644,9 @@ export class SchedulesService {
         );
       }
 
-      this.authorization.assertCanAdministerDepartments(
+      this.authorization.assertCapabilityForDepartments(
         admin,
+        PermissionCapability.SCHEDULE_EDIT,
         employees.map((employee) => employee.departmentId),
       );
 

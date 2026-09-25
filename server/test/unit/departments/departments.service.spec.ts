@@ -7,10 +7,12 @@ import {
   AuditAction,
   AuditEntityType,
   DepartmentKind,
+  PermissionCapability,
   RoleType,
 } from '@prisma/client';
 
 import { AuthUserContext } from '../../../src/auth/auth.service';
+import { AuthorizationService } from '../../../src/auth/authorization.service';
 import { PrismaService } from '../../../src/prisma/prisma.service';
 import { DepartmentsService } from '../../../src/departments/departments.service';
 
@@ -58,7 +60,10 @@ describe('DepartmentsService', () => {
     },
     $transaction: jest.fn(),
   };
-  const service = new DepartmentsService(prisma as unknown as PrismaService);
+  const service = new DepartmentsService(
+    prisma as unknown as PrismaService,
+    new AuthorizationService(),
+  );
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -142,6 +147,22 @@ describe('DepartmentsService', () => {
         where: {
           isActive: true,
           id: { in: ['department-a', 'department-b'] },
+        },
+      }),
+    );
+  });
+
+  it('lists only the Deputy department with an explicit capability', async () => {
+    const user = userWith(RoleType.DEPUTY, 'department-a');
+    user.memberships[0].permissions = [PermissionCapability.SCHEDULE_READ];
+
+    await service.listManageable(user);
+
+    expect(prisma.department.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          isActive: true,
+          id: { in: ['department-a'] },
         },
       }),
     );

@@ -7,6 +7,7 @@ import {
 import {
   AuditAction,
   AuditEntityType,
+  PermissionCapability,
   Prisma,
   ScheduleRuleScope,
 } from '@prisma/client';
@@ -255,7 +256,11 @@ export class SchedulePublicationsService {
     if (!departmentId.trim()) {
       throw new BadRequestException('departmentId is required');
     }
-    this.authorization.assertCanAdministerDepartment(admin, departmentId);
+    this.authorization.assertCapability(
+      admin,
+      PermissionCapability.SCHEDULE_PUBLISH,
+      departmentId,
+    );
 
     const normalizedComment = normalizeOptionalText(comment, 'comment', 500);
 
@@ -501,7 +506,11 @@ export class SchedulePublicationsService {
     if (!departmentId.trim()) {
       throw new BadRequestException('departmentId is required');
     }
-    this.authorization.assertCanAdministerDepartment(admin, departmentId);
+    this.authorization.assertCapability(
+      admin,
+      PermissionCapability.SCHEDULE_PUBLISH,
+      departmentId,
+    );
 
     const department = await this.prisma.department.findFirst({
       where: {
@@ -644,7 +653,11 @@ export class SchedulePublicationsService {
     month: number,
   ) {
     assertPeriod(year, month);
-    this.authorization.assertCanAdministerDepartment(admin, departmentId);
+    this.authorization.assertCapability(
+      admin,
+      PermissionCapability.SCHEDULE_READ,
+      departmentId,
+    );
 
     const department = await this.prisma.department.findFirst({
       where: { id: departmentId, isActive: true },
@@ -702,7 +715,11 @@ export class SchedulePublicationsService {
     if (!Number.isInteger(version) || version < 1) {
       throw new BadRequestException('version must be a positive integer');
     }
-    this.authorization.assertCanAdministerDepartment(admin, departmentId);
+    this.authorization.assertCapability(
+      admin,
+      PermissionCapability.SCHEDULE_READ,
+      departmentId,
+    );
 
     const schedule = await this.prisma.schedule.findUnique({
       where: { year_month: { year, month } },

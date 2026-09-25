@@ -2,6 +2,7 @@ import { ForbiddenException } from '@nestjs/common';
 import { RoleType } from '@prisma/client';
 
 import { AuthUserContext } from '../../../src/auth/auth.service';
+import { AuthorizationService } from '../../../src/auth/authorization.service';
 import { OnboardingService } from '../../../src/onboarding/onboarding.service';
 
 function authUser(
@@ -30,13 +31,9 @@ describe('OnboardingService admin departments', () => {
     },
   };
 
-  const authorization = {
-    assertCanAdministerDepartment: jest.fn(),
-  };
-
   const service = new OnboardingService(
     prisma as never,
-    authorization as never,
+    new AuthorizationService(),
   );
 
   beforeEach(() => {
@@ -114,8 +111,13 @@ describe('OnboardingService privacy boundary', () => {
     const prisma = {
       onboardingRequest: { findMany },
     };
+    const assertCanAdministerDepartment = jest.fn();
     const authorization = {
-      assertCanAdministerDepartment: jest.fn(),
+      assertCanAdministerDepartment,
+      assertCapability: jest.fn(
+        (user: AuthUserContext, _capability: unknown, departmentId: string) =>
+          assertCanAdministerDepartment(user, departmentId),
+      ),
     };
     const service = new OnboardingService(
       prisma as never,
