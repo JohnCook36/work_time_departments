@@ -1,11 +1,13 @@
 import { ThemeProvider } from '@emotion/react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   getDepartmentSchedulePublication,
   getDepartmentSchedulePublications,
+  getPublicationAcknowledgements,
+  PublicationAcknowledgementList,
   publishDepartmentSchedule,
   SchedulePublicationResponse,
   validateDepartmentSchedule,
@@ -16,12 +18,14 @@ import { getTheme } from '../../../src/theme/theme';
 vi.mock('../../../src/api/planner', () => ({
   getDepartmentSchedulePublication: vi.fn(),
   getDepartmentSchedulePublications: vi.fn(),
+  getPublicationAcknowledgements: vi.fn(),
   publishDepartmentSchedule: vi.fn(),
   validateDepartmentSchedule: vi.fn(),
 }));
 
 const getPublication = vi.mocked(getDepartmentSchedulePublication);
 const getHistory = vi.mocked(getDepartmentSchedulePublications);
+const getAcknowledgements = vi.mocked(getPublicationAcknowledgements);
 const publish = vi.mocked(publishDepartmentSchedule);
 const validate = vi.mocked(validateDepartmentSchedule);
 
@@ -197,6 +201,12 @@ function props() {
 describe('schedule publication controls', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getAcknowledgements.mockImplementation(async publicationId => ({
+      publicationId,
+      departmentId: 'department-a',
+      version: 1,
+      employees: [],
+    }));
     validate.mockResolvedValue({
       departmentId: 'department-a',
       period: { year: 2026, month: 9 },
@@ -268,6 +278,8 @@ describe('schedule publication controls', () => {
         <PlannerScheduleToolsDrawer {...drawerProps} />
       </ThemeProvider>,
     );
+
+    expect(await screen.findByText('Опубликованных версий пока нет.')).toBeInTheDocument();
 
     const user = userEvent.setup();
     await user.click(
@@ -363,6 +375,88 @@ describe('schedule publication controls', () => {
       screen.getByText('Стало: Иванов И.И. · ставка 0.75 · FLEXIBLE'),
     ).toBeInTheDocument();
     expect(screen.queryByText('employee-1 · 2026-09-07')).not.toBeInTheDocument();
+  });
+
+  it('loads scoped statuses for each selected publication and handles API errors', async () => {
+    getHistory.mockResolvedValue([publication(2), publication(1)]);
+    getPublication.mockImplementation(async (_department, _year, _month, version) => publication(version));
+    getAcknowledgements.mockImplementation(async publicationId => {
+      if (publicationId === 'publication-1') {
+        return {
+          publicationId,
+          departmentId: 'department-a',
+          version: 1,
+          employees: [{
+            employeeId: 'employee-1',
+            displayName: 'Иванов И.И.',
+            status: 'ACKNOWLEDGED',
+            acknowledgedAt: '2026-09-25T14:30:00.000Z',
+          }],
+        };
+      }
+      throw new Error('backend unavailable');
+    });
+
+    render(
+      <ThemeProvider theme={getTheme('light')}>
+        <PlannerScheduleToolsDrawer {...props()} />
+      </ThemeProvider>,
+    );
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Открыть v1' }));
+    expect(await screen.findByText('Ознакомлен')).toBeInTheDocument();
+    expect(screen.getByText(/25\.09\.2026/)).toBeInTheDocument();
+    expect(getAcknowledgements).toHaveBeenCalledWith('publication-1');
+
+    await user.click(screen.getByRole('button', { name: 'Открыть v2' }));
+    expect(await screen.findByText(/Не удалось загрузить статусы/)).toBeInTheDocument();
+    expect(screen.queryByText('Ознакомлен')).not.toBeInTheDocument();
+    expect(getAcknowledgements).toHaveBeenCalledWith('publication-2');
+  });
+
+  it('ignores a late acknowledgement response from a previously opened version', async () => {
+    getHistory.mockResolvedValue([publication(2), publication(1)]);
+    getPublication.mockImplementation(async (_department, _year, _month, version) => publication(version));
+    let resolveFirst!: (value: PublicationAcknowledgementList) => void;
+    getAcknowledgements.mockImplementation(publicationId => publicationId === 'publication-1'
+      ? new Promise(resolve => { resolveFirst = resolve; })
+      : Promise.resolve({
+          publicationId,
+          departmentId: 'department-a',
+          version: 2,
+          employees: [{
+            employeeId: 'employee-1',
+            displayName: 'Иванов И.И.',
+            status: 'NOT_ACKNOWLEDGED',
+            acknowledgedAt: null,
+          }],
+        }));
+
+    render(
+      <ThemeProvider theme={getTheme('light')}>
+        <PlannerScheduleToolsDrawer {...props()} />
+      </ThemeProvider>,
+    );
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Открыть v1' }));
+    await waitFor(() => expect(getAcknowledgements).toHaveBeenCalledWith('publication-1'));
+    await user.click(screen.getByRole('button', { name: 'Открыть v2' }));
+    expect(await screen.findByText('Не ознакомлен')).toBeInTheDocument();
+    await act(async () => {
+      resolveFirst({
+        publicationId: 'publication-1',
+        departmentId: 'department-a',
+        version: 1,
+        employees: [{
+          employeeId: 'employee-1',
+          displayName: 'Иванов И.И.',
+          status: 'ACKNOWLEDGED',
+          acknowledgedAt: '2026-09-25T14:30:00.000Z',
+        }],
+      });
+    });
+    expect(screen.queryByText('Ознакомлен')).not.toBeInTheDocument();
+    expect(screen.getByText('Не ознакомлен')).toBeInTheDocument();
   });
 
   it('does not call publication API in local demo mode', async () => {
