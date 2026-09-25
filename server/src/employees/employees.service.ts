@@ -590,8 +590,9 @@ export class EmployeesService {
         : requireString(input.departmentId, 'departmentId');
 
     if (requestedDepartmentId !== existing.departmentId) {
-      this.authorization.assertCanAdministerDepartment(
+      this.authorization.assertCapability(
         admin,
+        PermissionCapability.EMPLOYEE_MANAGE,
         requestedDepartmentId,
       );
       await this.assertActiveDepartment(requestedDepartmentId);
