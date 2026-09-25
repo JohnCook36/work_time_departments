@@ -1,4 +1,7 @@
-import { RoleType } from '@prisma/client';
+import {
+  PermissionCapability,
+  RoleType,
+} from '@prisma/client';
 
 import { AuthUserContext } from '../../../src/auth/auth.service';
 import { AuthorizationService } from '../../../src/auth/authorization.service';
@@ -6,6 +9,7 @@ import { AuthorizationService } from '../../../src/auth/authorization.service';
 function userWith(
   role: RoleType,
   departmentId: string | null,
+  permissions: PermissionCapability[] = [],
 ): AuthUserContext {
   return {
     id: 'user-1',
@@ -16,6 +20,7 @@ function userWith(
         id: 'membership-1',
         role,
         departmentId,
+        permissions,
       },
     ],
   };
@@ -24,66 +29,148 @@ function userWith(
 describe('AuthorizationService', () => {
   const service = new AuthorizationService();
 
-  it('allows Super Admin across departments', () => {
+  it('allows Super Admin across departments and capabilities', () => {
+    const user = userWith(RoleType.SUPER_ADMIN, null);
+
+    expect(service.canAdministerDepartment(user, 'department-b')).toBe(true);
     expect(
-      service.canAdministerDepartment(
-        userWith(RoleType.SUPER_ADMIN, null),
+      service.hasCapability(
+        user,
+        PermissionCapability.PRIVATE_PROFILE_EDIT,
         'department-b',
       ),
     ).toBe(true);
   });
 
-  it('allows Department Admin only in its own department', () => {
+  it('allows Department Admin capabilities only in its own department', () => {
     const user = userWith(RoleType.DEPARTMENT_ADMIN, 'department-a');
 
     expect(service.canAdministerDepartment(user, 'department-a')).toBe(true);
     expect(service.canAdministerDepartment(user, 'department-b')).toBe(false);
+    expect(
+      service.hasCapability(
+        user,
+        PermissionCapability.SCHEDULE_PUBLISH,
+        'department-a',
+      ),
+    ).toBe(true);
+    expect(
+      service.hasCapability(
+        user,
+        PermissionCapability.SCHEDULE_PUBLISH,
+        'department-b',
+      ),
+    ).toBe(false);
   });
 
-  it('does not grant admin rights to Deputy or Employee by role alone', () => {
+  it('grants Deputy only explicitly assigned capabilities in its department', () => {
+    const user = userWith(RoleType.DEPUTY, 'department-a', [
+      PermissionCapability.SCHEDULE_READ,
+      PermissionCapability.SHIFT_CHANGE_APPROVE,
+    ]);
+
     expect(
-      service.canAdministerDepartment(
-        userWith(RoleType.DEPUTY, 'department-a'),
+      service.hasCapability(
+        user,
+        PermissionCapability.SCHEDULE_READ,
+        'department-a',
+      ),
+    ).toBe(true);
+    expect(
+      service.hasCapability(
+        user,
+        PermissionCapability.SHIFT_CHANGE_APPROVE,
+        'department-a',
+      ),
+    ).toBe(true);
+    expect(
+      service.hasCapability(
+        user,
+        PermissionCapability.EMPLOYEE_MANAGE,
         'department-a',
       ),
     ).toBe(false);
+    expect(
+      service.hasCapability(
+        user,
+        PermissionCapability.SCHEDULE_READ,
+        'department-b',
+      ),
+    ).toBe(false);
+    expect(service.canAdministerDepartment(user, 'department-a')).toBe(false);
+  });
+
+  it('does not grant management capability to Employee by role alone', () => {
+    const user = userWith(RoleType.EMPLOYEE, 'department-a');
 
     expect(
-      service.canAdministerDepartment(
-        userWith(RoleType.EMPLOYEE, 'department-a'),
+      service.hasCapability(
+        user,
+        PermissionCapability.SCHEDULE_EDIT,
         'department-a',
       ),
     ).toBe(false);
   });
 
-  it('requires authority over every affected department', () => {
+  it('requires the capability over every affected department', () => {
     const user: AuthUserContext = {
-      ...userWith(RoleType.DEPARTMENT_ADMIN, 'department-a'),
+      ...userWith(RoleType.DEPUTY, 'department-a'),
       memberships: [
         {
           id: 'membership-a',
-          role: RoleType.DEPARTMENT_ADMIN,
+          role: RoleType.DEPUTY,
           departmentId: 'department-a',
+          permissions: [PermissionCapability.SCHEDULE_EDIT],
         },
         {
           id: 'membership-b',
-          role: RoleType.DEPARTMENT_ADMIN,
+          role: RoleType.DEPUTY,
           departmentId: 'department-b',
+          permissions: [PermissionCapability.SCHEDULE_EDIT],
         },
       ],
     };
 
     expect(() =>
-      service.assertCanAdministerDepartments(user, [
-        'department-a',
-        'department-b',
-      ]),
+      service.assertCapabilityForDepartments(
+        user,
+        PermissionCapability.SCHEDULE_EDIT,
+        ['department-a', 'department-b'],
+      ),
     ).not.toThrow();
     expect(() =>
-      service.assertCanAdministerDepartments(user, [
-        'department-a',
-        'department-c',
-      ]),
-    ).toThrow('You do not have permission to manage this department');
+      service.assertCapabilityForDepartments(
+        user,
+        PermissionCapability.SCHEDULE_EDIT,
+        ['department-a', 'department-c'],
+      ),
+    ).toThrow('You do not have permission to perform this action');
+  });
+
+  it('lists only departments where the membership has the requested capability', () => {
+    const user: AuthUserContext = {
+      ...userWith(RoleType.DEPUTY, 'department-a'),
+      memberships: [
+        {
+          id: 'membership-a',
+          role: RoleType.DEPUTY,
+          departmentId: 'department-a',
+          permissions: [PermissionCapability.ONBOARDING_REVIEW],
+        },
+        {
+          id: 'membership-b',
+          role: RoleType.DEPUTY,
+          departmentId: 'department-b',
+          permissions: [PermissionCapability.SCHEDULE_READ],
+        },
+      ],
+    };
+
+    expect(
+      service.departmentIdsForCapability(
+        user,
+        PermissionCapability.ONBOARDING_REVIEW,
+      ),
+    ).toEqual(['department-a']);
   });
 });
