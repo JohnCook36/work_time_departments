@@ -9,6 +9,7 @@ import {
 } from '@prisma/client';
 
 import { AuthUserContext } from '../../../src/auth/auth.service';
+import { NotificationsService } from '../../../src/notifications/notifications.service';
 import {
   SCHEDULE_PUBLICATION_RULES_VERSION,
 } from '../../../src/schedules/schedule-publication-rules';
@@ -66,9 +67,16 @@ describe('SchedulePublicationsService', () => {
     ),
   };
 
+  const notifications = {
+    createForUserInTransaction: jest.fn().mockResolvedValue({
+      id: 'notification-1',
+    }),
+  };
+
   const service = new SchedulePublicationsService(
     prisma as never,
     authorization as never,
+    notifications as unknown as NotificationsService,
   );
 
   const department = {
@@ -84,6 +92,8 @@ describe('SchedulePublicationsService', () => {
         fixedStartTime: '08:00',
         fixedEndTime: '17:00',
         user: {
+          id: 'user-employee-1',
+          isActive: true,
           memberships: [
             {
               role: RoleType.EMPLOYEE,
@@ -267,6 +277,14 @@ describe('SchedulePublicationsService', () => {
       }),
     );
     expect(result).not.toHaveProperty('publishedByUserId');
+    expect(notifications.createForUserInTransaction).toHaveBeenCalledWith(
+      transaction,
+      expect.objectContaining({
+        recipientId: 'user-employee-1',
+        entityId: 'publication-1',
+        eventKey: 'publication:publication-1:INITIAL',
+      }),
+    );
   });
 
   it('includes managed hard rules in publication readiness and blocks publish', async () => {
@@ -445,6 +463,14 @@ describe('SchedulePublicationsService', () => {
         after: expect.objectContaining({ startTime: '08:00' }),
       }),
     ]);
+    expect(notifications.createForUserInTransaction).toHaveBeenCalledWith(
+      transaction,
+      expect.objectContaining({
+        recipientId: 'user-employee-1',
+        entityId: 'publication-1',
+        eventKey: 'publication:publication-1:CHANGED',
+      }),
+    );
   });
 
   it('preserves the published employment rate and records a later rate change as version diff', async () => {
