@@ -129,7 +129,7 @@ for (const viewport of [
     await expect(systemPreference).toBeDisabled();
 
     const shiftPreference = page.getByLabel('Уведомления: Обмен сменами');
-    await shiftPreference.uncheck();
+    await shiftPreference.click();
     await expect(shiftPreference).not.toBeChecked();
 
     expect(
