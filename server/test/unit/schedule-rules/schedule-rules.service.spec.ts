@@ -97,29 +97,32 @@ describe('ScheduleRulesService', () => {
     ),
   };
 
+  const assertCanAdministerDepartment = jest.fn();
+  const canAdministerDepartment = jest.fn();
   const authorization = {
-    assertCanAdministerDepartment: jest.fn(),
-    canAdministerDepartment: jest.fn(),
+    assertCanAdministerDepartment,
+    canAdministerDepartment,
     assertCapability: jest.fn(
-      (user, _capability, departmentId) =>
-        authorization.assertCanAdministerDepartment(user, departmentId),
+      (user: AuthUserContext, _capability: unknown, departmentId: string) =>
+        assertCanAdministerDepartment(user, departmentId),
     ),
     hasCapability: jest.fn(
-      (user, _capability, departmentId) =>
-        authorization.canAdministerDepartment(user, departmentId),
+      (user: AuthUserContext, _capability: unknown, departmentId: string) =>
+        canAdministerDepartment(user, departmentId),
     ),
-    isSuperAdmin: jest.fn(
-      (user) =>
-        user.memberships.some((membership) => membership.role === 'SUPER_ADMIN'),
+    isSuperAdmin: jest.fn((user: AuthUserContext) =>
+      user.memberships.some(
+        membership => membership.role === 'SUPER_ADMIN',
+      ),
     ),
-    departmentIdsForCapability: jest.fn((user) =>
+    departmentIdsForCapability: jest.fn((user: AuthUserContext) =>
       user.memberships
         .filter(
-          (membership) =>
+          membership =>
             membership.role === 'DEPARTMENT_ADMIN' &&
             membership.departmentId,
         )
-        .map((membership) => membership.departmentId),
+        .map(membership => membership.departmentId as string),
     ),
   };
 
