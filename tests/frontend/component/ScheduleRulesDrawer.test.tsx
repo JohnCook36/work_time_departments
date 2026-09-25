@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  applyFoCoveragePreset,
   createScheduleRule,
   deleteScheduleRule,
   getManageableScheduleRules,
@@ -15,6 +16,7 @@ import { ScheduleRulesDrawer } from '../../../src/components/drawers/ScheduleRul
 import { getTheme } from '../../../src/theme/theme';
 
 vi.mock('../../../src/api/planner', () => ({
+  applyFoCoveragePreset: vi.fn(),
   createScheduleRule: vi.fn(),
   deleteScheduleRule: vi.fn(),
   getManageableScheduleRules: vi.fn(),
@@ -22,6 +24,7 @@ vi.mock('../../../src/api/planner', () => ({
   updateScheduleRule: vi.fn(),
 }));
 
+const applyFoPreset = vi.mocked(applyFoCoveragePreset);
 const listRules = vi.mocked(getManageableScheduleRules);
 const createRule = vi.mocked(createScheduleRule);
 const updateRule = vi.mocked(updateScheduleRule);
@@ -59,6 +62,66 @@ describe('ScheduleRulesDrawer', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     listRules.mockResolvedValue([rule()]);
+  });
+
+  it('applies the standard FO preset without hiding manual rule management', async () => {
+    applyFoPreset.mockResolvedValue({
+      status: 'ok',
+      departmentId: 'department-a',
+      created: 2,
+      existing: 0,
+      rules: [
+        rule({
+          id: 'preset-max',
+          name: 'Стандарт FO · максимум 5 одновременно',
+        }),
+        rule({
+          id: 'preset-open',
+          name: 'Стандарт FO · 2 сотрудника к 07:00',
+          kind: 'MIN_STAFF_AT_TIME',
+          config: { time: '07:00', minStaff: 2 },
+        }),
+      ],
+    });
+    listRules
+      .mockResolvedValueOnce([rule()])
+      .mockResolvedValueOnce([
+        rule(),
+        rule({
+          id: 'preset-max',
+          name: 'Стандарт FO · максимум 5 одновременно',
+        }),
+        rule({
+          id: 'preset-open',
+          name: 'Стандарт FO · 2 сотрудника к 07:00',
+          kind: 'MIN_STAFF_AT_TIME',
+          config: { time: '07:00', minStaff: 2 },
+        }),
+      ]);
+
+    render(
+      <ThemeProvider theme={getTheme('light')}>
+        <ScheduleRulesDrawer
+          departments={departments}
+          serverMode
+          isSuperAdmin={false}
+          onClose={vi.fn()}
+        />
+      </ThemeProvider>,
+    );
+
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByRole('button', { name: 'Добавить стандарт FO' }),
+    );
+
+    await waitFor(() => {
+      expect(applyFoPreset).toHaveBeenCalledWith('department-a');
+    });
+    expect(
+      await screen.findByText('Стандарт FO · максимум 5 одновременно'),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Новое правило' })).toBeEnabled();
   });
 
   it('creates a department hard rule and refreshes the list', async () => {

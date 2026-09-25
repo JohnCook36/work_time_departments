@@ -24,6 +24,7 @@ import {
 import {
   arrayOf,
   scheduleRuleDeletedResponse,
+  scheduleRuleFoPresetResponse,
   scheduleRuleHistoryResponse,
   scheduleRuleResponse,
 } from '../openapi.responses';
@@ -58,6 +59,16 @@ export class ScheduleRulesController {
   @Get('manageable')
   listManageable(@CurrentUser() user: AuthUserContext) {
     return this.rules.listManageable(user);
+  }
+
+  @ApiOperation({ summary: 'Idempotently add standard FO coverage rules to one FO department' })
+  @ApiResponse({ status: 201, schema: scheduleRuleFoPresetResponse })
+  @Post('presets/fo/:departmentId')
+  applyFoPreset(
+    @CurrentUser() user: AuthUserContext,
+    @Param('departmentId') departmentId: string,
+  ) {
+    return this.rules.applyFoPreset(user, departmentId);
   }
 
   @ApiOperation({ summary: 'Create a managed schedule rule' })
