@@ -7,6 +7,8 @@ import {
 import {
   AuditAction,
   AuditEntityType,
+  NotificationCategory,
+  NotificationEntityType,
   PermissionCapability,
   Prisma,
   ScheduleRuleScope,
@@ -15,6 +17,7 @@ import {
 import { appendAuditLog } from '../audit/audit-log';
 import { AuthUserContext } from '../auth/auth.service';
 import { AuthorizationService } from '../auth/authorization.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   buildManagedRulesetSnapshot,
@@ -243,6 +246,7 @@ export class SchedulePublicationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly authorization: AuthorizationService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async publishDepartmentSchedule(
@@ -288,6 +292,8 @@ export class SchedulePublicationsService {
                   fixedEndTime: true,
                   user: {
                     select: {
+                      id: true,
+                      isActive: true,
                       memberships: {
                         where: { isActive: true },
                         select: { role: true },
@@ -477,6 +483,46 @@ export class SchedulePublicationsService {
             entityId: schedule.id,
             departmentId,
           });
+
+          const affectedEmployeeIds = latest
+            ? new Set([
+                ...diff.employees.flatMap((entry) =>
+                  [entry.before?.id, entry.after?.id].filter(
+                    (value): value is string => Boolean(value),
+                  ),
+                ),
+                ...diff.shifts.flatMap((entry) =>
+                  [entry.before?.employeeId, entry.after?.employeeId].filter(
+                    (value): value is string => Boolean(value),
+                  ),
+                ),
+              ])
+            : new Set(snapshot.employees.map((employee) => employee.id));
+
+          const recipients = department.employees
+            .filter(
+              (employee) =>
+                affectedEmployeeIds.has(employee.id) &&
+                employee.user?.id &&
+                employee.user.isActive,
+            )
+            .map((employee) => employee.user!.id);
+
+          await Promise.all(
+            recipients.map((recipientId) =>
+              this.notifications.createForUserInTransaction(tx, {
+                recipientId,
+                category: NotificationCategory.SCHEDULE_PUBLICATION,
+                entityType: NotificationEntityType.SCHEDULE_PUBLICATION,
+                entityId: publication.id,
+                eventKey:
+                  'publication:' +
+                  publication.id +
+                  ':' +
+                  (latest ? 'CHANGED' : 'INITIAL'),
+              }),
+            ),
+          );
 
           return serializePublication(publication);
         },
