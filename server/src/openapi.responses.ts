@@ -62,7 +62,7 @@ export const schedulePublicationResponse = object({
   scheduleId: text,
   departmentId: text,
   version: integer,
-  publishedByUserId: text,
+  publishedByLabel: text,
   sourceScheduleUpdatedAt: timestamp,
   comment: nullable(text),
   rulesVersion: {
@@ -110,8 +110,6 @@ export const scheduleRuleResponse = object({
   config: jsonObject,
   violationMessage: text,
   version: integer,
-  createdByUserId: text,
-  updatedByUserId: text,
   createdAt: timestamp,
   updatedAt: timestamp,
   editable: boolean,
@@ -124,7 +122,7 @@ export const scheduleRuleHistoryResponse = arrayOf(object({
   id: text,
   version: integer,
   snapshot: jsonObject,
-  changedByUserId: text,
+  changedByLabel: text,
   createdAt: timestamp,
 }));
 
