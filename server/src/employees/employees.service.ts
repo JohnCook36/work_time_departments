@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -10,6 +11,7 @@ import {
   EmployeeScheduleMode,
   OnboardingRequestStatus,
   PermissionCapability,
+  Prisma,
   ShiftChangeRequestStatus,
 } from '@prisma/client';
 
@@ -418,9 +420,9 @@ export class EmployeesService {
         throw new NotFoundException('Employee not found');
       }
 
-      this.authorization.assertCapability(
+      const currentAdmin = await this.assertCurrentEmployeeManageScope(
+        tx,
         admin,
-        PermissionCapability.EMPLOYEE_MANAGE,
         existing.departmentId,
       );
 
@@ -442,7 +444,8 @@ export class EmployeesService {
             (membership.permissions?.length ?? 0) > 0,
         ) ?? false;
 
-      const adminIsSuperAdmin = this.authorization.isSuperAdmin(admin);
+      const adminIsSuperAdmin =
+        this.authorization.isSuperAdmin(currentAdmin);
 
       if (targetHasManagementAccess && !adminIsSuperAdmin) {
         throw new ConflictException(
@@ -693,6 +696,56 @@ export class EmployeesService {
     }
 
     return serializeEmployee(employee);
+  }
+
+  private async assertCurrentEmployeeManageScope(
+    tx: Prisma.TransactionClient,
+    admin: AuthUserContext,
+    departmentId: string,
+  ): Promise<AuthUserContext> {
+    const current = await tx.user.findUnique({
+      where: { id: admin.id },
+      select: {
+        isActive: true,
+        memberships: {
+          where: { isActive: true },
+          select: {
+            id: true,
+            role: true,
+            departmentId: true,
+            permissions: {
+              select: {
+                capability: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!current?.isActive) {
+      throw new ForbiddenException('Manager account is inactive');
+    }
+
+    const currentAdmin: AuthUserContext = {
+      ...admin,
+      memberships: current.memberships.map(membership => ({
+        id: membership.id,
+        role: membership.role,
+        departmentId: membership.departmentId,
+        permissions: (membership.permissions ?? []).map(
+          permission => permission.capability,
+        ),
+      })),
+    };
+
+    this.authorization.assertCapability(
+      currentAdmin,
+      PermissionCapability.EMPLOYEE_MANAGE,
+      departmentId,
+    );
+
+    return currentAdmin;
   }
 
   private async assertActiveDepartment(departmentId: string) {
