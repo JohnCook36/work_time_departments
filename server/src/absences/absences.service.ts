@@ -9,6 +9,7 @@ import {
   AuditAction,
   AuditEntityType,
   PermissionCapability,
+  Prisma,
 } from '@prisma/client';
 
 import { appendAuditLog } from '../audit/audit-log';
@@ -179,7 +180,8 @@ export class AbsencesService {
     }
     const comment = normalizeComment(input.comment, type);
 
-    return this.prisma.$transaction(async tx => {
+    try {
+      return await this.prisma.$transaction(async tx => {
       const duplicate = await tx.absence.findFirst({
         where: {
           employeeId: employee.id,
@@ -226,7 +228,16 @@ export class AbsencesService {
       });
 
       return serialize(created);
-    });
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException('Same active absence already exists');
+      }
+      throw error;
+    }
   }
 
   async update(
@@ -288,11 +299,16 @@ export class AbsencesService {
       throw new BadRequestException('endDate must be on or after startDate');
     }
     const comment =
-      input.comment === undefined
-        ? current.comment
-        : normalizeComment(input.comment, type);
+      type === AbsenceType.SICK
+        ? input.comment === undefined
+          ? null
+          : normalizeComment(input.comment, type)
+        : input.comment === undefined
+          ? current.comment
+          : normalizeComment(input.comment, type);
 
-    return this.prisma.$transaction(async tx => {
+    try {
+      return await this.prisma.$transaction(async tx => {
       const changed = await tx.absence.updateMany({
         where: {
           id: current.id,
@@ -335,7 +351,16 @@ export class AbsencesService {
       });
 
       return serialize(updated);
-    });
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException('Same active absence already exists');
+      }
+      throw error;
+    }
   }
 
   async cancel(
