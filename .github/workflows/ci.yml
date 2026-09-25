@@ -17,6 +17,14 @@ jobs:
     runs-on: [self-hosted, Linux, X64, worktime]
     timeout-minutes: 20
     steps:
+      - name: Repair workspace ownership
+        shell: bash
+        run: |
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/workspace" \
+            alpine:3.20 \
+            sh -c "chown -R $(id -u):$(id -g) /workspace"
+
       - name: Checkout
         uses: actions/checkout@v4
 
