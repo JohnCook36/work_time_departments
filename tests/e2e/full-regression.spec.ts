@@ -1189,7 +1189,9 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
     await expect(rulesDrawer).toBeVisible();
     await expect(rulesDrawer.getByText('Не более 5 одновременно')).toBeVisible();
     await expect(rulesDrawer.getByText('Жёсткое', { exact: true })).toBeVisible();
-    await expect(rulesDrawer.getByText('Активно', { exact: true })).toBeVisible();
+    await expect(
+      rulesDrawer.getByText('Активно', { exact: true }).first(),
+    ).toBeVisible();
 
     await rulesDrawer.getByRole('button', { name: 'История' }).click();
     await expect(rulesDrawer.getByText(/^v1 ·/)).toBeVisible();
