@@ -9,9 +9,9 @@ import {
   RoleType,
 } from '@prisma/client';
 
-import type { AuthUserContext } from '../../src/auth/auth.service';
-import { AuthorizationService } from '../../src/auth/authorization.service';
-import { MembershipsService } from '../../src/memberships/memberships.service';
+import type { AuthUserContext } from '../../../src/auth/auth.service';
+import { AuthorizationService } from '../../../src/auth/authorization.service';
+import { MembershipsService } from '../../../src/memberships/memberships.service';
 
 function createPrismaMock() {
   const prisma: any = {
