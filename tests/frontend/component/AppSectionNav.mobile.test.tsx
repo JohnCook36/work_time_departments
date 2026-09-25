@@ -88,17 +88,21 @@ describe('AppSectionNav mobile model', () => {
       within(mobile).getByRole('button', { name: /Ещё/, hidden: true }),
     );
 
+    const more = document.querySelector(
+      'section[aria-label="Дополнительная навигация"]',
+    );
+    expect(more).toBeInstanceOf(HTMLElement);
     expect(
-      screen.getByRole('region', {
-        name: 'Дополнительная навигация',
+      within(more as HTMLElement).getByRole('link', {
+        name: /Уведомления/,
         hidden: true,
       }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('link', { name: /Уведомления/, hidden: true }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('link', { name: /Профиль/, hidden: true }),
+      within(more as HTMLElement).getByRole('link', {
+        name: /Профиль/,
+        hidden: true,
+      }),
     ).toBeInTheDocument();
   });
 
@@ -120,11 +124,21 @@ describe('AppSectionNav mobile model', () => {
       within(mobile).getByRole('button', { name: /Ещё/, hidden: true }),
     );
 
+    const more = document.querySelector(
+      'section[aria-label="Дополнительная навигация"]',
+    );
+    expect(more).toBeInstanceOf(HTMLElement);
     expect(
-      screen.queryByRole('link', { name: /Журнал/, hidden: true }),
+      within(more as HTMLElement).queryByRole('link', {
+        name: /Журнал/,
+        hidden: true,
+      }),
     ).toBeNull();
     expect(
-      screen.queryByRole('link', { name: /Роли и доступ/, hidden: true }),
+      within(more as HTMLElement).queryByRole('link', {
+        name: /Роли и доступ/,
+        hidden: true,
+      }),
     ).toBeNull();
   });
 
@@ -149,8 +163,15 @@ describe('AppSectionNav mobile model', () => {
       within(mobile).getByRole('button', { name: /Ещё/, hidden: true }),
     );
 
+    const more = document.querySelector(
+      'section[aria-label="Дополнительная навигация"]',
+    );
+    expect(more).toBeInstanceOf(HTMLElement);
     expect(
-      screen.getByRole('link', { name: /Журнал/, hidden: true }),
+      within(more as HTMLElement).getByRole('link', {
+        name: /Журнал/,
+        hidden: true,
+      }),
     ).toBeInTheDocument();
   });
 });
