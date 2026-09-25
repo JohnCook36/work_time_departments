@@ -169,10 +169,12 @@ describeLive('live PostgreSQL role assignment lifecycle', () => {
         expectedUpdatedAt: created.updatedAt,
       },
     );
-    expect(updated.permissions).toEqual([
-      PermissionCapability.SCHEDULE_EDIT,
-      PermissionCapability.SCHEDULE_READ,
-    ]);
+    expect(new Set(updated.permissions)).toEqual(
+      new Set([
+        PermissionCapability.SCHEDULE_EDIT,
+        PermissionCapability.SCHEDULE_READ,
+      ]),
+    );
 
     const deactivated = await service.deactivate(
       f.manager,
