@@ -279,10 +279,18 @@ async function submitRequester(page: Page, kind: RequestKind) {
 
 async function approveAsManager(page: Page) {
   await page.goto('/planner');
-  const trigger = page.getByTitle(/Заявки на привязку аккаунтов: 1/);
+  const trigger = page.getByTitle(/Заявки на привязку аккаунтов/);
   await expect(trigger).toBeVisible();
   const before = await trigger.boundingBox();
-  await trigger.click();
+
+  const notificationAction = page.getByRole('button', {
+    name: 'Открыть заявки',
+  });
+  if (await notificationAction.isVisible().catch(() => false)) {
+    await notificationAction.click();
+  } else {
+    await trigger.click();
+  }
 
   await expect(page.getByText('Привязка аккаунтов', { exact: true })).toBeVisible();
   await expect(page.getByText(requesterPhone)).toHaveCount(0);
@@ -291,7 +299,8 @@ async function approveAsManager(page: Page) {
   await drawer.getByRole('button', { name: 'Подтвердить' }).click();
   await expect(drawer.getByText(/новых заявок нет/)).toBeVisible();
 
-  const after = await trigger.boundingBox();
+  const stableTrigger = page.getByTitle(/Заявки на привязку аккаунтов/);
+  const after = await stableTrigger.boundingBox();
   if (before && after) {
     expect(Math.abs(before.x - after.x)).toBeLessThanOrEqual(3);
     expect(Math.abs(before.y - after.y)).toBeLessThanOrEqual(3);
