@@ -115,8 +115,9 @@ describeLive('live PostgreSQL shift-change application', () => {
       requesterEmployee, targetEmployee, firstSchedule, secondSchedule, request };
   }
 
-  it('discovers same-department linked targets and a single non-OFF shift without private fields', async () => {
+  it('discovers only published same-department shifts without private fields', async () => {
     const f = await fixture(ShiftChangeRequestKind.SWAP);
+    await publications.publishDepartmentSchedule(f.manager, f.department.id, 2026, 9);
     const anotherUser = await prisma.user.create({ data: { phoneE164: '+79990000104' } });
     const other = await prisma.employee.create({ data: {
       displayName: 'Other department', departmentId: f.otherDepartment.id, userId: anotherUser.id,
@@ -132,6 +133,20 @@ describeLive('live PostgreSQL shift-change application', () => {
     expect(JSON.stringify(single)).not.toMatch(/phone|userId|employmentRate|memberships/);
     await expect(changes.discoverTargetShift(f.requester, other.id, '2026-09-28', f.source.id)).rejects.toMatchObject({ status: 404 });
     await expect(changes.discoverTargetShift(f.requester, inactive.id, '2026-09-28', f.source.id)).rejects.toMatchObject({ status: 404 });
+
+    await prisma.shift.update({
+      where: { id: f.targetShift!.id },
+      data: { startTime: '10:00' },
+    });
+    await expect(
+      changes.discoverTargetShift(
+        f.requester,
+        f.targetEmployee.id,
+        '2026-09-28',
+        f.source.id,
+      ),
+    ).rejects.toMatchObject({ status: 409 });
+
     await prisma.shift.update({ where: { id: f.targetShift!.id }, data: { isOff: true, startTime: null, endTime: null, code: null } });
     await expect(changes.discoverTargetShift(f.requester, f.targetEmployee.id, '2026-09-28', f.source.id)).rejects.toMatchObject({ status: 404 });
   });
