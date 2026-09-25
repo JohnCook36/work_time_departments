@@ -147,6 +147,9 @@ export function AbsenceManagement({
 
     setBusy(true);
     try {
+      const successMessage = editing
+        ? 'Отсутствие обновлено.'
+        : 'Отсутствие добавлено.';
       if (editing) {
         await updatePlannerAbsence(editing.id, {
           type,
@@ -155,7 +158,6 @@ export function AbsenceManagement({
           comment: type === 'SICK' ? null : comment.trim() || null,
           expectedUpdatedAt: editing.updatedAt,
         });
-        setFeedback('Отсутствие обновлено.');
       } else {
         await createPlannerAbsence({
           employeeId,
@@ -166,10 +168,10 @@ export function AbsenceManagement({
             ? {}
             : { comment: comment.trim() || null }),
         });
-        setFeedback('Отсутствие добавлено.');
       }
       resetForm();
       await load();
+      setFeedback(successMessage);
     } catch (error) {
       setFeedback(
         error instanceof Error
@@ -196,9 +198,9 @@ export function AbsenceManagement({
     setBusy(true);
     try {
       await cancelPlannerAbsence(item.id, item.updatedAt);
-      setFeedback('Отсутствие отменено.');
       if (editing?.id === item.id) resetForm();
       await load();
+      setFeedback('Отсутствие отменено.');
     } catch (error) {
       setFeedback(
         error instanceof Error
