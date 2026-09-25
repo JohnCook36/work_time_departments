@@ -17,6 +17,7 @@ function prismaMock() {
       findFirst: jest.fn(),
       findUnique: jest.fn(),
       updateMany: jest.fn(),
+      deleteMany: jest.fn(),
       create: jest.fn(),
     },
     user: {
@@ -166,6 +167,8 @@ describe('AuthService development OTP safety', () => {
   const originalAllow = process.env[allowKey];
   const originalCode = process.env[codeKey];
   const originalPepper = process.env[pepperKey];
+  const sourceWindowKey = 'AUTH_OTP_SOURCE_WINDOW_SECONDS';
+  const originalSourceWindow = process.env[sourceWindowKey];
 
   afterEach(() => {
     if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
@@ -179,6 +182,9 @@ describe('AuthService development OTP safety', () => {
 
     if (originalPepper === undefined) delete process.env[pepperKey];
     else process.env[pepperKey] = originalPepper;
+
+    if (originalSourceWindow === undefined) delete process.env[sourceWindowKey];
+    else process.env[sourceWindowKey] = originalSourceWindow;
   });
 
   function requestCodeService() {
@@ -217,6 +223,40 @@ describe('AuthService development OTP safety', () => {
     });
     expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
     expect(prisma.authChallenge.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('never prunes challenges newer than the OTP TTL when the source window is shorter', async () => {
+    process.env.NODE_ENV = 'development';
+    process.env[allowKey] = 'true';
+    process.env[sourceWindowKey] = '60';
+    const { service, prisma } = requestCodeService();
+    const before = Date.now();
+
+    await service.requestCode(PHONE);
+
+    const after = Date.now();
+    const cutoff =
+      prisma.authChallenge.deleteMany.mock.calls[0][0].where.createdAt.lt;
+    expect(cutoff.getTime()).toBeGreaterThanOrEqual(before - 5 * 60 * 1000);
+    expect(cutoff.getTime()).toBeLessThanOrEqual(after - 5 * 60 * 1000);
+  });
+
+  it('prunes challenges older than the active OTP source rate-limit window', async () => {
+    process.env.NODE_ENV = 'development';
+    process.env[allowKey] = 'true';
+    process.env[sourceWindowKey] = '1800';
+    const { service, prisma } = requestCodeService();
+    const before = Date.now();
+
+    await service.requestCode(PHONE);
+
+    const after = Date.now();
+    expect(prisma.authChallenge.deleteMany).toHaveBeenCalledTimes(1);
+    const cutoff =
+      prisma.authChallenge.deleteMany.mock.calls[0][0].where.createdAt.lt;
+    expect(cutoff).toBeInstanceOf(Date);
+    expect(cutoff.getTime()).toBeGreaterThanOrEqual(before - 30 * 60 * 1000);
+    expect(cutoff.getTime()).toBeLessThanOrEqual(after - 30 * 60 * 1000);
   });
 
   it('returns 429 without creating another challenge inside the locked cooldown', async () => {
