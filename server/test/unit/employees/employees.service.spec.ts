@@ -43,6 +43,7 @@ describe('EmployeesService', () => {
       count: jest.fn(),
     },
     user: {
+      findUnique: jest.fn(),
       updateMany: jest.fn(),
     },
     membership: {
@@ -82,6 +83,17 @@ describe('EmployeesService', () => {
     prisma.employee.updateMany.mockResolvedValue({ count: 1 });
     prisma.onboardingRequest.count.mockResolvedValue(0);
     prisma.shiftChangeRequest.count.mockResolvedValue(0);
+    prisma.user.findUnique.mockResolvedValue({
+      isActive: true,
+      memberships: [
+        {
+          id: 'membership-admin',
+          role: RoleType.DEPARTMENT_ADMIN,
+          departmentId: 'department-a',
+          permissions: [],
+        },
+      ],
+    });
     prisma.user.updateMany.mockResolvedValue({ count: 1 });
     prisma.membership.updateMany.mockResolvedValue({ count: 1 });
     prisma.authSession.updateMany.mockResolvedValue({ count: 1 });
@@ -100,6 +112,7 @@ describe('EmployeesService', () => {
           count: prisma.shiftChangeRequest.count,
         },
         user: {
+          findUnique: prisma.user.findUnique,
           updateMany: prisma.user.updateMany,
         },
         membership: {
@@ -707,6 +720,33 @@ describe('EmployeesService', () => {
         },
       }),
     );
+  });
+
+  it('rejects employee deactivation when current manager membership was revoked', async () => {
+    const updatedAt = new Date('2026-09-22T08:00:00.000Z');
+    prisma.employee.findUnique.mockResolvedValue({
+      id: 'employee-a',
+      departmentId: 'department-a',
+      isActive: true,
+      userId: null,
+      updatedAt,
+      user: null,
+    });
+    prisma.user.findUnique.mockResolvedValueOnce({
+      isActive: true,
+      memberships: [],
+    });
+
+    await expect(
+      service.deactivateEmployee(
+        admin(),
+        'employee-a',
+        { expectedUpdatedAt: updatedAt.toISOString() },
+      ),
+    ).rejects.toThrow();
+
+    expect(prisma.employee.updateMany).not.toHaveBeenCalled();
+    expect(prisma.auditLog.create).not.toHaveBeenCalled();
   });
 
   it('rejects Employee self-deactivation', async () => {
