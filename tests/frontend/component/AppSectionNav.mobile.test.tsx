@@ -65,7 +65,7 @@ describe('AppSectionNav mobile model', () => {
     expect(mobile).not.toHaveTextContent('Ещё');
   });
 
-  it('uses Planner / Requests / Tasks / More for a department admin', () => {
+  it('uses Today / Requests / Tasks / More for a department admin', () => {
     renderNav({
       ...employee,
       memberships: [
@@ -79,7 +79,7 @@ describe('AppSectionNav mobile model', () => {
     });
 
     const mobile = mobileNav();
-    expect(mobile).toHaveTextContent('План');
+    expect(mobile).toHaveTextContent('Сегодня');
     expect(mobile).toHaveTextContent('Запросы');
     expect(mobile).toHaveTextContent('Задачи');
     expect(mobile).toHaveTextContent('Ещё');
@@ -157,7 +157,7 @@ describe('AppSectionNav mobile model', () => {
 
     const mobile = mobileNav();
     expect(mobile).toHaveTextContent('Смены');
-    expect(mobile).not.toHaveTextContent('План');
+    expect(mobile).not.toHaveTextContent('Сегодня');
 
     fireEvent.click(
       within(mobile).getByRole('button', { name: /Ещё/, hidden: true }),
