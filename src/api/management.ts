@@ -72,7 +72,10 @@ export interface ManagementHoursResponse {
     kind: string;
     employeeCount: number;
     plannedHours: number;
-    normHours: number;
+    productionNormHours: number;
+    departmentNormHours: number | null;
+    comparisonNormHours: number;
+    normUpdatedAt: string | null;
     deltaHours: number;
     outsideNormCount: number;
   }>;
@@ -113,4 +116,30 @@ export function getManagementHours(
   return apiRequest<ManagementHoursResponse>(
     '/management/hours?' + params.toString(),
   );
+}
+
+
+export interface DepartmentHoursNormResponse {
+  id: string;
+  departmentId: string;
+  year: number;
+  month: number;
+  fullTimeHours: number;
+  createdByUserId: string;
+  updatedByUserId: string;
+  createdAt: string;
+  updatedAt: string;
+  created: boolean;
+}
+
+export function setDepartmentHoursNorm(
+  departmentId: string,
+  year: number,
+  month: number,
+  fullTimeHours: number,
+) {
+  return apiRequest<DepartmentHoursNormResponse>('/management/hours/norm', {
+    method: 'PUT',
+    body: JSON.stringify({ departmentId, year, month, fullTimeHours }),
+  });
 }
