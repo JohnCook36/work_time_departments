@@ -1,5 +1,6 @@
 import { ThemeProvider } from '@emotion/react';
 import { render, screen, waitFor } from '@testing-library/react';
+import type { ReactElement } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -42,7 +43,7 @@ const admin: AuthUser = {
   ],
 };
 
-function renderScreen(node: React.ReactElement) {
+function renderScreen(node: ReactElement) {
   return render(
     <ThemeProvider theme={getTheme('light')}>
       <AuthUserContext.Provider value={admin}>
