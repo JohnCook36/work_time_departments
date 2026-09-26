@@ -24,7 +24,7 @@ import { issueAttendanceToken, verifyAttendanceToken } from './attendance-token'
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_DAYS = 31;
 const sessionInclude = {
-  employee: { select: { displayName: true, departmentId: true } },
+  employee: { select: { displayName: true } },
   events: {
     orderBy: { createdAt: 'asc' as const },
     select: {
@@ -50,7 +50,7 @@ function serialize(row: SessionRow) {
     id: row.id,
     employeeId: row.employeeId,
     displayName: row.employee.displayName,
-    departmentId: row.employee.departmentId,
+    departmentId: row.departmentId,
     source: row.source,
     checkInAt: row.checkInAt.toISOString(),
     checkOutAt: iso(row.checkOutAt),
@@ -206,6 +206,7 @@ export class AttendanceService {
         const session = await tx.workSession.create({
           data: {
             employeeId: employee.id,
+            departmentId: employee.departmentId,
             source: WorkSessionSource.QR,
             checkInAt: now,
           },
@@ -243,6 +244,9 @@ export class AttendanceService {
           where: { employeeId: employee.id, checkOutAt: null },
         });
         if (!session) throw new ConflictException('No open work session');
+        if (session.departmentId !== employee.departmentId) {
+          throw new ConflictException('Work session belongs to the previous department');
+        }
         if (session.checkInAt >= now) throw new ConflictException('Check-out must follow check-in');
         const updated = await tx.workSession.updateMany({
           where: { id: session.id, checkOutAt: null },
@@ -300,7 +304,7 @@ export class AttendanceService {
     return this.prisma.$transaction(async tx => {
       await this.currentManager(tx, admin, departmentId.trim(), PermissionCapability.SCHEDULE_READ);
       const rows = await tx.workSession.findMany({
-        where: { employee: { departmentId: departmentId.trim() }, checkInAt: period },
+        where: { departmentId: departmentId.trim(), checkInAt: period },
         orderBy: { checkInAt: 'desc' },
         take: 100,
         include: sessionInclude,
@@ -329,6 +333,7 @@ export class AttendanceService {
         const session = await tx.workSession.create({
           data: {
             employeeId: employee.id,
+            departmentId: employee.departmentId,
             source: WorkSessionSource.MANUAL,
             checkInAt,
             checkOutAt,
@@ -378,10 +383,9 @@ export class AttendanceService {
       return await this.prisma.$transaction(async tx => {
         const previous = await tx.workSession.findUnique({
           where: { id: sessionId },
-          include: { employee: { select: { departmentId: true } } },
         });
         if (!previous) throw new NotFoundException('Work session not found');
-        await this.currentManager(tx, admin, previous.employee.departmentId);
+        await this.currentManager(tx, admin, previous.departmentId);
         if (
           previous.checkInAt.getTime() === checkInAt.getTime() &&
           previous.checkOutAt?.getTime() === checkOutAt?.getTime()
@@ -416,7 +420,7 @@ export class AttendanceService {
           action: AuditAction.WORK_SESSION_CORRECTED,
           entityType: AuditEntityType.WORK_SESSION,
           entityId: sessionId,
-          departmentId: previous.employee.departmentId,
+          departmentId: previous.departmentId,
         });
         return tx.workSession.findUniqueOrThrow({
           where: { id: sessionId },

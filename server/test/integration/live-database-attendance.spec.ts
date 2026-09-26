@@ -149,6 +149,38 @@ describeLive('live PostgreSQL attendance lifecycle and scope', () => {
     expect(await prisma.workSession.count()).toBe(1);
   });
 
+  it('keeps historical attendance in its original management scope after an employee transfers', async () => {
+    const issued = await service.issueQr(manager, departmentId);
+    const session = await service.checkIn(first, issued.token);
+    await prisma.employee.update({
+      where: { id: first.employee!.id }, data: { departmentId: otherDepartmentId },
+    });
+    const foreignManagerUser = await prisma.user.create({ data: { phoneE164: '+79990001005' } });
+    const membership = await prisma.membership.create({
+      data: { userId: foreignManagerUser.id, departmentId: otherDepartmentId, role: RoleType.DEPARTMENT_ADMIN },
+    });
+    const foreignManager: AuthUserContext = {
+      id: foreignManagerUser.id, phoneE164: foreignManagerUser.phoneE164,
+      employee: null, memberships: [{
+        id: membership.id, role: RoleType.DEPARTMENT_ADMIN,
+        departmentId: otherDepartmentId, permissions: [],
+      }],
+    };
+    const day = session.checkInAt.slice(0, 10);
+    expect((await service.department(manager, departmentId, day, day)).map(row => row.id))
+      .toEqual([session.id]);
+    expect(await service.department(foreignManager, otherDepartmentId, day, day)).toEqual([]);
+    const updated = await service.correct(manager, session.id, {
+      checkInAt: new Date(new Date(session.checkInAt).getTime() - 1000).toISOString(),
+      checkOutAt: null, expectedUpdatedAt: session.updatedAt,
+      reason: 'Synthetic transfer history adjustment',
+    });
+    expect(updated.departmentId).toBe(departmentId);
+    expect(await prisma.auditLog.count({
+      where: { action: AuditAction.WORK_SESSION_CORRECTED, departmentId },
+    })).toBe(1);
+  });
+
   it('audits manual correction, preserves prior event, locks stale updates and prevents mutation of event history', async () => {
     const input = {
       employeeId: first.employee!.id,

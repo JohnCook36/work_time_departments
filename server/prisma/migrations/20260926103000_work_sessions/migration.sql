@@ -8,6 +8,7 @@ CREATE TYPE "WorkSessionEventType" AS ENUM ('CHECK_IN', 'CHECK_OUT', 'CORRECTED'
 CREATE TABLE "WorkSession" (
   "id" TEXT NOT NULL,
   "employeeId" TEXT NOT NULL,
+  "departmentId" TEXT NOT NULL,
   "source" "WorkSessionSource" NOT NULL,
   "checkInAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "checkOutAt" TIMESTAMP(3),
@@ -34,6 +35,7 @@ CREATE TABLE "WorkSessionEvent" (
 );
 
 CREATE INDEX "WorkSession_employeeId_checkInAt_idx" ON "WorkSession"("employeeId", "checkInAt");
+CREATE INDEX "WorkSession_departmentId_checkInAt_idx" ON "WorkSession"("departmentId", "checkInAt");
 CREATE UNIQUE INDEX "WorkSession_one_open_per_employee" ON "WorkSession"("employeeId")
   WHERE "checkOutAt" IS NULL;
 CREATE UNIQUE INDEX "WorkSessionEvent_employeeId_qrTokenHash_key"
@@ -45,6 +47,10 @@ CREATE INDEX "WorkSessionEvent_actorUserId_idx" ON "WorkSessionEvent"("actorUser
 ALTER TABLE "WorkSession"
   ADD CONSTRAINT "WorkSession_employeeId_fkey"
   FOREIGN KEY ("employeeId") REFERENCES "Employee"("id")
+  ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "WorkSession"
+  ADD CONSTRAINT "WorkSession_departmentId_fkey"
+  FOREIGN KEY ("departmentId") REFERENCES "Department"("id")
   ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "WorkSessionEvent"
   ADD CONSTRAINT "WorkSessionEvent_sessionId_fkey"

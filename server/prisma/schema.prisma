@@ -180,6 +180,7 @@ model Department {
   schedulePublications   SchedulePublication[]
   scheduleRules          ScheduleRule[]
   hoursNorms             DepartmentHoursNorm[]
+  workSessions           WorkSession[]
 }
 
 model User {
@@ -242,15 +243,18 @@ model Employee {
 model WorkSession {
   id          String            @id @default(cuid())
   employeeId  String
+  departmentId String
   source      WorkSessionSource
   checkInAt   DateTime          @default(now())
   checkOutAt  DateTime?
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
   employee    Employee          @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  department  Department        @relation(fields: [departmentId], references: [id], onDelete: Restrict)
   events      WorkSessionEvent[]
 
   @@index([employeeId, checkInAt])
+  @@index([departmentId, checkInAt])
 }
 
 model WorkSessionEvent {
