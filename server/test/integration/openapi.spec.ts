@@ -53,6 +53,7 @@ describe('OpenAPI documentation', () => {
     ['/schedule-data/department', 'get'], ['/schedule-data/me', 'get'],
     ['/schedule-data/department/validation', 'get'],
     ['/management/today', 'get'], ['/management/hours', 'get'],
+    ['/management/hours/norm', 'put'],
     ['/schedule-data/department/entries', 'patch'], ['/schedule-data/planner/entries', 'patch'],
     ['/schedule-rules/manageable', 'get'], ['/schedule-rules', 'post'],
     ['/schedule-rules/{ruleId}', 'patch'], ['/schedule-rules/{ruleId}', 'delete'],
