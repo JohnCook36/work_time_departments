@@ -54,6 +54,9 @@ describe('OpenAPI documentation', () => {
     ['/schedule-data/department/validation', 'get'],
     ['/management/today', 'get'], ['/management/hours', 'get'],
     ['/management/hours/norm', 'put'],
+    ['/attendance/qr', 'post'], ['/attendance/check-in', 'post'], ['/attendance/check-out', 'post'],
+    ['/attendance/me', 'get'], ['/attendance/department', 'get'],
+    ['/attendance/corrections', 'post'], ['/attendance/sessions/{sessionId}', 'patch'],
     ['/schedule-data/department/entries', 'patch'], ['/schedule-data/planner/entries', 'patch'],
     ['/schedule-rules/manageable', 'get'], ['/schedule-rules', 'post'],
     ['/schedule-rules/{ruleId}', 'patch'], ['/schedule-rules/{ruleId}', 'delete'],
@@ -109,6 +112,15 @@ describe('OpenAPI documentation', () => {
     expect(schemas.CreateWishDto.required).not.toContain('day');
     expect(document.paths['/shift-change-requests/{id}/admin/approve'].post?.summary).toContain('mutable draft Shift');
     expect(document.paths['/shift-change-requests/{id}/admin/approve'].post?.summary).toContain('immutable publications remain unchanged');
+  });
+
+  it('describes attendance without exposing account identifiers or QR token in read responses', () => {
+    const schema = document.paths['/attendance/me'].get?.responses?.['200'];
+    expect(schema).toMatchObject({ content: { 'application/json': { schema: { type: 'array' } } } });
+    expect(JSON.stringify(schema)).not.toMatch(/phoneE164|actorUserId|qrTokenHash/);
+    expect(document.paths['/attendance/qr'].post?.security).toEqual(
+      expect.arrayContaining([{ session: [] }, { sessionBearer: [] }]),
+    );
   });
 
   it('serves Swagger UI, its assets and the non-empty raw JSON over HTTP', async () => {
