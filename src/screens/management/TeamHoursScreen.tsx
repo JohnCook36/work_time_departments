@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 
-import { getManagementHours, ManagementHoursResponse } from '../../api/management';
+import {
+  getManagementHours,
+  ManagementHoursResponse,
+  setDepartmentHoursNorm,
+} from '../../api/management';
 import { AppSectionNav } from '../../components/navigation/AppSectionNav';
 import {
   SectionContainer,
@@ -9,6 +13,7 @@ import {
   SectionSubtitle,
   SectionTitle,
 } from '../shared/SectionPage.styles';
+import { ActionButton, TextInput } from '../../theme/styles';
 import {
   CardMeta,
   FilterRow,
@@ -34,6 +39,8 @@ export function TeamHoursScreen() {
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [departmentId, setDepartmentId] = useState('');
   const [data, setData] = useState<ManagementHoursResponse | null>(null);
+  const [normHours, setNormHours] = useState('');
+  const [savingNorm, setSavingNorm] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -54,7 +61,7 @@ export function TeamHoursScreen() {
   const totals = data?.departments.reduce(
     (acc, department) => ({
       planned: acc.planned + department.plannedHours,
-      norm: acc.norm + department.normHours,
+      norm: acc.norm + department.comparisonNormHours,
       outside: acc.outside + department.outsideNormCount,
     }),
     { planned: 0, norm: 0, outside: 0 },
@@ -92,6 +99,63 @@ export function TeamHoursScreen() {
           </FilterSelect>
         </FilterRow>
 
+        {data && departmentId && (
+          <FilterRow>
+            <TextInput
+              aria-label="Норма отдела на полную ставку"
+              type="number"
+              min="0"
+              max="400"
+              step="0.5"
+              value={normHours}
+              placeholder={
+                data.departments[0]?.departmentNormHours !== null &&
+                data.departments[0]?.employeeCount > 0
+                  ? 'Норма отдела настроена'
+                  : 'Норма отдела, ч'
+              }
+              onChange={(event) => setNormHours(event.target.value)}
+            />
+            <ActionButton
+              type="button"
+              disabled={
+                savingNorm ||
+                normHours.trim() === '' ||
+                !Number.isFinite(Number(normHours))
+              }
+              onClick={() => {
+                const value = Number(normHours);
+                if (!Number.isFinite(value)) return;
+                setSavingNorm(true);
+                setError('');
+                void setDepartmentHoursNorm(
+                  departmentId,
+                  year,
+                  month,
+                  value,
+                )
+                  .then(() =>
+                    getManagementHours(year, month, departmentId),
+                  )
+                  .then((result) => {
+                    setData(result);
+                    setNormHours('');
+                  })
+                  .catch((value: unknown) => {
+                    setError(
+                      value instanceof Error
+                        ? value.message
+                        : 'Не удалось сохранить норму отдела.',
+                    );
+                  })
+                  .finally(() => setSavingNorm(false));
+              }}
+            >
+              {savingNorm ? 'Сохраняю…' : 'Сохранить норму отдела'}
+            </ActionButton>
+          </FilterRow>
+        )}
+
         {!data ? (
           <LoadingSlot>{error || 'Загружаю аналитику…'}</LoadingSlot>
         ) : (
@@ -115,10 +179,15 @@ export function TeamHoursScreen() {
               </MetricCard>
             </MetricsGrid>
 
-            {!data.departmentNormConfigured && (
+            {!data.departmentNormConfigured ? (
               <CardMeta>
                 Отдельная норма отдела пока не настроена: сравнение выполняется
                 с производственной нормой по ставке.
+              </CardMeta>
+            ) : (
+              <CardMeta>
+                Для настроенных отделов сравнение идёт с нормой отдела;
+                производственная норма всё равно показывается отдельно.
               </CardMeta>
             )}
 
@@ -132,7 +201,9 @@ export function TeamHoursScreen() {
                     <th>День</th>
                     <th>Ночь</th>
                     <th>План</th>
-                    <th>Норма</th>
+                    <th>Производственная</th>
+                    <th>Норма отдела</th>
+                    <th>Для сравнения</th>
                     <th>Δ</th>
                     <th>Статус</th>
                   </tr>
@@ -146,6 +217,8 @@ export function TeamHoursScreen() {
                       <td>{employee.dayHours}</td>
                       <td>{employee.nightHours}</td>
                       <td>{employee.plannedHours}</td>
+                      <td>{employee.productionNormHours}</td>
+                      <td>{employee.departmentNormHours ?? '—'}</td>
                       <td>{employee.comparisonNormHours}</td>
                       <td>{employee.deltaHours > 0 ? '+' : ''}{employee.deltaHours}</td>
                       <td>
