@@ -187,7 +187,7 @@ test.beforeEach(async ({ page }) => {
 test('fixed 5/2 edit and schedule tools remain usable on a narrow screen', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await seed(page, state());
-  await page.goto('/');
+  await page.goto('/planner');
   await employeeRow(page).getByTitle('Редактировать сотрудника').click();
   await page.getByRole('combobox').nth(2).selectOption('fixed-weekdays');
   await page.getByLabel('Начало рабочего дня').fill('09:00');
@@ -354,7 +354,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
 test('department + employee + 15:00-23:00 produces D 6 / N 1 / total 7', async ({
   page,
 }) => {
-  await page.goto('/');
+  await page.goto('/planner');
   await page.getByRole('button', { name: 'Отделы' }).click();
   await page.getByPlaceholder('Название отдела').fill('E2E Отдел');
   await page.getByRole('button', { name: 'Создать отдел' }).click();
@@ -389,7 +389,7 @@ test('employee drag to another department survives reload', async ({ page }) => 
       ],
     }),
   );
-  await page.goto('/');
+  await page.goto('/planner');
 
   const handle = employeeRow(page).getByTitle('Перетащить сотрудника');
   const target = page
@@ -452,7 +452,7 @@ test('night shift shows working time instead of internal N code', async ({ page 
       },
     }),
   );
-  await page.goto('/');
+  await page.goto('/planner');
 
   const row = employeeRow(page);
   const nightCell = row.locator('td').nth(1);
@@ -463,7 +463,7 @@ test('night shift shows working time instead of internal N code', async ({ page 
 
 test('shift editor saves the 08:00-17:00 preset into the cell', async ({ page }) => {
   await seed(page, state());
-  await page.goto('/');
+  await page.goto('/planner');
 
   const row = employeeRow(page);
   await row.locator('td').nth(1).click();
@@ -485,7 +485,7 @@ test('Excel preview protects a cell and allows confirmed overwrite', async ({ pa
       },
     }),
   );
-  await page.goto('/');
+  await page.goto('/planner');
 
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet('График');
@@ -544,7 +544,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       ],
       schedule: { alice: { 1: { type: 'shift', shift: { start: '07:00', end: '16:00' } } } },
     }));
-    await page.goto('/');
+    await page.goto('/planner');
     const trigger = page.getByRole('button', { name: 'Управление графиком' });
     const before = await trigger.boundingBox();
     await trigger.click();
@@ -768,7 +768,7 @@ test('employment rate changes the weekly norm', async ({ page }) => {
     page,
     state({ schedule: { 'employee-1': weekSchedule } }),
   );
-  await page.goto('/');
+  await page.goto('/planner');
   await page.getByRole('button', { name: 'День / ночь' }).click();
 
   const normRow = page
@@ -937,7 +937,7 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
       } },
     };
     await seed(page, data);
-    await page.goto('/');
+    await page.goto('/planner');
     const trigger = page.getByRole('button', { name: 'Управление графиком' });
     const before = await trigger.boundingBox();
     await trigger.click();
@@ -1022,7 +1022,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       } },
     };
     await seed(page, data);
-    await page.goto('/');
+    await page.goto('/planner');
     const trigger = page.getByRole('button', { name: 'Управление графиком' });
     const triggerBefore = await trigger.boundingBox();
     await trigger.click();
@@ -1087,7 +1087,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
     await page.setViewportSize(viewport);
     await page.addInitScript(() => { window.open = () => null; });
     await seed(page, state());
-    await page.goto('/');
+    await page.goto('/planner');
     const trigger = page.getByRole('button', { name: 'Управление графиком' });
     const before = await trigger.boundingBox();
     await trigger.click();
