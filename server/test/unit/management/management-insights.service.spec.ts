@@ -29,12 +29,20 @@ describe('ManagementInsightsService', () => {
     shiftChangeRequest: { findMany: jest.fn() },
     employee: { findMany: jest.fn() },
     shift: { findMany: jest.fn() },
+    departmentHoursNorm: {
+      findMany: jest.fn(),
+      findUnique: jest.fn(),
+      upsert: jest.fn(),
+    },
+    user: { findUnique: jest.fn() },
+    $transaction: jest.fn(),
   };
 
   const authorization = {
     hasAnyManagementCapability: jest.fn(),
     isSuperAdmin: jest.fn(),
     departmentIdsForCapability: jest.fn(),
+    assertCapability: jest.fn(),
   };
 
   const service = new ManagementInsightsService(
@@ -59,6 +67,11 @@ describe('ManagementInsightsService', () => {
     prisma.shiftChangeRequest.findMany.mockResolvedValue([]);
     prisma.employee.findMany.mockResolvedValue([]);
     prisma.shift.findMany.mockResolvedValue([]);
+    prisma.departmentHoursNorm.findMany.mockResolvedValue([]);
+    prisma.$transaction.mockImplementation(
+      async (callback: (tx: typeof prisma) => Promise<unknown>) =>
+        callback(prisma),
+    );
   });
 
   it('rejects users without management access before reading department data', async () => {
@@ -107,7 +120,9 @@ describe('ManagementInsightsService', () => {
       expect.objectContaining({
         id: 'department-a',
         plannedHours: 12,
-        normHours: 176,
+        productionNormHours: 176,
+        departmentNormHours: null,
+        comparisonNormHours: 176,
         deltaHours: -164,
         outsideNormCount: 1,
       }),
@@ -117,6 +132,44 @@ describe('ManagementInsightsService', () => {
         where: expect.objectContaining({
           departmentId: { in: ['department-a'] },
         }),
+      }),
+    );
+  });
+
+  it('applies configured department norm scaled by employment rate', async () => {
+    prisma.employee.findMany.mockResolvedValue([
+      {
+        id: 'employee-1',
+        displayName: 'Employee 1',
+        employmentRate: 0.5,
+        departmentId: 'department-a',
+      },
+    ]);
+    prisma.departmentHoursNorm.findMany.mockResolvedValue([
+      {
+        departmentId: 'department-a',
+        fullTimeHours: 160,
+        updatedAt: new Date('2026-09-20T10:00:00.000Z'),
+      },
+    ]);
+    prisma.shift.findMany.mockResolvedValue([]);
+
+    const result = await service.hours(admin(), 2026, 9, 'department-a');
+
+    expect(result.departmentNormConfigured).toBe(true);
+    expect(result.employees[0]).toEqual(
+      expect.objectContaining({
+        productionNormHours: 88,
+        departmentNormHours: 80,
+        comparisonNormHours: 80,
+        deltaHours: -80,
+      }),
+    );
+    expect(result.departments[0]).toEqual(
+      expect.objectContaining({
+        productionNormHours: 88,
+        departmentNormHours: 80,
+        comparisonNormHours: 80,
       }),
     );
   });
