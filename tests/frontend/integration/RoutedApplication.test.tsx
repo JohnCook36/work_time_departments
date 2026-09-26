@@ -3,12 +3,14 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import PlannerScreen from '../../../src/screens/planner/PlannerScreen';
 import MyScheduleScreen from '../../../src/screens/my-schedule/MyScheduleScreen';
+import { TodayScreen } from '../../../src/screens/management/TodayScreen';
 import { useAuthUser } from '../../../src/auth/AuthContext';
 import * as api from '../../../src/api/auth';
 import { RoutedApplication } from '../../../src/router/RoutedApplication';
 
 vi.mock('../../../src/screens/planner/PlannerScreen', () => ({ default: vi.fn() }));
 vi.mock('../../../src/screens/my-schedule/MyScheduleScreen', () => ({ default: vi.fn() }));
+vi.mock('../../../src/screens/management/TodayScreen', () => ({ TodayScreen: vi.fn() }));
 
 const user: api.AuthUser = {
   id: 'example-user', phoneE164: '+12025550100',
@@ -49,6 +51,7 @@ describe('Routing foundation with real session provider and ErrorBoundary', () =
   beforeEach(() => {
     vi.mocked(PlannerScreen).mockImplementation(ExistingApplication);
     vi.mocked(MyScheduleScreen).mockImplementation(ExistingSchedule);
+    vi.mocked(TodayScreen).mockImplementation(ExistingApplication);
     vi.spyOn(api, 'getMe').mockResolvedValue(user);
     vi.spyOn(api, 'getOnboardingDepartments').mockResolvedValue([]);
     vi.spyOn(api, 'getOnboardingStatus').mockResolvedValue(null);
@@ -61,6 +64,15 @@ describe('Routing foundation with real session provider and ErrorBoundary', () =
     expect(await screen.findByText('Personal schedule: example-user')).toBeInTheDocument();
     await waitFor(() => expect(window.location.pathname).toBe('/my-schedule'));
     expect(replace).toHaveBeenCalledWith(expect.anything(), '', '/my-schedule');
+  });
+
+  it('redirects linked manager from / to /today using replace', async () => {
+    vi.mocked(api.getMe).mockResolvedValue(managerUser);
+    const replace = vi.spyOn(window.history, 'replaceState');
+    open('/');
+    expect(await screen.findByText('Existing application: example-user')).toBeInTheDocument();
+    await waitFor(() => expect(window.location.pathname).toBe('/today'));
+    expect(replace).toHaveBeenCalledWith(expect.anything(), '', '/today');
   });
 
   it('redirects linked EMPLOYEE away from /planner to /my-schedule', async () => {
@@ -128,7 +140,7 @@ describe('Routing foundation with real session provider and ErrorBoundary', () =
     expect(window.location.pathname).toBe('/my-schedule');
   });
 
-  it.each(['/planner', '/my-schedule', '/tasks', '/profile', '/login', '/onboarding', '/unknown'])('routes guests to login from %s', async path => {
+  it.each(['/today', '/team-hours', '/planner', '/my-schedule', '/tasks', '/profile', '/login', '/onboarding', '/unknown'])('routes guests to login from %s', async path => {
     vi.mocked(api.getMe).mockRejectedValue(new api.ApiError('Unauthorized', 401));
     open(path);
     expect(await screen.findByRole('heading', { name: 'Вход для сотрудников' })).toBeInTheDocument();
@@ -136,7 +148,7 @@ describe('Routing foundation with real session provider and ErrorBoundary', () =
     expect(window.location.pathname).toBe('/login');
   });
 
-  it.each(['/planner', '/my-schedule', '/tasks', '/profile', '/onboarding', '/login'])('routes unlinked accounts to onboarding from %s', async path => {
+  it.each(['/today', '/team-hours', '/planner', '/my-schedule', '/tasks', '/profile', '/onboarding', '/login'])('routes unlinked accounts to onboarding from %s', async path => {
     vi.mocked(api.getMe).mockResolvedValue({ ...user, employee: null });
     open(path);
     expect(await screen.findByText('Нет профиля в графике?')).toBeInTheDocument();
@@ -150,11 +162,11 @@ describe('Routing foundation with real session provider and ErrorBoundary', () =
     expect(window.location.pathname).toBe('/my-schedule');
   });
 
-  it.each(['/login', '/onboarding'])('redirects linked manager from %s to planner', async path => {
+  it.each(['/login', '/onboarding'])('redirects linked manager from %s to today', async path => {
     vi.mocked(api.getMe).mockResolvedValue(managerUser);
     open(path);
     expect(await screen.findByText('Existing application: example-user')).toBeInTheDocument();
-    expect(window.location.pathname).toBe('/planner');
+    expect(window.location.pathname).toBe('/today');
   });
 
   it.each([true, false])('refreshes canonical session after OTP login (linked=%s)', async linked => {
