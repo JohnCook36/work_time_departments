@@ -7,6 +7,7 @@ import { DepartmentsModule } from './departments/departments.module';
 import { EmployeesModule } from './employees/employees.module';
 import { HealthModule } from './health/health.module';
 import { MembershipsModule } from './memberships/memberships.module';
+import { ManagementInsightsModule } from './management/management-insights.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { OnboardingModule } from './onboarding/onboarding.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -28,6 +29,7 @@ import { WishesModule } from './wishes/wishes.module';
     EmployeesModule,
     UsersModule,
     MembershipsModule,
+    ManagementInsightsModule,
     NotificationsModule,
     OnboardingModule,
     SchedulesModule,

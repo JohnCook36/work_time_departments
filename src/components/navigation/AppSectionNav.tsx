@@ -2,6 +2,8 @@ import {
   Bell,
   CalendarDays,
   ClipboardList,
+  Clock3,
+  Gauge,
   LayoutDashboard,
   Menu,
   Repeat2,
@@ -48,6 +50,8 @@ export function AppSectionNav() {
     '/roles-access',
     '/audit',
     '/my-schedule',
+    '/planner',
+    '/team-hours',
   ].includes(location.pathname) && managerMobile;
 
   return (
@@ -94,19 +98,29 @@ export function AppSectionNav() {
         )}
 
         {canManagePlanner && (
-          <NavigationLink to="/planner">
-            <LayoutDashboard size={16} />
-            Планировщик
-          </NavigationLink>
+          <>
+            <NavigationLink to="/today">
+              <Gauge size={16} />
+              Сегодня
+            </NavigationLink>
+            <NavigationLink to="/team-hours">
+              <Clock3 size={16} />
+              Часы команды
+            </NavigationLink>
+            <NavigationLink to="/planner">
+              <LayoutDashboard size={16} />
+              Планировщик
+            </NavigationLink>
+          </>
         )}
       </NavigationBar>
 
       {managerMobile ? (
         <MobileNavigationBar aria-label="Мобильная навигация">
           {canManagePlanner ? (
-            <MobileNavigationLink to="/planner">
-              <LayoutDashboard size={20} />
-              План
+            <MobileNavigationLink to="/today">
+              <Gauge size={20} />
+              Сегодня
             </MobileNavigationLink>
           ) : (
             <MobileNavigationLink to="/my-schedule">
@@ -191,11 +205,23 @@ export function AppSectionNav() {
                 Журнал
               </MobileMoreLink>
             )}
-            {canManagePlanner && location.pathname !== '/my-schedule' && (
-              <MobileMoreLink to="/my-schedule">
-                <CalendarDays size={18} />
-                Мои смены
-              </MobileMoreLink>
+            {canManagePlanner && (
+              <>
+                <MobileMoreLink to="/planner">
+                  <LayoutDashboard size={18} />
+                  Планировщик
+                </MobileMoreLink>
+                <MobileMoreLink to="/team-hours">
+                  <Clock3 size={18} />
+                  Часы команды
+                </MobileMoreLink>
+                {location.pathname !== '/my-schedule' && (
+                  <MobileMoreLink to="/my-schedule">
+                    <CalendarDays size={18} />
+                    Мои смены
+                  </MobileMoreLink>
+                )}
+              </>
             )}
           </MobileMoreSheet>
         </>

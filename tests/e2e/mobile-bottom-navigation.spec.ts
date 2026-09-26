@@ -49,6 +49,52 @@ async function mockSession(
       });
     }
 
+    if (path === '/management/today') {
+      return reply(route, {
+        date: '2026-09-25',
+        attendanceAvailable: false,
+        totals: {
+          plannedShifts: 0,
+          activeAbsences: 0,
+          pendingRequests: 0,
+          unpublishedDepartments: 1,
+        },
+        departments: [
+          {
+            id: 'department-a',
+            name: 'Front Office',
+            kind: 'FO',
+            publication: null,
+            plannedShifts: [],
+            absences: [],
+            riskCount: 1,
+          },
+        ],
+        pendingRequests: [],
+      });
+    }
+
+    if (path === '/management/hours') {
+      return reply(route, {
+        period: { year: 2026, month: 9 },
+        schedule: null,
+        departmentNormConfigured: false,
+        departments: [
+          {
+            id: 'department-a',
+            name: 'Front Office',
+            kind: 'FO',
+            employeeCount: 0,
+            plannedHours: 0,
+            normHours: 0,
+            deltaHours: 0,
+            outsideNormCount: 0,
+          },
+        ],
+        employees: [],
+      });
+    }
+
     if (path === '/schedule-data/me') {
       return reply(route, {
         period: { year: 2026, month: 9 },
@@ -144,14 +190,14 @@ test('manager mobile navigation uses More for secondary routes', async ({ page }
   await page.clock.setFixedTime(new Date('2026-09-25T12:00:00Z'));
   await mockSession(page, 'DEPARTMENT_ADMIN');
 
-  await page.goto('http://127.0.0.1:4174/planner');
+  await page.goto('http://127.0.0.1:4174/today');
 
   const nav = page.getByRole('navigation', { name: 'Мобильная навигация' });
-  await expect(nav.getByText('План', { exact: true })).toBeVisible();
+  await expect(nav.getByText('Сегодня', { exact: true })).toBeVisible();
   await expect(nav.getByText('Запросы', { exact: true })).toBeVisible();
   await expect(nav.getByText('Задачи', { exact: true })).toBeVisible();
   await expect(nav.getByText('Ещё', { exact: true })).toBeVisible();
-  await expect(nav.getByRole('link', { name: /План/ })).toHaveClass(/active/);
+  await expect(nav.getByRole('link', { name: /Сегодня/ })).toHaveClass(/active/);
 
   await nav.getByRole('button', { name: /Ещё/ }).click();
   const more = page.getByRole('region', { name: 'Дополнительная навигация' });
@@ -173,10 +219,10 @@ test('deputy capability navigation never grants Planner implicitly', async ({ pa
 
   const nav = page.getByRole('navigation', { name: 'Мобильная навигация' });
   await expect(nav.getByText('Смены', { exact: true })).toBeVisible();
-  await expect(nav.getByText('План', { exact: true })).toHaveCount(0);
+  await expect(nav.getByText('Сегодня', { exact: true })).toHaveCount(0);
 
   await nav.getByRole('button', { name: /Ещё/ }).click();
   const more = page.getByRole('region', { name: 'Дополнительная навигация' });
   await expect(more.getByRole('link', { name: /Журнал/ })).toBeVisible();
-  await expect(more.getByRole('link', { name: /План/ })).toHaveCount(0);
+  await expect(more.getByRole('link', { name: /Планировщик/ })).toHaveCount(0);
 });

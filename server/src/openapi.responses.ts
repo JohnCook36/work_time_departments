@@ -194,6 +194,94 @@ export const schedulePublicationValidationResponse = object({
   })),
 });
 
+export const managementTodayResponse = object({
+  date: { type: 'string', format: 'date' },
+  attendanceAvailable: boolean,
+  totals: object({
+    plannedShifts: integer,
+    activeAbsences: integer,
+    pendingRequests: integer,
+    unpublishedDepartments: integer,
+  }),
+  departments: arrayOf(object({
+    id: text,
+    name: text,
+    kind: text,
+    publication: nullable(object({
+      id: text,
+      version: integer,
+      publishedAt: timestamp,
+    })),
+    plannedShifts: arrayOf(object({
+      id: text,
+      employeeId: text,
+      displayName: text,
+      date: { type: 'string', format: 'date' },
+      code: nullable(text),
+      startTime: nullable(text),
+      endTime: nullable(text),
+    })),
+    absences: arrayOf(object({
+      id: text,
+      employeeId: text,
+      displayName: text,
+      type: text,
+      startDate: { type: 'string', format: 'date' },
+      endDate: { type: 'string', format: 'date' },
+      comment: nullable(text),
+    })),
+    riskCount: integer,
+  })),
+  pendingRequests: arrayOf(jsonObject),
+});
+
+export const managementHoursNormResponse = object({
+  id: text,
+  departmentId: text,
+  year: integer,
+  month: integer,
+  fullTimeHours: { type: 'number' },
+  createdByUserId: text,
+  updatedByUserId: text,
+  createdAt: timestamp,
+  updatedAt: timestamp,
+  created: boolean,
+});
+
+export const managementHoursResponse = object({
+  period,
+  schedule: nullable(scheduleVersion),
+  departmentNormConfigured: boolean,
+  departments: arrayOf(object({
+    id: text,
+    name: text,
+    kind: text,
+    employeeCount: integer,
+    plannedHours: { type: 'number' },
+    productionNormHours: { type: 'number' },
+    departmentNormHours: nullable({ type: 'number' }),
+    comparisonNormHours: { type: 'number' },
+    normUpdatedAt: nullable(timestamp),
+    deltaHours: { type: 'number' },
+    outsideNormCount: integer,
+  })),
+  employees: arrayOf(object({
+    id: text,
+    displayName: text,
+    departmentId: text,
+    employmentRate: { type: 'number' },
+    shiftCount: integer,
+    dayHours: { type: 'number' },
+    nightHours: { type: 'number' },
+    plannedHours: { type: 'number' },
+    productionNormHours: { type: 'number' },
+    departmentNormHours: nullable({ type: 'number' }),
+    comparisonNormHours: { type: 'number' },
+    deltaHours: { type: 'number' },
+    status: { type: 'string', enum: ['balanced', 'over', 'under'] },
+  })),
+});
+
 export const scheduleAcknowledgementResponse = object({
   id: text,
   publicationId: text,

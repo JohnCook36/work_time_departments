@@ -10,6 +10,8 @@ import { MySchedulePage } from '../pages/MySchedulePage';
 import { ProfilePage } from '../pages/ProfilePage';
 import { RoleAccessPage } from '../pages/RoleAccessPage';
 import { TasksPage } from '../pages/TasksPage';
+import { TeamHoursPage } from '../pages/TeamHoursPage';
+import { TodayPage } from '../pages/TodayPage';
 import { ShiftRequestsPage } from '../pages/ShiftRequestsPage';
 import {
   AuthenticatedHomeRoute,
@@ -45,6 +47,8 @@ export function AppRouter() {
             <Route path="/audit" element={<AuditPage />} />
           </Route>
           <Route element={<ManagementRoute />}>
+            <Route path="/today" element={<TodayPage />} />
+            <Route path="/team-hours" element={<TeamHoursPage />} />
             <Route path="/planner" element={<PlannerPage />} />
           </Route>
           <Route path="*" element={<NotFoundPage />} />

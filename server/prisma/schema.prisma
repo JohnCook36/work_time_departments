@@ -119,6 +119,7 @@ enum AuditAction {
   ABSENCE_CREATED
   ABSENCE_UPDATED
   ABSENCE_CANCELED
+  DEPARTMENT_HOURS_NORM_UPSERTED
 }
 
 enum AuditEntityType {
@@ -130,6 +131,7 @@ enum AuditEntityType {
   SHIFT_CHANGE_REQUEST
   MEMBERSHIP
   ABSENCE
+  DEPARTMENT_HOURS_NORM
 }
 
 enum NotificationCategory {
@@ -163,6 +165,7 @@ model Department {
   targetedShiftChanges  ShiftChangeRequest[] @relation("ShiftChangeTargetDepartment")
   schedulePublications   SchedulePublication[]
   scheduleRules          ScheduleRule[]
+  hoursNorms             DepartmentHoursNorm[]
 }
 
 model User {
@@ -189,6 +192,8 @@ model User {
   scheduleAcknowledgements    ScheduleAcknowledgement[]
   createdAbsences              Absence[] @relation("AbsenceCreatedBy")
   updatedAbsences              Absence[] @relation("AbsenceUpdatedBy")
+  createdDepartmentHoursNorms   DepartmentHoursNorm[] @relation("DepartmentHoursNormCreatedBy")
+  updatedDepartmentHoursNorms   DepartmentHoursNorm[] @relation("DepartmentHoursNormUpdatedBy")
 }
 
 model Employee {
@@ -468,6 +473,26 @@ model ScheduleRuleVersion {
   @@unique([ruleId, version])
   @@index([ruleId, createdAt])
   @@index([changedByUserId, createdAt])
+}
+
+model DepartmentHoursNorm {
+  id              String     @id @default(cuid())
+  departmentId    String
+  year            Int
+  month           Int
+  fullTimeHours   Float
+  createdByUserId String
+  updatedByUserId String
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  department      Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  createdBy       User       @relation("DepartmentHoursNormCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  updatedBy       User       @relation("DepartmentHoursNormUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([departmentId, year, month])
+  @@index([year, month])
+  @@index([createdByUserId])
+  @@index([updatedByUserId])
 }
 
 model AuditLog {
