@@ -32,6 +32,18 @@ enum PermissionCapability {
   PRIVATE_PROFILE_READ
   PRIVATE_PROFILE_EDIT
   ROLE_MANAGE
+  ATTENDANCE_CORRECT
+}
+
+enum WorkSessionSource {
+  QR
+  MANUAL
+}
+
+enum WorkSessionEventType {
+  CHECK_IN
+  CHECK_OUT
+  CORRECTED
 }
 
 enum ScheduleRuleScope {
@@ -120,6 +132,7 @@ enum AuditAction {
   ABSENCE_UPDATED
   ABSENCE_CANCELED
   DEPARTMENT_HOURS_NORM_UPSERTED
+  WORK_SESSION_CORRECTED
 }
 
 enum AuditEntityType {
@@ -132,6 +145,7 @@ enum AuditEntityType {
   MEMBERSHIP
   ABSENCE
   DEPARTMENT_HOURS_NORM
+  WORK_SESSION
 }
 
 enum NotificationCategory {
@@ -166,6 +180,7 @@ model Department {
   schedulePublications   SchedulePublication[]
   scheduleRules          ScheduleRule[]
   hoursNorms             DepartmentHoursNorm[]
+  workSessions           WorkSession[]
 }
 
 model User {
@@ -194,6 +209,7 @@ model User {
   updatedAbsences              Absence[] @relation("AbsenceUpdatedBy")
   createdDepartmentHoursNorms   DepartmentHoursNorm[] @relation("DepartmentHoursNormCreatedBy")
   updatedDepartmentHoursNorms   DepartmentHoursNorm[] @relation("DepartmentHoursNormUpdatedBy")
+  workSessionEvents              WorkSessionEvent[]
 }
 
 model Employee {
@@ -218,8 +234,49 @@ model Employee {
   targetedShiftChanges  ShiftChangeRequest[] @relation("ShiftChangeTargetEmployee")
   scheduleAcknowledgements ScheduleAcknowledgement[]
   absences                 Absence[]
+  workSessions             WorkSession[]
+  workSessionEvents        WorkSessionEvent[]
 
   @@index([departmentId])
+}
+
+model WorkSession {
+  id          String            @id @default(cuid())
+  employeeId  String
+  departmentId String
+  source      WorkSessionSource
+  checkInAt   DateTime          @default(now())
+  checkOutAt  DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  employee    Employee          @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  department  Department        @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  events      WorkSessionEvent[]
+
+  @@index([employeeId, checkInAt])
+  @@index([departmentId, checkInAt])
+}
+
+model WorkSessionEvent {
+  id                String               @id @default(cuid())
+  sessionId         String
+  employeeId        String
+  actorUserId       String
+  type              WorkSessionEventType
+  oldCheckInAt      DateTime?
+  oldCheckOutAt     DateTime?
+  checkInAt         DateTime
+  checkOutAt        DateTime?
+  qrTokenHash       String?              @db.VarChar(64)
+  reason            String?              @db.VarChar(240)
+  createdAt         DateTime             @default(now())
+  session           WorkSession          @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  employee          Employee             @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  actorUser         User                 @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@unique([employeeId, qrTokenHash])
+  @@index([sessionId, createdAt])
+  @@index([actorUserId])
 }
 
 model Membership {

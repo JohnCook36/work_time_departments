@@ -109,6 +109,12 @@ export const FilterRow = styled('div')({
   },
 });
 
+export const NormFilterRow = styled(FilterRow)({
+  '@media (max-width: 620px)': {
+    gridTemplateColumns: 'minmax(0, 1fr)',
+  },
+});
+
 export const FilterSelect = styled('select')(({ theme }) => ({
   minHeight: 40,
   borderRadius: 10,

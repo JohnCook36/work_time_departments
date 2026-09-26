@@ -4,6 +4,7 @@ import { Card, Container, Page } from '../../theme/styles';
 
 export const SectionPage = styled(Page)({
   display: 'grid',
+  gridTemplateColumns: 'minmax(0, 1fr)',
   placeItems: 'start center',
 });
 
