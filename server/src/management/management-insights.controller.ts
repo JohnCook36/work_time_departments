@@ -1,12 +1,15 @@
 import {
   BadRequestException,
+  Body,
   Controller,
   Get,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
+  ApiBody,
   ApiForbiddenResponse,
   ApiOperation,
   ApiQuery,
@@ -20,6 +23,7 @@ import { AuthUserContext } from '../auth/auth.service';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { SessionAuthGuard } from '../auth/session-auth.guard';
 import {
+  managementHoursNormResponse,
   managementHoursResponse,
   managementTodayResponse,
 } from '../openapi.responses';
@@ -60,6 +64,44 @@ export class ManagementInsightsController {
     @Query('date') date?: string,
   ) {
     return this.insights.today(user, requiredString(date, 'date'));
+  }
+
+  @ApiOperation({ summary: 'Create or update one department full-time norm for a month' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['departmentId', 'year', 'month', 'fullTimeHours'],
+      properties: {
+        departmentId: { type: 'string' },
+        year: { type: 'integer' },
+        month: { type: 'integer' },
+        fullTimeHours: { type: 'number', minimum: 0, maximum: 400 },
+      },
+    },
+  })
+  @ApiResponse({ status: 200, schema: managementHoursNormResponse })
+  @Put('hours/norm')
+  upsertHoursNorm(
+    @CurrentUser() user: AuthUserContext,
+    @Body()
+    body: {
+      departmentId?: unknown;
+      year?: unknown;
+      month?: unknown;
+      fullTimeHours?: unknown;
+    },
+  ) {
+    const fullTimeHours = Number(body?.fullTimeHours);
+    if (!Number.isFinite(fullTimeHours)) {
+      throw new BadRequestException('fullTimeHours must be a number');
+    }
+    return this.insights.upsertHoursNorm(
+      user,
+      requiredString(body?.departmentId, 'departmentId'),
+      requiredInteger(body?.year, 'year'),
+      requiredInteger(body?.month, 'month'),
+      fullTimeHours,
+    );
   }
 
   @ApiOperation({ summary: 'Read planned-hours management analytics for scoped departments' })
