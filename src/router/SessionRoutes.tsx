@@ -39,8 +39,8 @@ export function SessionRoutes() {
   return <Outlet />;
 }
 
-function authenticatedHomePath(user: AuthUser): '/planner' | '/my-schedule' {
-  return hasManagementAccess(user) ? '/planner' : '/my-schedule';
+function authenticatedHomePath(user: AuthUser): '/today' | '/my-schedule' {
+  return hasManagementAccess(user) ? '/today' : '/my-schedule';
 }
 
 export function ProtectedRoute() {
