@@ -705,7 +705,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       return respond(route, { status: 'ok', applied: body.changes.length, schedule: null });
     });
 
-    await page.goto('http://127.0.0.1:4174/');
+    await page.goto('http://127.0.0.1:4174/planner');
     await expect(employeeRow(page, 'Алина E2E')).toBeVisible();
     await expect(employeeRow(page, 'Борис E2E')).toBeVisible();
     await expect(page.getByText('Старый локальный сотрудник')).toHaveCount(0);
