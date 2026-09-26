@@ -90,12 +90,12 @@ function range(from: unknown, to: unknown) {
   return { gte: start, lt: until };
 }
 
-function timestamp(value: unknown, field: string, now: Date): Date {
+function timestamp(value: unknown, field: string, now: Date, allowFuture = false): Date {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T/.test(value)) {
     throw new BadRequestException(field + ' must be an ISO date-time');
   }
   const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime()) || parsed.toISOString() !== value || parsed > now) {
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString() !== value || (!allowFuture && parsed > now)) {
     throw new BadRequestException(field + ' must be a valid past server timestamp');
   }
   return parsed;
@@ -372,7 +372,7 @@ export class AttendanceService {
     if (checkOutAt && checkOutAt <= checkInAt) {
       throw new BadRequestException('checkOutAt must follow checkInAt');
     }
-    const expectedUpdatedAt = timestamp(input.expectedUpdatedAt, 'expectedUpdatedAt', now);
+    const expectedUpdatedAt = timestamp(input.expectedUpdatedAt, 'expectedUpdatedAt', now, true);
     const correctionReason = reason(input.reason);
     try {
       return await this.prisma.$transaction(async tx => {

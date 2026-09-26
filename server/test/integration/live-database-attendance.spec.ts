@@ -157,9 +157,12 @@ describeLive('live PostgreSQL attendance lifecycle and scope', () => {
     };
     const created = await service.createCorrection(manager, input);
     expect(created.source).toBe('MANUAL');
+    // A prior correction can produce a monotonic updatedAt slightly ahead of wall time.
+    const futureVersion = new Date(Date.now() + 500);
+    await prisma.workSession.update({ where: { id: created.id }, data: { updatedAt: futureVersion } });
     const updated = await service.correct(manager, created.id, {
       checkInAt: input.checkInAt, checkOutAt: '2026-09-01T16:00:00.000Z',
-      expectedUpdatedAt: created.updatedAt, reason: 'Synthetic adjustment',
+      expectedUpdatedAt: futureVersion.toISOString(), reason: 'Synthetic adjustment',
     });
     expect(updated.history).toHaveLength(2);
     expect(updated.history[1]).toMatchObject({
@@ -170,7 +173,7 @@ describeLive('live PostgreSQL attendance lifecycle and scope', () => {
     expect(await prisma.auditLog.count({ where: { action: AuditAction.WORK_SESSION_CORRECTED } })).toBe(2);
     await expect(service.correct(manager, created.id, {
       checkInAt: input.checkInAt, checkOutAt: input.checkOutAt,
-      expectedUpdatedAt: created.updatedAt, reason: 'Stale adjustment',
+      expectedUpdatedAt: futureVersion.toISOString(), reason: 'Stale adjustment',
     })).rejects.toBeInstanceOf(ConflictException);
     await expect(prisma.workSessionEvent.delete({ where: { id: updated.history[0].id } }))
       .rejects.toThrow();
