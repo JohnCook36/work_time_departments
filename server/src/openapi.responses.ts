@@ -235,6 +235,19 @@ export const managementTodayResponse = object({
   pendingRequests: arrayOf(jsonObject),
 });
 
+export const managementHoursNormResponse = object({
+  id: text,
+  departmentId: text,
+  year: integer,
+  month: integer,
+  fullTimeHours: { type: 'number' },
+  createdByUserId: text,
+  updatedByUserId: text,
+  createdAt: timestamp,
+  updatedAt: timestamp,
+  created: boolean,
+});
+
 export const managementHoursResponse = object({
   period,
   schedule: nullable(scheduleVersion),
@@ -245,7 +258,10 @@ export const managementHoursResponse = object({
     kind: text,
     employeeCount: integer,
     plannedHours: { type: 'number' },
-    normHours: { type: 'number' },
+    productionNormHours: { type: 'number' },
+    departmentNormHours: nullable({ type: 'number' }),
+    comparisonNormHours: { type: 'number' },
+    normUpdatedAt: nullable(timestamp),
     deltaHours: { type: 'number' },
     outsideNormCount: integer,
   })),
