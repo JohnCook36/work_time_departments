@@ -4,10 +4,14 @@ import {
   Injectable,
 } from '@nestjs/common';
 import {
+  AuditAction,
+  AuditEntityType,
   PermissionCapability,
+  Prisma,
   ShiftChangeRequestStatus,
 } from '@prisma/client';
 
+import { appendAuditLog } from '../audit/audit-log';
 import { AuthUserContext } from '../auth/auth.service';
 import { AuthorizationService } from '../auth/authorization.service';
 import { calculatePlannedShiftHours, getMonthlyProductionNormHours } from '../hours/schedule-hours';
@@ -46,6 +50,53 @@ export class ManagementInsightsService {
     private readonly prisma: PrismaService,
     private readonly authorization: AuthorizationService,
   ) {}
+
+  private async loadCurrentManager(
+    tx: Prisma.TransactionClient,
+    admin: AuthUserContext,
+    departmentId: string,
+  ): Promise<AuthUserContext> {
+    const current = await tx.user.findUnique({
+      where: { id: admin.id },
+      select: {
+        isActive: true,
+        memberships: {
+          where: { isActive: true },
+          select: {
+            id: true,
+            role: true,
+            departmentId: true,
+            permissions: {
+              select: { capability: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!current?.isActive) {
+      throw new ForbiddenException('Manager account is inactive');
+    }
+
+    const currentAdmin: AuthUserContext = {
+      ...admin,
+      memberships: current.memberships.map((membership) => ({
+        id: membership.id,
+        role: membership.role,
+        departmentId: membership.departmentId,
+        permissions: membership.permissions.map(
+          (permission) => permission.capability,
+        ),
+      })),
+    };
+
+    this.authorization.assertCapability(
+      currentAdmin,
+      PermissionCapability.SCHEDULE_EDIT,
+      departmentId,
+    );
+    return currentAdmin;
+  }
 
   private async manageableDepartments(admin: AuthUserContext) {
     if (!this.authorization.hasAnyManagementCapability(admin)) {
@@ -279,6 +330,107 @@ export class ManagementInsightsService {
     };
   }
 
+  async upsertHoursNorm(
+    admin: AuthUserContext,
+    departmentId: string,
+    year: number,
+    month: number,
+    fullTimeHours: number,
+  ) {
+    assertPeriod(year, month);
+    if (!departmentId.trim()) {
+      throw new BadRequestException('departmentId is required');
+    }
+    if (
+      typeof fullTimeHours !== 'number' ||
+      !Number.isFinite(fullTimeHours) ||
+      fullTimeHours < 0 ||
+      fullTimeHours > 400
+    ) {
+      throw new BadRequestException(
+        'fullTimeHours must be a number between 0 and 400',
+      );
+    }
+
+    this.authorization.assertCapability(
+      admin,
+      PermissionCapability.SCHEDULE_EDIT,
+      departmentId,
+    );
+
+    return this.prisma.$transaction(async (tx) => {
+      await this.loadCurrentManager(tx, admin, departmentId);
+
+      const department = await tx.department.findFirst({
+        where: { id: departmentId, isActive: true },
+        select: { id: true },
+      });
+      if (!department) {
+        throw new ForbiddenException('Department is unavailable');
+      }
+
+      const existing = await tx.departmentHoursNorm.findUnique({
+        where: {
+          departmentId_year_month: {
+            departmentId,
+            year,
+            month,
+          },
+        },
+        select: { id: true, createdByUserId: true },
+      });
+
+      const saved = await tx.departmentHoursNorm.upsert({
+        where: {
+          departmentId_year_month: {
+            departmentId,
+            year,
+            month,
+          },
+        },
+        create: {
+          departmentId,
+          year,
+          month,
+          fullTimeHours,
+          createdByUserId: admin.id,
+          updatedByUserId: admin.id,
+        },
+        update: {
+          fullTimeHours,
+          updatedByUserId: admin.id,
+        },
+        select: {
+          id: true,
+          departmentId: true,
+          year: true,
+          month: true,
+          fullTimeHours: true,
+          createdByUserId: true,
+          updatedByUserId: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+
+      await appendAuditLog(tx, {
+        actorUserId: admin.id,
+        action: AuditAction.DEPARTMENT_HOURS_NORM_UPSERTED,
+        entityType: AuditEntityType.DEPARTMENT_HOURS_NORM,
+        entityId: saved.id,
+        departmentId,
+      });
+
+      return {
+        ...saved,
+        fullTimeHours: round(saved.fullTimeHours),
+        createdAt: saved.createdAt.toISOString(),
+        updatedAt: saved.updatedAt.toISOString(),
+        created: !existing,
+      };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  }
+
   async hours(
     admin: AuthUserContext,
     year: number,
@@ -324,6 +476,24 @@ export class ManagementInsightsService {
       : [];
 
     const employeeIds = employees.map((employee) => employee.id);
+    const norms = departmentIds.length
+      ? await this.prisma.departmentHoursNorm.findMany({
+          where: {
+            departmentId: { in: departmentIds },
+            year,
+            month,
+          },
+          select: {
+            departmentId: true,
+            fullTimeHours: true,
+            updatedAt: true,
+          },
+        })
+      : [];
+    const normByDepartment = new Map(
+      norms.map((norm) => [norm.departmentId, norm]),
+    );
+
     const shifts =
       schedule && employeeIds.length
         ? await this.prisma.shift.findMany({
@@ -374,7 +544,13 @@ export class ManagementInsightsService {
         month,
         employee.employmentRate,
       );
-      const deltaHours = round(plannedHours - productionNormHours);
+      const departmentNorm = normByDepartment.get(employee.departmentId);
+      const departmentNormHours = departmentNorm
+        ? round(departmentNorm.fullTimeHours * employee.employmentRate)
+        : null;
+      const comparisonNormHours =
+        departmentNormHours ?? productionNormHours;
+      const deltaHours = round(plannedHours - comparisonNormHours);
 
       return {
         id: employee.id,
@@ -386,8 +562,8 @@ export class ManagementInsightsService {
         nightHours: round(nightHours),
         plannedHours: round(plannedHours),
         productionNormHours,
-        departmentNormHours: null,
-        comparisonNormHours: productionNormHours,
+        departmentNormHours,
+        comparisonNormHours,
         deltaHours,
         status:
           Math.abs(deltaHours) < 0.01
@@ -405,17 +581,32 @@ export class ManagementInsightsService {
       const plannedHours = round(
         rows.reduce((sum, employee) => sum + employee.plannedHours, 0),
       );
-      const normHours = round(
-        rows.reduce((sum, employee) => sum + employee.comparisonNormHours, 0),
+      const productionNormHours = round(
+        rows.reduce((sum, employee) => sum + employee.productionNormHours, 0),
       );
-      const deltaHours = round(plannedHours - normHours);
+      const departmentNormHours = normByDepartment.has(department.id)
+        ? round(
+            rows.reduce(
+              (sum, employee) =>
+                sum + (employee.departmentNormHours ?? 0),
+              0,
+            ),
+          )
+        : null;
+      const comparisonNormHours =
+        departmentNormHours ?? productionNormHours;
+      const deltaHours = round(plannedHours - comparisonNormHours);
       return {
         id: department.id,
         name: department.name,
         kind: department.kind,
         employeeCount: rows.length,
         plannedHours,
-        normHours,
+        productionNormHours,
+        departmentNormHours,
+        comparisonNormHours,
+        normUpdatedAt:
+          normByDepartment.get(department.id)?.updatedAt.toISOString() ?? null,
         deltaHours,
         outsideNormCount: rows.filter(
           (employee) => employee.status !== 'balanced',
@@ -428,7 +619,7 @@ export class ManagementInsightsService {
       schedule: schedule
         ? { id: schedule.id, updatedAt: schedule.updatedAt.toISOString() }
         : null,
-      departmentNormConfigured: false,
+      departmentNormConfigured: norms.length > 0,
       departments: departmentRows,
       employees: employeeRows,
     };
