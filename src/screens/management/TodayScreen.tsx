@@ -93,6 +93,7 @@ export function TodayScreen() {
             <QuickLinks>
               <QuickLink to="/planner">Открыть планировщик</QuickLink>
               <QuickLink to="/team-hours">Часы команды</QuickLink>
+              <QuickLink to="/plan-actual">План / факт</QuickLink>
               <QuickLink to="/shift-requests">Запросы на смены</QuickLink>
             </QuickLinks>
 
