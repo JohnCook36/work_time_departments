@@ -18,4 +18,21 @@ Development keeps the existing safe defaults:
 
 In production, missing `VITE_API_URL` or disabled server planner write causes the application to fail closed instead of rendering a localhost/local-storage mode.
 
-Backend production configuration remains separate and still requires the canonical auth/runtime values documented by the release gate, including production `FRONTEND_ORIGIN`, TLS/reverse-proxy settings, secrets and a real OTP delivery provider. This frontend guard does not replace those checks.
+## Production backend and Passkey topology
+
+Backend production configuration is separate from the frontend build and must match the actual deployed HTTPS topology:
+
+- `FRONTEND_ORIGIN` — the exact browser origin of the production frontend;
+- `WEBAUTHN_RP_ID` — the frontend host / WebAuthn relying-party ID, without scheme or port;
+- `WEBAUTHN_ORIGIN` — the exact HTTPS frontend origin used by WebAuthn ceremonies;
+- `WEBAUTHN_RP_NAME` — the user-visible relying-party name;
+- production database and application secrets from the deployment secret store;
+- explicit reverse-proxy / trusted-proxy configuration matching the real topology.
+
+The canonical MVP authentication flow is manager-issued one-time activation followed by Passkey/WebAuthn. A production SMS provider is **not** a Gate A requirement. Existing phone OTP remains only a legacy/development fallback and must not be enabled as a production bypass.
+
+The current session cookie is `HttpOnly; Secure; SameSite=Lax` in production. Prefer frontend and backend on the same site (for example `work.example.com` + `api.example.com`) unless a different cookie design has been reviewed and browser-tested. A green build or deploy preview does not prove this runtime behavior.
+
+Before Gate A is accepted, use a real HTTPS deployment and representative desktop/mobile platform authenticators to verify activation, Passkey registration, persisted session, `/auth/me`, logout, Passkey re-login and scoped recovery. Repository virtual-authenticator tests are necessary regression coverage but are not a substitute for this environment evidence.
+
+See `docs/gate-a-pilot-acceptance.md` and `docs/gate-a-evidence-template.md` for the final acceptance record.
