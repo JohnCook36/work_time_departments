@@ -102,6 +102,20 @@ export interface BusinessIntervalMinutes {
   totalMinutes: number;
 }
 
+export function businessDateText(
+  date = new Date(),
+  timeZone = businessTimeZone(),
+): string {
+  const value = parts(date, timeZone);
+  return (
+    String(value.year).padStart(4, '0') +
+    '-' +
+    String(value.month).padStart(2, '0') +
+    '-' +
+    String(value.day).padStart(2, '0')
+  );
+}
+
 function localDateText(date: Date, timeZone: string): string {
   const value = parts(date, timeZone);
   return (
