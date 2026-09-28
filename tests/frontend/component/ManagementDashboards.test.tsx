@@ -58,12 +58,16 @@ describe('management dashboards', () => {
     vi.clearAllMocks();
     vi.mocked(getManagementToday).mockResolvedValue({
       date: '2026-09-26',
-      attendanceAvailable: false,
+      attendanceAvailable: true,
+      attendanceBusinessTimeZone: 'Europe/Moscow',
       totals: {
         plannedShifts: 1,
         activeAbsences: 1,
         pendingRequests: 1,
         unpublishedDepartments: 0,
+        checkedIn: 1,
+        completed: 0,
+        noMark: 0,
       },
       departments: [
         {
@@ -84,6 +88,14 @@ describe('management dashboards', () => {
               code: null,
               startTime: '08:00',
               endTime: '17:00',
+              attendance: {
+                status: 'IN_PROGRESS',
+                actualCheckInAt: '2026-09-26T05:05:00.000Z',
+                actualCheckOutAt: null,
+                latenessMinutes: 5,
+                earlyLeaveMinutes: null,
+                overtimeMinutes: null,
+              },
             },
           ],
           absences: [
@@ -159,13 +171,15 @@ describe('management dashboards', () => {
     });
   });
 
-  it('renders published plan, absences and manager requests without fake attendance', async () => {
+  it('renders published plan, real attendance, absences and manager requests', async () => {
     renderScreen(<TodayScreen />);
 
     expect(await screen.findByText('Иванов И.И.')).toBeInTheDocument();
     expect(screen.getByText('Петров П.П.')).toBeInTheDocument();
     expect(screen.getByText('Опубликована версия v3')).toBeInTheDocument();
     expect(screen.getByText(/опубликованный план, фактические отметки/)).toBeInTheDocument();
+    expect(screen.getByText('На смене · опоздание 5 мин')).toBeInTheDocument();
+    expect(screen.getByText('отметились')).toBeInTheDocument();
     expect(screen.getByText('запросов руководителю')).toBeInTheDocument();
   });
 
