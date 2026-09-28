@@ -282,83 +282,85 @@ export function EmployeeEditDrawer({
           {error || '\u00a0'}
         </DrawerFieldError>
 
-        <DrawerSection>
-          <DrawerSectionTitle>Доступ к аккаунту</DrawerSectionTitle>
-          <TinyText>
-            {employee.isLinked
-              ? 'Аккаунт уже активирован. Сброс отзовёт текущие Passkey и активные сессии.'
-              : 'Выдайте сотруднику одноразовое приглашение для создания Passkey.'}
-          </TinyText>
+        {employee.isLinked !== undefined && (
+          <DrawerSection>
+            <DrawerSectionTitle>Доступ к аккаунту</DrawerSectionTitle>
+            <TinyText>
+              {employee.isLinked
+                ? 'Аккаунт уже активирован. Сброс отзовёт текущие Passkey и активные сессии.'
+                : 'Выдайте сотруднику одноразовое приглашение для создания Passkey.'}
+            </TinyText>
 
-          <FullWidthActionButton
-            type="button"
-            onClick={() => void issueAccess()}
-            disabled={busy || accessBusy}
-            $variant={employee.isLinked ? 'danger' : 'primary'}
-          >
-            {employee.isLinked ? <RefreshCw size={16} /> : <KeyRound size={16} />}
-            {accessBusy
-              ? 'Готовлю приглашение…'
-              : employee.isLinked
-                ? 'Сбросить доступ и выдать приглашение'
-                : 'Выдать приглашение'}
-          </FullWidthActionButton>
+            <FullWidthActionButton
+              type="button"
+              onClick={() => void issueAccess()}
+              disabled={busy || accessBusy}
+              $variant={employee.isLinked ? 'danger' : 'primary'}
+            >
+              {employee.isLinked ? <RefreshCw size={16} /> : <KeyRound size={16} />}
+              {accessBusy
+                ? 'Готовлю приглашение…'
+                : employee.isLinked
+                  ? 'Сбросить доступ и выдать приглашение'
+                  : 'Выдать приглашение'}
+            </FullWidthActionButton>
 
-          {invitation && (
-            <DrawerNotice>
-              <TinyText>
-                Покажите эти данные только сотруднику. После успешной активации
-                приглашение станет недействительным.
-              </TinyText>
-              <ActivationQrSlot>
-                <ActivationQr value={activationUrl} />
-              </ActivationQrSlot>
+            {invitation && (
+              <DrawerNotice>
+                <TinyText>
+                  Покажите эти данные только сотруднику. После успешной активации
+                  приглашение станет недействительным.
+                </TinyText>
+                <ActivationQrSlot>
+                  <ActivationQr value={activationUrl} />
+                </ActivationQrSlot>
 
-              <FormGroup>
-                <FormLabel>Резервный код</FormLabel>
-                <FullWidthInput
-                  value={invitation.shortCode}
-                  readOnly
-                  aria-label="Резервный код активации"
-                />
-                <ActionButton
-                  type="button"
-                  onClick={() =>
-                    void copyValue(invitation.shortCode, 'Код')
-                  }
-                >
-                  <Copy size={15} />
-                  Копировать код
-                </ActionButton>
-              </FormGroup>
+                <FormGroup>
+                  <FormLabel>Резервный код</FormLabel>
+                  <FullWidthInput
+                    value={invitation.shortCode}
+                    readOnly
+                    aria-label="Резервный код активации"
+                  />
+                  <ActionButton
+                    type="button"
+                    onClick={() =>
+                      void copyValue(invitation.shortCode, 'Код')
+                    }
+                  >
+                    <Copy size={15} />
+                    Копировать код
+                  </ActionButton>
+                </FormGroup>
 
-              <FormGroup>
-                <FormLabel>Ссылка активации</FormLabel>
-                <FullWidthInput
-                  value={activationUrl}
-                  readOnly
-                  aria-label="Ссылка активации"
-                />
-                <ActionButton
-                  type="button"
-                  onClick={() => void copyValue(activationUrl, 'Ссылка')}
-                >
-                  <Copy size={15} />
-                  Копировать ссылку
-                </ActionButton>
-              </FormGroup>
+                <FormGroup>
+                  <FormLabel>Ссылка активации</FormLabel>
+                  <FullWidthInput
+                    value={activationUrl}
+                    readOnly
+                    aria-label="Ссылка активации"
+                  />
+                  <ActionButton
+                    type="button"
+                    onClick={() => void copyValue(activationUrl, 'Ссылка')}
+                  >
+                    <Copy size={15} />
+                    Копировать ссылку
+                  </ActionButton>
+                </FormGroup>
 
-              <TinyText aria-live="polite">
-                {copyFeedback ||
-                  'Действует до ' +
-                    new Date(invitation.expiresAt).toLocaleTimeString('ru-RU', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-              </TinyText>
-            </DrawerNotice>
-          )}
-        </DrawerSection>
+                <TinyText aria-live="polite">
+                  {copyFeedback ||
+                    'Действует до ' +
+                      new Date(invitation.expiresAt).toLocaleTimeString('ru-RU', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                </TinyText>
+              </DrawerNotice>
+            )}
+          </DrawerSection>
+        )}
 
         <DrawerActionsGrid>
           <ActionButton
