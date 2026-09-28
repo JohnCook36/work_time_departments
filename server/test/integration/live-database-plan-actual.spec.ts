@@ -97,7 +97,7 @@ describeLive('live PostgreSQL plan actual comparison', () => {
       data: {
         scheduleId: schedule.id,
         employeeId: employee.id,
-        date: new Date('2026-09-28T00:00:00.000Z'),
+        date: new Date('2026-09-27T00:00:00.000Z'),
         startTime: '08:00',
         endTime: '17:00',
       },
@@ -127,7 +127,7 @@ describeLive('live PostgreSQL plan actual comparison', () => {
           shifts: [{
             id: shift.id,
             employeeId: employee.id,
-            date: '2026-09-28',
+            date: '2026-09-27',
             code: null,
             startTime: '08:00',
             endTime: '17:00',
@@ -159,8 +159,8 @@ describeLive('live PostgreSQL plan actual comparison', () => {
 
     const created = await attendance.createCorrection(manager, {
       employeeId: employee.id,
-      checkInAt: '2026-09-28T05:15:00.000Z',
-      checkOutAt: '2026-09-28T13:30:00.000Z',
+      checkInAt: '2026-09-27T05:15:00.000Z',
+      checkOutAt: '2026-09-27T13:30:00.000Z',
       reason: 'Synthetic attendance import',
     });
 
@@ -177,8 +177,8 @@ describeLive('live PostgreSQL plan actual comparison', () => {
     });
 
     await attendance.correct(manager, created.id, {
-      checkInAt: '2026-09-28T05:00:00.000Z',
-      checkOutAt: '2026-09-28T14:00:00.000Z',
+      checkInAt: '2026-09-27T05:00:00.000Z',
+      checkOutAt: '2026-09-27T14:00:00.000Z',
       expectedUpdatedAt: created.updatedAt,
       reason: 'Synthetic correction',
     });
