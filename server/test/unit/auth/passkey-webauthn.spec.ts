@@ -301,6 +301,31 @@ describe('passkey WebAuthn verification', () => {
     ).toThrow(/counter did not advance/);
   });
 
+  it('rejects cross-origin client data even when the origin string matches', () => {
+    const registration = registrationFixture({ challenge, origin, rpId });
+    registration.response.response.clientDataJSON = toBase64Url(
+      Buffer.from(
+        JSON.stringify({
+          type: 'webauthn.create',
+          challenge,
+          origin,
+          crossOrigin: true,
+          topOrigin: 'https://evil.example.test',
+        }),
+        'utf8',
+      ),
+    );
+
+    expect(() =>
+      verifyRegistrationResponse({
+        response: registration.response,
+        expectedChallenge: challenge,
+        expectedOrigin: origin,
+        rpId,
+      }),
+    ).toThrow(/Cross-origin/);
+  });
+
   it('rejects assertions with a tampered signature', () => {
     const registration = registrationFixture({ challenge, origin, rpId });
     const assertion = authenticationFixture({
