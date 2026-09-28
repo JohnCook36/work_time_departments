@@ -3,11 +3,15 @@ import { apiRequest } from './auth';
 export interface ManagementTodayResponse {
   date: string;
   attendanceAvailable: boolean;
+  attendanceBusinessTimeZone: string | null;
   totals: {
     plannedShifts: number;
     activeAbsences: number;
     pendingRequests: number;
     unpublishedDepartments: number;
+    checkedIn: number;
+    completed: number;
+    noMark: number;
   };
   departments: Array<{
     id: string;
@@ -26,6 +30,14 @@ export interface ManagementTodayResponse {
       code: string | null;
       startTime: string | null;
       endTime: string | null;
+      attendance: {
+        status: 'NO_MARK' | 'IN_PROGRESS' | 'COMPLETED';
+        actualCheckInAt: string | null;
+        actualCheckOutAt: string | null;
+        latenessMinutes: number;
+        earlyLeaveMinutes: number | null;
+        overtimeMinutes: number | null;
+      } | null;
     }>;
     absences: Array<{
       id: string;
@@ -96,10 +108,12 @@ export interface ManagementHoursResponse {
   }>;
 }
 
-export function getManagementToday(date: string) {
-  const params = new URLSearchParams({ date });
+export function getManagementToday(date?: string) {
+  const params = new URLSearchParams();
+  if (date) params.set('date', date);
+  const query = params.toString();
   return apiRequest<ManagementTodayResponse>(
-    '/management/today?' + params.toString(),
+    '/management/today' + (query ? '?' + query : ''),
   );
 }
 

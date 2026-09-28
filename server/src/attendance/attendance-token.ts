@@ -11,7 +11,7 @@ interface TokenPayload {
   d: string; // Managed department, never an employee or account identifier.
   i: number; // Server issue time, milliseconds since epoch.
   n: string; // Per-display nonce.
-  c: string; // Opaque display context; device registration belongs to #76.
+  c: string; // Opaque display context; QR rendering is not a separate backend entity.
 }
 
 function signingSecret(): string {

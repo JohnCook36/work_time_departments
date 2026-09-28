@@ -60,6 +60,7 @@ jobs:
           planner=false
           auth_nav=false
           workflow=false
+          management=false
 
           if [ "$EVENT_NAME" != "pull_request" ]; then
             full=true
@@ -83,7 +84,11 @@ jobs:
               workflow=true
             fi
 
-            if grep -Eq '^src/' <<<"$changed" && [ "$planner" = false ] && [ "$auth_nav" = false ] && [ "$workflow" = false ]; then
+            if grep -Eq '^tests/e2e/(management-dashboards|plan-actual-management)\.spec\.ts$|^src/api/(management|planActual)\.ts$|^src/screens/management/|^src/pages/(Today|TeamHours|PlanActual)Page\.tsx$' <<<"$changed"; then
+              management=true
+            fi
+
+            if grep -Eq '^src/' <<<"$changed" && [ "$planner" = false ] && [ "$auth_nav" = false ] && [ "$workflow" = false ] && [ "$management" = false ]; then
               full=true
             fi
           fi
@@ -92,6 +97,7 @@ jobs:
             planner=true
             auth_nav=true
             workflow=true
+            management=true
           fi
 
           {
@@ -99,16 +105,18 @@ jobs:
             echo "planner=$planner"
             echo "auth_nav=$auth_nav"
             echo "workflow=$workflow"
+            echo "management=$management"
           } >> "$GITHUB_OUTPUT"
 
       - name: Run affected E2E blocks in Playwright Docker
-        if: steps.scope.outputs.planner == 'true' || steps.scope.outputs.auth_nav == 'true' || steps.scope.outputs.workflow == 'true'
+        if: steps.scope.outputs.planner == 'true' || steps.scope.outputs.auth_nav == 'true' || steps.scope.outputs.workflow == 'true' || steps.scope.outputs.management == 'true'
         shell: bash
         env:
           FULL: ${{ steps.scope.outputs.full }}
           PLANNER: ${{ steps.scope.outputs.planner }}
           AUTH_NAV: ${{ steps.scope.outputs.auth_nav }}
           WORKFLOW: ${{ steps.scope.outputs.workflow }}
+          MANAGEMENT: ${{ steps.scope.outputs.management }}
         run: |
           set -euo pipefail
 
@@ -140,6 +148,13 @@ jobs:
                 tests/e2e/publication-history-diff.spec.ts
                 tests/e2e/schedule-acknowledgement.spec.ts
                 tests/e2e/shift-change-requests.spec.ts
+              )
+            fi
+
+            if [ "$MANAGEMENT" = "true" ]; then
+              tests+=(
+                tests/e2e/management-dashboards.spec.ts
+                tests/e2e/plan-actual-management.spec.ts
               )
             fi
 

@@ -6,6 +6,7 @@ import { OnboardingPage } from '../pages/OnboardingPage';
 import { NotFoundPage } from '../pages/NotFoundPage';
 import { NotificationsPage } from '../pages/NotificationsPage';
 import { PlannerPage } from '../pages/PlannerPage';
+import { PlanActualPage } from '../pages/PlanActualPage';
 import { MySchedulePage } from '../pages/MySchedulePage';
 import { ProfilePage } from '../pages/ProfilePage';
 import { RoleAccessPage } from '../pages/RoleAccessPage';
@@ -49,6 +50,7 @@ export function AppRouter() {
           <Route element={<ManagementRoute />}>
             <Route path="/today" element={<TodayPage />} />
             <Route path="/team-hours" element={<TeamHoursPage />} />
+            <Route path="/plan-actual" element={<PlanActualPage />} />
             <Route path="/planner" element={<PlannerPage />} />
           </Route>
           <Route path="*" element={<NotFoundPage />} />

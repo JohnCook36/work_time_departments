@@ -74,17 +74,19 @@ WorkSession хранит серверные check-in/check-out timestamps отд
 но не идентификатор сотрудника и не телефон. Каждый сотрудник может
 использовать один и тот же отображаемый QR ровно один раз; для выхода
 нужен новый QR. История использования защищена уникальностью по сотруднику
-и hash токена. Provisioning доверенного kiosk/display и физическое
-подтверждение присутствия относятся к #76; один только QR не является
-доказательством нахождения рядом с устройством.
+и hash токена. QR является механизмом авторизованной отметки рабочего
+времени; отдельная backend-сущность или специальный режим устройства для
+его отображения не требуется.
 
 Маршруты: `POST /attendance/qr`, `POST /attendance/check-in`,
 `POST /attendance/check-out`, `GET /attendance/me`,
 `GET /attendance/department`, `POST /attendance/corrections`,
 `PATCH /attendance/sessions/:sessionId`. Чтение ограничено периодом до
 31 дня и максимум 100 записей за запрос; для полного архива нужна
-отдельная пагинация. Этот slice не рассчитывает фактически отработанные
-часы и не подменяет scheduled hours в аналитике #72; сопоставление #77 позже.
+отдельная пагинация. WorkSession остаётся самостоятельным source of truth
+для факта. Management plan/fact сопоставляет его с immutable
+SchedulePublication, не подменяя planned hours и не считая фактическое
+время автоматически оплачиваемым.
 
 ## Swagger / OpenAPI
 
@@ -105,3 +107,12 @@ DTO используются только как metadata в `@ApiBody`: runtime
 ## Структура тестов
 
 Production-код находится в `src/`. Jest запускает `test/unit/**/*.spec.ts` и `test/integration/**/*.spec.ts`; Prisma schema invariant test читает канонический `prisma/schema.prisma`. HTTP/OpenAPI suites используют mocks, а Backend CI отдельно запускает live PostgreSQL regressions для security/shift-change invariants и backup/restore smoke. `tsconfig.build.json` исключает `test/` из production build; typecheck проверяет оба дерева.
+
+
+## Business timezone · #77
+
+`BUSINESS_TIME_ZONE` задаёт каноническую IANA timezone бизнеса для
+сопоставления локального времени опубликованного графика с server-time
+WorkSession. Frontend/browser timezone не является источником истины.
+Для plan/fact backend работает fail-closed, если переменная отсутствует
+или содержит невалидную IANA timezone.

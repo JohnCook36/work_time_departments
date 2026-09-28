@@ -53,6 +53,7 @@ describe('OpenAPI documentation', () => {
     ['/schedule-data/department', 'get'], ['/schedule-data/me', 'get'],
     ['/schedule-data/department/validation', 'get'],
     ['/management/today', 'get'], ['/management/hours', 'get'],
+    ['/management/plan-actual', 'get'],
     ['/management/hours/norm', 'put'],
     ['/attendance/qr', 'post'], ['/attendance/check-in', 'post'], ['/attendance/check-out', 'post'],
     ['/attendance/me', 'get'], ['/attendance/department', 'get'],
@@ -112,6 +113,18 @@ describe('OpenAPI documentation', () => {
     expect(schemas.CreateWishDto.required).not.toContain('day');
     expect(document.paths['/shift-change-requests/{id}/admin/approve'].post?.summary).toContain('mutable draft Shift');
     expect(document.paths['/shift-change-requests/{id}/admin/approve'].post?.summary).toContain('immutable publications remain unchanged');
+  });
+
+  it('keeps plan actual DTO explicit and privacy-safe', () => {
+    const schema = document.paths['/management/plan-actual'].get?.responses?.['200'];
+    const serialized = JSON.stringify(schema);
+    expect(serialized).toContain('publicationId');
+    expect(serialized).toContain('workSessionIds');
+    expect(serialized).toContain('payableAvailable');
+    expect(serialized).not.toMatch(
+      /phoneE164|actorUserId|qrTokenHash|ATTENDANCE_QR_SECRET/,
+    );
+    expect(serialized).not.toContain('"additionalProperties":true');
   });
 
   it('describes attendance without exposing account identifiers or QR token in read responses', () => {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { getManagementToday, ManagementTodayResponse } from '../../api/management';
 import { AppSectionNav } from '../../components/navigation/AppSectionNav';
@@ -25,25 +25,41 @@ import {
   QuickLinks,
 } from './ManagementDashboard.styles';
 
-function localDate(): string {
-  const now = new Date();
-  const offset = now.getTimezoneOffset() * 60_000;
-  return new Date(now.getTime() - offset).toISOString().slice(0, 10);
-}
 
 function shiftLabel(start: string | null, end: string | null, code: string | null) {
   if (!start || !end) return code || 'Смена';
   return (code ? code + ' · ' : '') + start + '–' + end;
 }
 
+function attendanceLabel(
+  attendance: ManagementTodayResponse['departments'][number]['plannedShifts'][number]['attendance'],
+) {
+  if (!attendance) return 'Явка недоступна';
+  if (attendance.status === 'NO_MARK') return 'Нет отметки';
+  if (attendance.status === 'IN_PROGRESS') {
+    return attendance.latenessMinutes > 0
+      ? 'На смене · опоздание ' + attendance.latenessMinutes + ' мин'
+      : 'На смене';
+  }
+  if ((attendance.earlyLeaveMinutes ?? 0) > 0) {
+    return 'Завершена · ранний уход ' + attendance.earlyLeaveMinutes + ' мин';
+  }
+  if ((attendance.overtimeMinutes ?? 0) > 0) {
+    return 'Завершена · переработка ' + attendance.overtimeMinutes + ' мин';
+  }
+  if (attendance.latenessMinutes > 0) {
+    return 'Завершена · опоздание ' + attendance.latenessMinutes + ' мин';
+  }
+  return 'Завершена по плану';
+}
+
 export function TodayScreen() {
-  const date = useMemo(localDate, []);
   const [data, setData] = useState<ManagementTodayResponse | null>(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
     let active = true;
-    void getManagementToday(date)
+    void getManagementToday()
       .then((result) => {
         if (active) setData(result);
       })
@@ -53,7 +69,7 @@ export function TodayScreen() {
     return () => {
       active = false;
     };
-  }, [date]);
+  }, []);
 
   return (
     <SectionPage>
@@ -61,8 +77,8 @@ export function TodayScreen() {
         <SectionHeader>
           <SectionTitle>Сегодня</SectionTitle>
           <SectionSubtitle>
-            Операционная картина на {date}. Явка не показывается до появления
-            отдельного источника фактического времени.
+            Операционная картина на {data?.date ?? 'сегодня'}: опубликованный план, фактические
+            отметки, отсутствия и запросы руководителю.
           </SectionSubtitle>
           <AppSectionNav />
         </SectionHeader>
@@ -88,11 +104,24 @@ export function TodayScreen() {
                 <MetricValue>{data.totals.unpublishedDepartments}</MetricValue>
                 <MetricLabel>отделов без публикации</MetricLabel>
               </MetricCard>
+              {data.attendanceAvailable && (
+                <>
+                  <MetricCard>
+                    <MetricValue>{data.totals.checkedIn}</MetricValue>
+                    <MetricLabel>отметились</MetricLabel>
+                  </MetricCard>
+                  <MetricCard>
+                    <MetricValue>{data.totals.noMark}</MetricValue>
+                    <MetricLabel>без отметки</MetricLabel>
+                  </MetricCard>
+                </>
+              )}
             </MetricsGrid>
 
             <QuickLinks>
               <QuickLink to="/planner">Открыть планировщик</QuickLink>
               <QuickLink to="/team-hours">Часы команды</QuickLink>
+              <QuickLink to="/plan-actual">План / факт</QuickLink>
               <QuickLink to="/shift-requests">Запросы на смены</QuickLink>
             </QuickLinks>
 
@@ -117,6 +146,9 @@ export function TodayScreen() {
                         <ItemRow key={shift.id}>
                           <strong>{shift.displayName}</strong>
                           <span>{shiftLabel(shift.startTime, shift.endTime, shift.code)}</span>
+                          {data.attendanceAvailable && (
+                            <span>{attendanceLabel(shift.attendance)}</span>
+                          )}
                         </ItemRow>
                       ))
                     )}
