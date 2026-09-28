@@ -13,11 +13,22 @@ import {
   ApiBadRequestResponse,
   ApiConflictResponse,
   ApiOperation,
+  ApiResponse,
   ApiSecurity,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 
+import {
+  activationInvitationInfoResponse,
+  issuedActivationInvitationResponse,
+  okResponse,
+  passkeyAuthenticationOptionsResponse,
+  passkeyAuthenticationVerifiedResponse,
+  passkeyCredentialListResponse,
+  passkeyRegistrationOptionsResponse,
+  passkeyRegistrationVerifiedResponse,
+} from '../openapi.responses';
 import type { AuthUserContext } from './auth.service';
 import { CurrentUser } from './current-user.decorator';
 import {
@@ -47,6 +58,7 @@ export class PasskeyController {
   @ApiOperation({ summary: 'Create a one-time employee activation invitation' })
   @ApiSecurity('session')
   @ApiSecurity('sessionBearer')
+  @ApiResponse({ status: 201, schema: issuedActivationInvitationResponse })
   @UseGuards(SessionAuthGuard)
   @Post('activation/employees/:employeeId/invitation')
   issueInvitation(
@@ -63,6 +75,7 @@ export class PasskeyController {
   @ApiSecurity('session')
   @ApiSecurity('sessionBearer')
   @ApiConflictResponse({ description: 'Account cannot be reset in its current state.' })
+  @ApiResponse({ status: 201, schema: issuedActivationInvitationResponse })
   @UseGuards(SessionAuthGuard)
   @Post('activation/employees/:employeeId/recovery')
   recoverAccess(
@@ -77,6 +90,7 @@ export class PasskeyController {
 
   @ApiOperation({ summary: 'Resolve a one-time activation token or short code' })
   @ApiUnauthorizedResponse({ description: 'Invitation is invalid or expired.' })
+  @ApiResponse({ status: 201, schema: activationInvitationInfoResponse })
   @Post('activation/resolve')
   resolveInvitation(@Body() body: Record<string, unknown>) {
     return this.passkeys.resolveInvitation(
@@ -86,6 +100,7 @@ export class PasskeyController {
 
   @ApiOperation({ summary: 'Create WebAuthn registration options for an invitation' })
   @ApiBadRequestResponse({ description: 'Invalid activation input.' })
+  @ApiResponse({ status: 201, schema: passkeyRegistrationOptionsResponse })
   @Post('passkey/registration/options')
   registrationOptions(@Body() body: Record<string, unknown>) {
     return this.passkeys.createRegistrationOptions(
@@ -94,6 +109,7 @@ export class PasskeyController {
   }
 
   @ApiOperation({ summary: 'Verify passkey registration and create a durable session' })
+  @ApiResponse({ status: 201, schema: passkeyRegistrationVerifiedResponse })
   @Post('passkey/registration/verify')
   async verifyRegistration(
     @Body()
@@ -120,12 +136,14 @@ export class PasskeyController {
   }
 
   @ApiOperation({ summary: 'Create discoverable-passkey authentication options' })
+  @ApiResponse({ status: 201, schema: passkeyAuthenticationOptionsResponse })
   @Post('passkey/authentication/options')
   authenticationOptions() {
     return this.passkeys.createAuthenticationOptions();
   }
 
   @ApiOperation({ summary: 'Verify passkey authentication and create a durable session' })
+  @ApiResponse({ status: 201, schema: passkeyAuthenticationVerifiedResponse })
   @Post('passkey/authentication/verify')
   async verifyAuthentication(
     @Body() body: { response?: AuthenticationResponseJSON },
@@ -147,6 +165,7 @@ export class PasskeyController {
   @ApiOperation({ summary: 'List active passkeys for the current account' })
   @ApiSecurity('session')
   @ApiSecurity('sessionBearer')
+  @ApiResponse({ status: 200, schema: passkeyCredentialListResponse })
   @UseGuards(SessionAuthGuard)
   @Get('passkeys')
   listPasskeys(@CurrentUser() user: AuthUserContext) {
@@ -156,6 +175,7 @@ export class PasskeyController {
   @ApiOperation({ summary: 'Revoke one passkey while preserving at least one recovery-capable credential' })
   @ApiSecurity('session')
   @ApiSecurity('sessionBearer')
+  @ApiResponse({ status: 200, schema: okResponse })
   @UseGuards(SessionAuthGuard)
   @Delete('passkeys/:credentialId')
   revokePasskey(
