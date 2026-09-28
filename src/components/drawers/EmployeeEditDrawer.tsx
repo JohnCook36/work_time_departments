@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Copy, KeyRound, RefreshCw, Save, Trash2, X } from 'lucide-react';
 
 import { ActivationQr } from '../auth/ActivationQr';
+import { useAppDialog } from '../dialogs/AppDialogProvider';
 import {
   IssuedActivationInvitation,
   issueEmployeeActivationInvitation,
@@ -75,6 +76,7 @@ export function EmployeeEditDrawer({
   onDeactivate,
   onClose,
 }: EmployeeEditDrawerProps) {
+  const { confirmAction } = useAppDialog();
   const [displayName, setDisplayName] = useState(employee.name);
   const [departmentId, setDepartmentId] = useState(employee.departmentId);
   const [employmentRate, setEmploymentRate] = useState<EmploymentRate>(
@@ -96,6 +98,17 @@ export function EmployeeEditDrawer({
   const [copyFeedback, setCopyFeedback] = useState('');
 
   const issueAccess = async () => {
+    if (employee.isLinked) {
+      const confirmed = await confirmAction(
+        'Сбросить все Passkey и активные сессии сотрудника? После этого войти можно будет только по новому приглашению.',
+        {
+          title: 'Сброс доступа сотрудника',
+          confirmLabel: 'Сбросить доступ',
+        },
+      );
+      if (!confirmed) return;
+    }
+
     setAccessBusy(true);
     setInvitation(null);
     setCopyFeedback('');
