@@ -213,7 +213,7 @@ export function LoginScreen() {
               <AuthInput
                 value={activationSecret}
                 onChange={event => setActivationSecret(event.target.value)}
-                placeholder="ABCD-EFGH"
+                placeholder="ABCDE-FGHIJ"
                 autoComplete="one-time-code"
                 disabled={busy}
               />
