@@ -9,7 +9,16 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       body: JSON.stringify({
         id: 'manager',
         phoneE164: '+79990000000',
-        employee: null,
+        employee: {
+          id: 'manager-employee',
+          displayName: 'E2E Руководитель',
+          departmentId: 'department-a',
+          departmentName: 'Front Office',
+          employmentRate: 1,
+          scheduleMode: 'FLEXIBLE',
+          fixedStartTime: null,
+          fixedEndTime: null,
+        },
         memberships: [{ id: 'membership', role: 'DEPARTMENT_ADMIN', departmentId: 'department-a', permissions: [] }],
       }),
     }));
@@ -33,6 +42,8 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
           startTime: '08:00',
           endTime: '17:00',
           workSessionId: 'session-1',
+          workSessionIds: ['session-1'],
+          workSessionCount: 1,
           status: 'COMPLETED',
           plannedStartAt: '2026-09-26T05:00:00.000Z',
           plannedEndAt: '2026-09-26T14:00:00.000Z',
