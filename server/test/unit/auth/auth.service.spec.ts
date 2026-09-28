@@ -25,6 +25,8 @@ function prismaMock() {
     },
     authSession: {
       create: jest.fn(),
+      findUnique: jest.fn(),
+      update: jest.fn(),
       deleteMany: jest.fn(),
     },
     $queryRaw: jest.fn(),
@@ -344,5 +346,49 @@ describe('AuthService development OTP safety', () => {
       'SMS OTP provider is not configured',
     );
     expect(prisma.authChallenge.create).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('AuthService durable session renewal', () => {
+  it('renews an active session for another ninety days on authenticated use', async () => {
+    const prisma = prismaMock();
+    const service = new AuthService(prisma as unknown as PrismaService);
+    const before = Date.now();
+
+    prisma.authSession.findUnique.mockResolvedValue({
+      id: 'session-1',
+      revokedAt: null,
+      expiresAt: new Date(Date.now() + 60_000),
+      user: {
+        id: 'user-1',
+        phoneE164: null,
+        isActive: true,
+        employee: null,
+        memberships: [],
+      },
+    });
+    prisma.authSession.update.mockResolvedValue({ id: 'session-1' });
+
+    await expect(service.getCurrentUser('opaque-session-token')).resolves.toEqual({
+      id: 'user-1',
+      phoneE164: null,
+      employee: null,
+      memberships: [],
+    });
+
+    expect(prisma.authSession.update).toHaveBeenCalledWith({
+      where: { id: 'session-1' },
+      data: {
+        lastSeenAt: expect.any(Date),
+        expiresAt: expect.any(Date),
+      },
+    });
+
+    const expiry =
+      prisma.authSession.update.mock.calls[0][0].data.expiresAt as Date;
+    expect(expiry.getTime()).toBeGreaterThanOrEqual(
+      before + 90 * 24 * 60 * 60 * 1000,
+    );
   });
 });
