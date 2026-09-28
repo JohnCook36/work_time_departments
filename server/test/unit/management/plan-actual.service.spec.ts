@@ -114,6 +114,8 @@ describe('PlanActualService', () => {
       publicationVersion: 3,
       shiftId: 'shift-published',
       workSessionId: 'session-1',
+      workSessionIds: ['session-1'],
+      workSessionCount: 1,
       plannedMinutes: 540,
       plannedDayMinutes: 540,
       plannedNightMinutes: 0,
@@ -124,6 +126,38 @@ describe('PlanActualService', () => {
       earlyLeaveMinutes: 30,
       undertimeMinutes: 45,
       payableAvailable: false,
+    });
+    expect(result.unplannedSessions).toEqual([]);
+  });
+
+  it('aggregates multiple sessions inside one published shift', async () => {
+    prisma.workSession.findMany.mockResolvedValue([
+      {
+        id: 'session-1',
+        employeeId: 'employee-1',
+        departmentId: 'department-a',
+        checkInAt: new Date('2026-09-28T05:00:00.000Z'),
+        checkOutAt: new Date('2026-09-28T09:00:00.000Z'),
+        employee: { displayName: 'Employee 1' },
+      },
+      {
+        id: 'session-2',
+        employeeId: 'employee-1',
+        departmentId: 'department-a',
+        checkInAt: new Date('2026-09-28T10:00:00.000Z'),
+        checkOutAt: new Date('2026-09-28T14:00:00.000Z'),
+        employee: { displayName: 'Employee 1' },
+      },
+    ]);
+
+    const result = await service.read(user, 2026, 9, 'department-a');
+
+    expect(result.rows[0]).toMatchObject({
+      workSessionId: null,
+      workSessionIds: ['session-1', 'session-2'],
+      workSessionCount: 2,
+      actualMinutes: 480,
+      deltaMinutes: -60,
     });
     expect(result.unplannedSessions).toEqual([]);
   });
