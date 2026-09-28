@@ -225,11 +225,15 @@ export const schedulePublicationValidationResponse = object({
 export const managementTodayResponse = object({
   date: { type: 'string', format: 'date' },
   attendanceAvailable: boolean,
+  attendanceBusinessTimeZone: nullable(text),
   totals: object({
     plannedShifts: integer,
     activeAbsences: integer,
     pendingRequests: integer,
     unpublishedDepartments: integer,
+    checkedIn: integer,
+    completed: integer,
+    noMark: integer,
   }),
   departments: arrayOf(object({
     id: text,
@@ -248,6 +252,14 @@ export const managementTodayResponse = object({
       code: nullable(text),
       startTime: nullable(text),
       endTime: nullable(text),
+      attendance: nullable(object({
+        status: { type: 'string', enum: ['NO_MARK', 'IN_PROGRESS', 'COMPLETED'] },
+        actualCheckInAt: nullable(timestamp),
+        actualCheckOutAt: nullable(timestamp),
+        latenessMinutes: integer,
+        earlyLeaveMinutes: nullable(integer),
+        overtimeMinutes: nullable(integer),
+      })),
     })),
     absences: arrayOf(object({
       id: text,
