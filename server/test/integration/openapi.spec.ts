@@ -34,7 +34,16 @@ describe('OpenAPI documentation', () => {
     expect(document.components?.securitySchemes?.session).toMatchObject({
       type: 'apiKey', in: 'cookie', name: SESSION_COOKIE_NAME,
     });
-    for (const [path, method] of [['/auth/request-code', 'post'], ['/auth/verify-code', 'post'], ['/health', 'get']]) {
+    for (const [path, method] of [
+      ['/auth/request-code', 'post'],
+      ['/auth/verify-code', 'post'],
+      ['/auth/activation/resolve', 'post'],
+      ['/auth/passkey/registration/options', 'post'],
+      ['/auth/passkey/registration/verify', 'post'],
+      ['/auth/passkey/authentication/options', 'post'],
+      ['/auth/passkey/authentication/verify', 'post'],
+      ['/health', 'get'],
+    ]) {
       expect(document.paths[path][method as 'get']?.security ?? []).toEqual([]);
     }
     expect(document.paths['/employees'].post?.security).toEqual(
@@ -44,6 +53,14 @@ describe('OpenAPI documentation', () => {
 
   it.each([
     ['/health', 'get'], ['/auth/request-code', 'post'], ['/auth/verify-code', 'post'],
+    ['/auth/activation/resolve', 'post'],
+    ['/auth/activation/employees/{employeeId}/invitation', 'post'],
+    ['/auth/activation/employees/{employeeId}/recovery', 'post'],
+    ['/auth/passkey/registration/options', 'post'],
+    ['/auth/passkey/registration/verify', 'post'],
+    ['/auth/passkey/authentication/options', 'post'],
+    ['/auth/passkey/authentication/verify', 'post'],
+    ['/auth/passkeys', 'get'], ['/auth/passkeys/{credentialId}', 'delete'],
     ['/auth/me', 'get'], ['/auth/logout', 'post'], ['/audit-events', 'get'],
     ['/onboarding/registration-request', 'post'], ['/onboarding/admin/{requestId}/approve', 'post'],
     ['/departments/manageable', 'get'], ['/departments', 'post'], ['/departments/reorder', 'patch'],
@@ -134,6 +151,41 @@ describe('OpenAPI documentation', () => {
     expect(document.paths['/attendance/qr'].post?.security).toEqual(
       expect.arrayContaining([{ session: [] }, { sessionBearer: [] }]),
     );
+  });
+
+  it('keeps passkey secrets out of read contracts and scopes manager invitation endpoints', () => {
+    const issued = JSON.stringify(
+      document.paths['/auth/activation/employees/{employeeId}/invitation'],
+    );
+    expect(issued).toContain('token');
+    expect(issued).toContain('shortCode');
+    expect(
+      document.paths['/auth/activation/employees/{employeeId}/invitation']
+        .post?.security,
+    ).toEqual(
+      expect.arrayContaining([{ session: [] }, { sessionBearer: [] }]),
+    );
+    expect(
+      document.paths['/auth/activation/employees/{employeeId}/recovery']
+        .post?.security,
+    ).toEqual(
+      expect.arrayContaining([{ session: [] }, { sessionBearer: [] }]),
+    );
+
+    const publicReadContracts = JSON.stringify({
+      resolve: document.paths['/auth/activation/resolve'],
+      credentials: document.paths['/auth/passkeys'],
+      me: document.paths['/auth/me'],
+    });
+    expect(publicReadContracts).not.toMatch(
+      /tokenHash|shortCodeHash|challengeHash|publicKey|webauthnUserHandle/,
+    );
+
+    const credentials = JSON.stringify(
+      document.paths['/auth/passkeys'].get?.responses?.['200'],
+    );
+    expect(credentials).toContain('lastUsedAt');
+    expect(credentials).not.toMatch(/credentialId|publicKey|counter/);
   });
 
   it('serves Swagger UI, its assets and the non-empty raw JSON over HTTP', async () => {
