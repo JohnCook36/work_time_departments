@@ -387,6 +387,36 @@ describeLive('live PostgreSQL passkey activation', () => {
     expect(recoveryOptions.user.id).toBe(registrationOptions.user.id);
   });
 
+  it('serializes concurrent invitations and leaves exactly one usable secret', async () => {
+    const [left, right] = await Promise.all([
+      passkeys.issueActivationInvitation(manager, targetEmployeeId),
+      passkeys.issueActivationInvitation(manager, targetEmployeeId),
+    ]);
+
+    expect(
+      await prisma.activationInvitation.count({
+        where: {
+          employeeId: targetEmployeeId,
+          consumedAt: null,
+          revokedAt: null,
+          expiresAt: { gt: new Date() },
+        },
+      }),
+    ).toBe(1);
+
+    const resolutions = await Promise.allSettled([
+      passkeys.resolveInvitation(left.token),
+      passkeys.resolveInvitation(right.token),
+    ]);
+
+    expect(
+      resolutions.filter(result => result.status === 'fulfilled'),
+    ).toHaveLength(1);
+    expect(
+      resolutions.filter(result => result.status === 'rejected'),
+    ).toHaveLength(1);
+  });
+
   it('does not let a department admin reset another management account', async () => {
     const targetUser = await prisma.user.create({
       data: {
