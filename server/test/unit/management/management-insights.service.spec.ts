@@ -255,8 +255,6 @@ describe('ManagementInsightsService', () => {
       },
     ]);
 
-    const result = await service.today(admin(), '2026-09-25');
-
     planActual.read.mockResolvedValue({
       businessTimeZone: 'Europe/Moscow',
       rows: [
@@ -286,7 +284,7 @@ describe('ManagementInsightsService', () => {
       completed: 0,
       noMark: 0,
     });
-    expect(result.departments[0]).toEqual(
+    expect(withAttendance.departments[0]).toEqual(
       expect.objectContaining({
         id: 'department-a',
         riskCount: 2,
