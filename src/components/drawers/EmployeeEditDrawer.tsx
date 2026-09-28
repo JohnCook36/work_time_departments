@@ -38,6 +38,7 @@ import {
   FullWidthSelect,
   TwoColumnGrid,
   DrawerSection,
+  ActivationQrSlot,
   DrawerSectionTitle,
   FullWidthActionButton,
 } from './styles';
@@ -296,9 +297,9 @@ export function EmployeeEditDrawer({
                 Покажите эти данные только сотруднику. После успешной активации
                 приглашение станет недействительным.
               </TinyText>
-              <div style={{ display: 'grid', placeItems: 'center' }}>
+              <ActivationQrSlot>
                 <ActivationQr value={activationUrl} />
-              </div>
+              </ActivationQrSlot>
 
               <FormGroup>
                 <FormLabel>Резервный код</FormLabel>
