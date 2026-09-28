@@ -52,6 +52,7 @@ export function AppSectionNav() {
     '/my-schedule',
     '/planner',
     '/team-hours',
+    '/plan-actual',
   ].includes(location.pathname) && managerMobile;
 
   return (
@@ -106,6 +107,10 @@ export function AppSectionNav() {
             <NavigationLink to="/team-hours">
               <Clock3 size={16} />
               Часы команды
+            </NavigationLink>
+            <NavigationLink to="/plan-actual">
+              <Clock3 size={16} />
+              План / факт
             </NavigationLink>
             <NavigationLink to="/planner">
               <LayoutDashboard size={16} />
@@ -214,6 +219,10 @@ export function AppSectionNav() {
                 <MobileMoreLink to="/team-hours">
                   <Clock3 size={18} />
                   Часы команды
+                </MobileMoreLink>
+                <MobileMoreLink to="/plan-actual">
+                  <Clock3 size={18} />
+                  План / факт
                 </MobileMoreLink>
                 {location.pathname !== '/my-schedule' && (
                   <MobileMoreLink to="/my-schedule">
