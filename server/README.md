@@ -83,8 +83,10 @@ WorkSession хранит серверные check-in/check-out timestamps отд
 `GET /attendance/department`, `POST /attendance/corrections`,
 `PATCH /attendance/sessions/:sessionId`. Чтение ограничено периодом до
 31 дня и максимум 100 записей за запрос; для полного архива нужна
-отдельная пагинация. Этот slice не рассчитывает фактически отработанные
-часы и не подменяет scheduled hours в аналитике #72; сопоставление #77 позже.
+отдельная пагинация. WorkSession остаётся самостоятельным source of truth
+для факта. Management plan/fact сопоставляет его с immutable
+SchedulePublication, не подменяя planned hours и не считая фактическое
+время автоматически оплачиваемым.
 
 ## Swagger / OpenAPI
 
