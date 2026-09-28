@@ -13,6 +13,7 @@ const employee = {
   departmentId: 'department-a',
   employmentRate: 1 as const,
   scheduleMode: 'flexible' as const,
+  isLinked: false,
 };
 
 const departments = [
