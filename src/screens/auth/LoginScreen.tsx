@@ -73,9 +73,10 @@ export function LoginScreen() {
   useEffect(() => {
     const secret = initialActivationSecret();
     if (secret) {
+      window.history.replaceState({}, '', '/login');
       void resolveInvitation(secret);
     }
-    // The activation URL is read once when the login screen opens.
+    // The activation URL is read once and immediately removed from browser history.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
