@@ -115,6 +115,18 @@ describe('OpenAPI documentation', () => {
     expect(document.paths['/shift-change-requests/{id}/admin/approve'].post?.summary).toContain('immutable publications remain unchanged');
   });
 
+  it('keeps plan actual DTO explicit and privacy-safe', () => {
+    const schema = document.paths['/management/plan-actual'].get?.responses?.['200'];
+    const serialized = JSON.stringify(schema);
+    expect(serialized).toContain('publicationId');
+    expect(serialized).toContain('workSessionIds');
+    expect(serialized).toContain('payableAvailable');
+    expect(serialized).not.toMatch(
+      /phoneE164|actorUserId|qrTokenHash|ATTENDANCE_QR_SECRET/,
+    );
+    expect(serialized).not.toContain('"additionalProperties":true');
+  });
+
   it('describes attendance without exposing account identifiers or QR token in read responses', () => {
     const schema = document.paths['/attendance/me'].get?.responses?.['200'];
     expect(schema).toMatchObject({ content: { 'application/json': { schema: { type: 'array' } } } });
