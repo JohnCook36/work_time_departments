@@ -147,7 +147,7 @@ export class PlanActualService {
               scheduleId: schedule.id,
               departmentId: { in: selectedIds },
             },
-            orderBy: [{ createdAt: 'desc' }],
+            orderBy: [{ version: 'desc' }, { createdAt: 'desc' }],
             select: {
               id: true,
               departmentId: true,
@@ -170,8 +170,7 @@ export class PlanActualService {
       const sessions = await tx.workSession.findMany({
         where: {
           departmentId: { in: selectedIds },
-          checkInAt: { lt: rangeEnd },
-          OR: [{ checkOutAt: null }, { checkOutAt: { gt: rangeStart } }],
+          checkInAt: { gte: rangeStart, lt: rangeEnd },
         },
         orderBy: [{ checkInAt: 'asc' }],
         select: {
