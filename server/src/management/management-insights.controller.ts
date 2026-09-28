@@ -56,14 +56,14 @@ export class ManagementInsightsController {
   constructor(private readonly insights: ManagementInsightsService) {}
 
   @ApiOperation({ summary: 'Read current-day management projection from published schedule, absences and pending shift requests' })
-  @ApiQuery({ name: 'date', required: true })
+  @ApiQuery({ name: 'date', required: false, description: 'Optional YYYY-MM-DD override; omitted uses canonical business date.' })
   @ApiResponse({ status: 200, schema: managementTodayResponse })
   @Get('today')
   today(
     @CurrentUser() user: AuthUserContext,
     @Query('date') date?: string,
   ) {
-    return this.insights.today(user, requiredString(date, 'date'));
+    return this.insights.today(user, date?.trim() || undefined);
   }
 
   @ApiOperation({ summary: 'Create or update one department full-time norm for a month' })
