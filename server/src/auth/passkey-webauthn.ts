@@ -198,6 +198,9 @@ function parseClientData(
   const data = parsed as Record<string, unknown>;
   if (data.type !== expectedType) throw new Error('WebAuthn ceremony type mismatch');
   if (data.origin !== expectedOrigin) throw new Error('WebAuthn origin mismatch');
+  if (data.crossOrigin === true || data.topOrigin !== undefined) {
+    throw new Error('Cross-origin WebAuthn ceremony is not allowed');
+  }
   const challenge = requireBase64Url(data.challenge, 'challenge');
   return { raw, challenge };
 }
