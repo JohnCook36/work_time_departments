@@ -6,7 +6,7 @@ function reply(route: Route, body: unknown, status = 200) {
     contentType: 'application/json',
     headers: {
       'Access-Control-Allow-Origin':
-        route.request().headers().origin || 'http://127.0.0.1:4174',
+        route.request().headers().origin || 'http://localhost:4174',
       'Access-Control-Allow-Credentials': 'true',
       'Access-Control-Allow-Headers': 'Content-Type',
       'Access-Control-Allow-Methods': 'GET,POST,DELETE,OPTIONS',
@@ -100,7 +100,7 @@ for (const viewport of [
           return reply(route, {
             challenge: Buffer.alloc(32, 11).toString('base64url'),
             rp: {
-              id: '127.0.0.1',
+              id: 'localhost',
               name: 'Work Time Departments',
             },
             user: {
@@ -145,7 +145,7 @@ for (const viewport of [
         if (path === '/auth/passkey/authentication/options') {
           return reply(route, {
             challenge: Buffer.alloc(32, 33).toString('base64url'),
-            rpId: '127.0.0.1',
+            rpId: 'localhost',
             timeout: 60_000,
             userVerification: 'required',
           }, 201);
@@ -187,7 +187,7 @@ for (const viewport of [
     );
 
     await page.goto(
-      'http://127.0.0.1:4174/login?activation=opaque-invitation',
+      'http://localhost:4174/login?activation=opaque-invitation',
     );
 
     await expect(
@@ -228,7 +228,7 @@ for (const viewport of [
     ).toBe(true);
 
     const logoutStatus = await page.evaluate(async () => {
-      const response = await fetch('http://127.0.0.1:3000/auth/logout', {
+      const response = await fetch('http://localhost:3000/auth/logout', {
         method: 'POST',
         credentials: 'include',
       });
@@ -236,7 +236,7 @@ for (const viewport of [
     });
     expect(logoutStatus).toBe(201);
 
-    await page.goto('http://127.0.0.1:4174/login');
+    await page.goto('http://localhost:4174/login');
     await expect(
       page.getByRole('button', { name: 'Войти с Passkey' }),
     ).toBeVisible();
