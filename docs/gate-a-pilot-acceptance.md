@@ -15,15 +15,16 @@ A candidate commit must have:
 The deployment must prove:
 - production frontend has explicit `VITE_API_URL` and `VITE_SERVER_PLANNER_WRITE=1`;
 - backend has an explicit `FRONTEND_ORIGIN`, TLS/reverse-proxy configuration and secret storage;
-- production OTP delivery uses `AUTH_OTP_PROVIDER_URL` over HTTPS with `AUTH_OTP_PROVIDER_TOKEN`; fixed dev OTP is disabled;
-- browser flow works on desktop and mobile: request code -> provider delivery -> verify -> persisted HttpOnly session -> `/auth/me` -> logout -> unauthorized reuse;
+- backend has explicit `WEBAUTHN_RP_ID` and exact HTTPS `WEBAUTHN_ORIGIN`; the RP/origin matches the deployed frontend host;
+- browser flow works on desktop and mobile: manager invitation -> one-time activation QR/code -> Passkey registration -> persisted HttpOnly session -> `/auth/me` -> logout -> Passkey re-login;
+- recovery is accepted: scoped manager reset revokes old sessions/passkeys and a fresh one-time invitation can register a new Passkey;
 - manager and employee critical flows use the server-backed planner;
 - production backup job runs on schedule, creates encrypted backups, rotates them and a restore rehearsal into an isolated database is recorded.
 
 ## Pilot stop conditions
 
 Do not open the pilot when any of the following is true:
-- production OTP delivery is not configured or fails closed;
+- production WebAuthn RP/origin is not configured correctly, activation/re-login fails, or recovery can bypass manager scope;
 - backup destination/rotation/recovery ownership is unknown;
 - a known Critical/High authorization, IDOR or PII leak remains;
 - final regression on the candidate deployment is red.
@@ -34,7 +35,7 @@ For the final candidate record:
 - commit SHA;
 - CI / Backend CI / Playwright run numbers;
 - frontend/backend origins used for the smoke;
-- OTP provider smoke timestamp without raw phone/code payloads;
+- activation/Passkey smoke timestamp without raw activation tokens, credential public keys or session cookies;
 - backup timestamp, checksum, encrypted destination class, retention and restore duration;
 - owner of backup/auth operations;
 - final open-risk list.
@@ -44,17 +45,19 @@ For the final candidate record:
 
 Repository helpers keep the production-like evidence reproducible without recording secrets or personal payloads.
 
-### Auth smoke
+### Passkey auth smoke
 
-Run against the real HTTPS backend:
+Use the real HTTPS frontend/backend pair and a synthetic pilot employee:
 
-```bash
-AUTH_SMOKE_BASE_URL='https://api.example.test' \
-AUTH_SMOKE_PHONE='<pilot-test-number>' \
-node scripts/gate-a-auth-smoke.mjs
-```
+1. manager creates an activation invitation;
+2. employee scans the QR or enters the fallback code;
+3. browser registers a Passkey with user verification;
+4. `/auth/me` works through the HttpOnly session;
+5. logout invalidates the session;
+6. Passkey login restores a new session without a new manager invitation;
+7. manager recovery revokes old sessions/Passkeys and a fresh invitation can register access again.
 
-The script requests a real provider OTP, accepts the code interactively, verifies the session cookie, calls `/auth/me`, logs out and proves the old session is rejected. It does not print the phone, OTP or cookie.
+Run the flow on both desktop and mobile. Never copy raw activation tokens, WebAuthn responses, public keys or cookies into the evidence record. The legacy phone OTP smoke helper is not part of the current Gate A requirement.
 
 ### Restore rehearsal
 
