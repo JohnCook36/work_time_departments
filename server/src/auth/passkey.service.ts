@@ -195,7 +195,7 @@ export class PasskeyService {
       department: { id: string; name: string };
     },
     purpose: ActivationInvitationPurpose,
-    userHandle?: Buffer,
+    userHandle?: Uint8Array<ArrayBufferLike>,
   ) {
     await this.currentManager(tx, admin, employee.departmentId);
 
@@ -299,9 +299,11 @@ export class PasskeyService {
         where: { id: employeeId },
         select: {
           id: true,
+          displayName: true,
           departmentId: true,
           isActive: true,
           userId: true,
+          department: { select: { id: true, name: true } },
           user: {
             select: {
               isActive: true,
