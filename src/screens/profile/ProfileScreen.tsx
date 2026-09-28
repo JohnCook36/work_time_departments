@@ -55,7 +55,7 @@ export function ProfileScreen() {
 
             <DataRow>
               <DataLabel>Телефон</DataLabel>
-              <DataValue>{user.phoneE164}</DataValue>
+              <DataValue>{user.phoneE164 || 'Не используется для входа'}</DataValue>
             </DataRow>
 
             <DataRow>
