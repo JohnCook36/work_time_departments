@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 import { EmployeeEditDrawer } from '../../../src/components/drawers/EmployeeEditDrawer';
+import { AppDialogProvider } from '../../../src/components/dialogs/AppDialogProvider';
 import { getTheme } from '../../../src/theme/theme';
 
 const employee = {
@@ -26,6 +27,7 @@ function renderDrawer(
 ) {
   render(
     <ThemeProvider theme={getTheme('light')}>
+      <AppDialogProvider>
       <EmployeeEditDrawer
         employee={employee}
         departments={departments}
@@ -34,6 +36,7 @@ function renderDrawer(
         onDeactivate={onDeactivate}
         onClose={onClose}
       />
+      </AppDialogProvider>
     </ThemeProvider>,
   );
 
@@ -93,6 +96,61 @@ describe('EmployeeEditDrawer', () => {
       screen.getByRole('alert'),
     ).toHaveTextContent('Начало и окончание рабочего дня не могут совпадать.');
     expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('issues a one-time activation invitation without exposing employee PII in the QR payload', async () => {
+    const user = userEvent.setup();
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          invitationId: 'invitation-1',
+          purpose: 'ACTIVATION',
+          expiresAt: '2026-09-28T18:00:00.000Z',
+          employee: {
+            id: 'employee-1',
+            displayName: 'Тестовый сотрудник',
+            departmentId: 'department-a',
+            departmentName: 'Front Office',
+          },
+          token: 'opaque-activation-token',
+          shortCode: 'ABCDE-FGHIJ',
+        }),
+        {
+          status: 201,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      ),
+    );
+
+    renderDrawer();
+
+    await user.click(
+      screen.getByRole('button', { name: 'Выдать приглашение' }),
+    );
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.stringContaining(
+        '/auth/activation/employees/employee-1/invitation',
+      ),
+      expect.objectContaining({ method: 'POST', credentials: 'include' }),
+    );
+    expect(
+      await screen.findByLabelText('QR-код активации'),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText('Резервный код активации')).toHaveValue(
+      'ABCDE-FGHIJ',
+    );
+    const activationLink = screen.getByLabelText('Ссылка активации');
+    expect(activationLink).toHaveValue(
+      expect.stringContaining(
+        '/login?activation=opaque-activation-token',
+      ),
+    );
+    expect(String((activationLink as HTMLInputElement).value)).not.toContain(
+      'Тестовый сотрудник',
+    );
+
+    fetchSpy.mockRestore();
   });
 
   it('requires explicit confirmation action to deactivate', async () => {
