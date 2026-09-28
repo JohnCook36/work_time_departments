@@ -42,6 +42,7 @@ for (const viewport of [
 
     let authenticated = false;
     let registrationVerifyBody: Record<string, unknown> | null = null;
+    let authenticationVerifyBody: Record<string, unknown> | null = null;
 
     await page.route(
       /https?:\/\/(?:localhost|127\.0\.0\.1):3000\/.*/,
@@ -136,6 +137,30 @@ for (const viewport of [
           }, 201);
         }
 
+        if (path === '/auth/logout') {
+          authenticated = false;
+          return reply(route, { status: 'ok' }, 201);
+        }
+
+        if (path === '/auth/passkey/authentication/options') {
+          return reply(route, {
+            challenge: Buffer.alloc(32, 33).toString('base64url'),
+            rpId: '127.0.0.1',
+            timeout: 60_000,
+            userVerification: 'required',
+          }, 201);
+        }
+
+        if (path === '/auth/passkey/authentication/verify') {
+          authenticationVerifyBody =
+            request.postDataJSON() as Record<string, unknown>;
+          authenticated = true;
+          return reply(route, {
+            expiresAt: '2026-12-28T18:00:00.000Z',
+            userId: 'employee-user',
+          }, 201);
+        }
+
         if (path === '/schedule-data/me') {
           return reply(route, {
             period: { year: 2026, month: 9 },
@@ -201,5 +226,43 @@ for (const viewport of [
         () => document.documentElement.scrollWidth <= window.innerWidth,
       ),
     ).toBe(true);
+
+    const logoutStatus = await page.evaluate(async () => {
+      const response = await fetch('http://127.0.0.1:3000/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      return response.status;
+    });
+    expect(logoutStatus).toBe(201);
+
+    await page.goto('http://127.0.0.1:4174/login');
+    await expect(
+      page.getByRole('button', { name: 'Войти с Passkey' }),
+    ).toBeVisible();
+
+    await page.getByRole('button', { name: 'Войти с Passkey' }).click();
+
+    await expect.poll(() => authenticationVerifyBody).not.toBeNull();
+    const authenticationBody = authenticationVerifyBody as {
+      response?: {
+        type?: string;
+        rawId?: string;
+        response?: {
+          authenticatorData?: string;
+          signature?: string;
+          userHandle?: string | null;
+        };
+      };
+    };
+    expect(authenticationBody.response?.type).toBe('public-key');
+    expect(authenticationBody.response?.rawId).toBeTruthy();
+    expect(
+      authenticationBody.response?.response?.authenticatorData,
+    ).toBeTruthy();
+    expect(authenticationBody.response?.response?.signature).toBeTruthy();
+    expect(authenticationBody.response?.response?.userHandle).toBeTruthy();
+
+    await expect(page).not.toHaveURL(/\/login/);
   });
 }
