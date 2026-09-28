@@ -17,6 +17,7 @@ import { AuthorizationService } from '../auth/authorization.service';
 import { calculatePlannedShiftHours, getMonthlyProductionNormHours } from '../hours/schedule-hours';
 import { PrismaService } from '../prisma/prisma.service';
 import { parseSchedulePublicationSnapshot } from '../schedules/schedule-publications.service';
+import { PlanActualService } from './plan-actual.service';
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -49,6 +50,7 @@ export class ManagementInsightsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly authorization: AuthorizationService,
+    private readonly planActual: PlanActualService,
   ) {}
 
   private async loadCurrentManager(
@@ -228,6 +230,20 @@ export class ManagementInsightsService {
         })
       : [];
 
+    let attendanceAvailable = false;
+    let attendanceBusinessTimeZone: string | null = null;
+    const attendanceByShift = new Map<string, Awaited<ReturnType<PlanActualService['read']>>['rows'][number]>();
+    try {
+      const planActual = await this.planActual.read(admin, year, month);
+      attendanceAvailable = true;
+      attendanceBusinessTimeZone = planActual.businessTimeZone;
+      for (const row of planActual.rows) {
+        if (row.date === dateText) attendanceByShift.set(row.shiftId, row);
+      }
+    } catch (error) {
+      if (!(error instanceof ForbiddenException)) throw error;
+    }
+
     const departmentRows = departments.map((department) => {
       const publication = latestByDepartment.get(department.id);
       const snapshot = publication
@@ -242,15 +258,28 @@ export class ManagementInsightsService {
       const plannedShifts =
         snapshot?.shifts
           .filter((shift) => shift.date === dateText && !shift.isOff)
-          .map((shift) => ({
-            id: shift.id,
-            employeeId: shift.employeeId,
-            displayName: employeeNames.get(shift.employeeId) ?? shift.employeeId,
-            date: shift.date,
-            code: shift.code,
-            startTime: shift.startTime,
-            endTime: shift.endTime,
-          })) ?? [];
+          .map((shift) => {
+            const attendance = attendanceByShift.get(shift.id);
+            return {
+              id: shift.id,
+              employeeId: shift.employeeId,
+              displayName: employeeNames.get(shift.employeeId) ?? shift.employeeId,
+              date: shift.date,
+              code: shift.code,
+              startTime: shift.startTime,
+              endTime: shift.endTime,
+              attendance: attendance
+                ? {
+                    status: attendance.status,
+                    actualCheckInAt: attendance.actualCheckInAt,
+                    actualCheckOutAt: attendance.actualCheckOutAt,
+                    latenessMinutes: attendance.latenessMinutes,
+                    earlyLeaveMinutes: attendance.earlyLeaveMinutes,
+                    overtimeMinutes: attendance.overtimeMinutes,
+                  }
+                : null,
+            };
+          }) ?? [];
 
       const departmentAbsences = absences
         .filter((absence) => absence.employee.departmentId === department.id)
@@ -325,8 +354,18 @@ export class ManagementInsightsService {
         unpublishedDepartments: departmentRows.filter(
           (department) => !department.publication,
         ).length,
+        checkedIn: Array.from(attendanceByShift.values()).filter(
+          (row) => row.actualCheckInAt !== null,
+        ).length,
+        completed: Array.from(attendanceByShift.values()).filter(
+          (row) => row.status === 'COMPLETED',
+        ).length,
+        noMark: Array.from(attendanceByShift.values()).filter(
+          (row) => row.status === 'NO_MARK',
+        ).length,
       },
-      attendanceAvailable: false,
+      attendanceAvailable,
+      attendanceBusinessTimeZone,
     };
   }
 
