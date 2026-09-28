@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Copy, KeyRound, RefreshCw, Save, Trash2, X } from 'lucide-react';
 
+import { ActivationQr } from '../auth/ActivationQr';
 import {
   IssuedActivationInvitation,
   issueEmployeeActivationInvitation,
@@ -295,6 +296,10 @@ export function EmployeeEditDrawer({
                 Покажите эти данные только сотруднику. После успешной активации
                 приглашение станет недействительным.
               </TinyText>
+              <div style={{ display: 'grid', placeItems: 'center' }}>
+                <ActivationQr value={activationUrl} />
+              </div>
+
               <FormGroup>
                 <FormLabel>Резервный код</FormLabel>
                 <FullWidthInput
