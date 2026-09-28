@@ -108,10 +108,12 @@ export interface ManagementHoursResponse {
   }>;
 }
 
-export function getManagementToday(date: string) {
-  const params = new URLSearchParams({ date });
+export function getManagementToday(date?: string) {
+  const params = new URLSearchParams();
+  if (date) params.set('date', date);
+  const query = params.toString();
   return apiRequest<ManagementTodayResponse>(
-    '/management/today?' + params.toString(),
+    '/management/today' + (query ? '?' + query : ''),
   );
 }
 
