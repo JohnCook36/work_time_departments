@@ -57,8 +57,6 @@ CREATE UNIQUE INDEX "ActivationInvitation_tokenHash_key"
   ON "ActivationInvitation"("tokenHash");
 CREATE UNIQUE INDEX "ActivationInvitation_shortCodeHash_key"
   ON "ActivationInvitation"("shortCodeHash");
-CREATE UNIQUE INDEX "ActivationInvitation_userHandle_key"
-  ON "ActivationInvitation"("userHandle");
 CREATE INDEX "ActivationInvitation_employeeId_createdAt_idx"
   ON "ActivationInvitation"("employeeId", "createdAt");
 CREATE INDEX "ActivationInvitation_createdByUserId_createdAt_idx"
