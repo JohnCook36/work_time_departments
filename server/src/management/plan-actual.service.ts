@@ -8,7 +8,7 @@ import {
   localBusinessDateTime,
   publishedShiftInterval,
 } from '../hours/business-time';
-import { comparePlanActual } from '../hours/plan-actual';
+import { comparePlanActualSessions } from '../hours/plan-actual';
 import { PrismaService } from '../prisma/prisma.service';
 import { parseSchedulePublicationSnapshot } from '../schedules/schedule-publications.service';
 
@@ -228,9 +228,12 @@ export class PlanActualService {
                 ),
               }))
               .filter(candidate => candidate.overlap > 0)
-              .sort((a, b) => b.overlap - a.overlap);
-            const actual = candidates[0]?.session ?? null;
-            if (actual) matched.add(actual.id);
+              .sort(
+                (a, b) =>
+                  a.session.checkInAt.getTime() - b.session.checkInAt.getTime(),
+              );
+            const actualSessions = candidates.map(candidate => candidate.session);
+            for (const actual of actualSessions) matched.add(actual.id);
 
             return {
               departmentId: department.id,
@@ -245,16 +248,16 @@ export class PlanActualService {
               code: shift.code,
               startTime: shift.startTime,
               endTime: shift.endTime,
-              workSessionId: actual?.id ?? null,
-              ...comparePlanActual(
+              workSessionId:
+                actualSessions.length === 1 ? actualSessions[0].id : null,
+              workSessionIds: actualSessions.map(session => session.id),
+              ...comparePlanActualSessions(
                 planned.startAt,
                 planned.endAt,
-                actual
-                  ? {
-                      checkInAt: actual.checkInAt,
-                      checkOutAt: actual.checkOutAt,
-                    }
-                  : null,
+                actualSessions.map(session => ({
+                  checkInAt: session.checkInAt,
+                  checkOutAt: session.checkOutAt,
+                })),
                 timeZone,
               ),
             };
