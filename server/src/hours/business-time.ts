@@ -94,3 +94,69 @@ export function intervalMinutes(startAt: Date, endAt: Date): number {
   if (endAt <= startAt) throw new BadRequestException('Interval end must follow start');
   return Math.round((endAt.getTime() - startAt.getTime()) / MINUTE_MS);
 }
+
+
+export interface BusinessIntervalMinutes {
+  dayMinutes: number;
+  nightMinutes: number;
+  totalMinutes: number;
+}
+
+function localDateText(date: Date, timeZone: string): string {
+  const value = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+  const [year, month, day] = value.split('-');
+  return year + '-' + month + '-' + day;
+}
+
+function overlapMinutes(
+  startA: Date,
+  endA: Date,
+  startB: Date,
+  endB: Date,
+): number {
+  return Math.max(
+    0,
+    Math.min(endA.getTime(), endB.getTime()) -
+      Math.max(startA.getTime(), startB.getTime()),
+  ) / MINUTE_MS;
+}
+
+export function splitBusinessInterval(
+  startAt: Date,
+  endAt: Date,
+  timeZone = businessTimeZone(),
+): BusinessIntervalMinutes {
+  if (endAt <= startAt) {
+    throw new BadRequestException('Interval end must follow start');
+  }
+
+  let dayMinutes = 0;
+  let nightMinutes = 0;
+  let dateText = localDateText(startAt, timeZone);
+  const finalDate = localDateText(new Date(endAt.getTime() - 1), timeZone);
+
+  while (dateText <= finalDate) {
+    const dayStart = localBusinessDateTime(dateText, '00:00', timeZone);
+    const day06 = localBusinessDateTime(dateText, '06:00', timeZone);
+    const day22 = localBusinessDateTime(dateText, '22:00', timeZone);
+    const nextStart = localBusinessDateTime(addDateDays(dateText, 1), '00:00', timeZone);
+
+    nightMinutes += overlapMinutes(startAt, endAt, dayStart, day06);
+    dayMinutes += overlapMinutes(startAt, endAt, day06, day22);
+    nightMinutes += overlapMinutes(startAt, endAt, day22, nextStart);
+
+    dateText = addDateDays(dateText, 1);
+  }
+
+  const round = (value: number) => Math.round(value * 100) / 100;
+  return {
+    dayMinutes: round(dayMinutes),
+    nightMinutes: round(nightMinutes),
+    totalMinutes: round(dayMinutes + nightMinutes),
+  };
+}
