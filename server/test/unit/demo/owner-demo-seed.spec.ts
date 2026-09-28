@@ -50,5 +50,14 @@ describe('owner demo seed safety', () => {
         confirmation: DEMO_SEED_CONFIRMATION,
       }),
     ).toThrow(/demo or test/);
+
+    expect(() =>
+      assertDemoSeedEnvironment({
+        databaseUrl:
+          'postgresql://demo:demo@127.0.0.1:5432/contest_production',
+        nodeEnv: 'development',
+        confirmation: DEMO_SEED_CONFIRMATION,
+      }),
+    ).toThrow(/database-name segment/);
   });
 });
