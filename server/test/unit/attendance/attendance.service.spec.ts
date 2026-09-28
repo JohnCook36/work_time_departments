@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { RoleType } from '@prisma/client';
 
 import type { AuthUserContext } from '../../../src/auth/auth.service';
@@ -48,6 +48,21 @@ describe('AttendanceService boundaries', () => {
       .rejects.toBeInstanceOf(ForbiddenException);
     expect(tx.department.findFirst).not.toHaveBeenCalled();
     expect(tx.workSession.findMany).not.toHaveBeenCalled();
+  });
+
+  it('scopes checkout lookup to the authenticated employee', async () => {
+    tx.employee.findFirst.mockResolvedValue({
+      id: 'employee-b',
+      departmentId: 'department-a',
+    });
+    tx.workSession.findFirst.mockResolvedValue(null);
+    const { token } = issueAttendanceToken('department-a');
+
+    await expect(service.checkOut(user, token))
+      .rejects.toBeInstanceOf(ConflictException);
+    expect(tx.workSession.findFirst).toHaveBeenCalledWith({
+      where: { employeeId: 'employee-b', checkOutAt: null },
+    });
   });
 
   it('rejects a foreign department QR before writing a session', async () => {
