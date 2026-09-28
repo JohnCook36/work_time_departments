@@ -9,9 +9,8 @@ roles, permissions, PII, export/print and backend changes.
 ## Data classification
 
 - **Work data:** departments, employee display names, schedules, wishes and work events.
-- **Personal data:** phone numbers, account links and future private profile fields.
-- **Sensitive operational data:** session tokens, OTP challenges, credentials, secrets,
-  database URLs, private addresses and audit/security evidence.
+- **Personal data:** optional legacy phone numbers, account links and future private profile fields.
+- **Sensitive operational data:** session tokens, activation secrets, WebAuthn credential material/challenges, OTP challenges, secrets, database URLs, private addresses and audit/security evidence.
 - Do not place secrets or sensitive operational data in frontend state, browser logs,
   API documentation examples, fixtures committed to Git or user-visible error text.
 
@@ -29,17 +28,12 @@ roles, permissions, PII, export/print and backend changes.
   or the explicitly supported bearer transport.
 - Production cookies must remain `HttpOnly`, `Secure` and use the defined SameSite policy.
 - The deployment topology must match that policy: with the current `SameSite=Lax` cookie, frontend/backend should be same-site or the alternative cross-site cookie/session design must be explicitly reviewed and browser-tested. Do not switch to `SameSite=None` blindly.
-- OTP codes are never logged or documented with production examples.
-- OTP attempt limits and challenge consumption must remain atomic under concurrency.
-- OTP challenge technical records use bounded retention: records older than
-  `max(OTP_TTL, AUTH_OTP_SOURCE_WINDOW_SECONDS)` are pruned before a new
-  request-code decision. This preserves both OTP validity and the active source
-  rate-limit window while preventing unbounded accumulation during normal auth traffic.
-- Hard wall-clock deletion still depends on auth traffic; if the pilot requires
-  deletion at an exact time even while authentication is idle, schedule the same
-  cleanup rule operationally rather than shortening the retention window.
+- Passkey activation secrets are one-time, short-lived and stored only as hashes; raw invitation values must not be logged.
+- WebAuthn verification must bind challenge, exact origin, RP ID hash, ceremony type, user verification and credential signature. Private keys never reach the application.
+- Passkey recovery must revoke old server sessions and credentials and revalidate current manager scope transactionally.
+- The initial management bootstrap is shell-only, explicit and refuses accounts that already have an active Passkey.
 - Logout must revoke the server session and browser-private planner data for that account.
-- Production OTP must not fall back to the development code.
+- Legacy OTP codes are never logged or documented with production examples. OTP challenge retention/rate-limit rules remain in place while the fallback exists; production Gate A does not depend on SMS.
 
 ## HTTP / browser boundary
 
@@ -106,7 +100,7 @@ Security-sensitive PRs should include, where relevant:
 - cross-account isolation tests;
 - invalid/stale/concurrent mutation tests;
 - HTTP/CORS/origin/session lifecycle tests;
-- production-like browser verification of OTP/session cookies across the actual frontend/backend origins before release;
+- production-like browser verification of activation/Passkey/session cookies across the actual frontend/backend origins before release;
 - E2E checks when browser state or routing changes.
 
 ## Merge gate
@@ -121,6 +115,4 @@ Before merging auth/roles/permissions/PII/security-sensitive work:
 6. user acceptance is recorded when the task requires manual verification;
 7. roadmap/handoff records what was verified and what remains.
 
-This baseline does **not** mean roadmap #43 is complete. Live database
-IDOR/concurrency verification, production SMS readiness, dependency/secrets review,
-PII/logging review, backup/restore and a final repeat security audit remain separate gates.
+This baseline does **not** mean roadmap #43 is complete. Live database IDOR/concurrency verification, real HTTPS WebAuthn RP/origin acceptance, dependency/secrets review, PII/logging review, backup/restore and a final repeat security audit remain separate gates.
