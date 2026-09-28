@@ -1,5 +1,11 @@
 import { useState } from 'react';
-import { Save, Trash2, X } from 'lucide-react';
+import { Copy, KeyRound, RefreshCw, Save, Trash2, X } from 'lucide-react';
+
+import {
+  IssuedActivationInvitation,
+  issueEmployeeActivationInvitation,
+  resetEmployeeAccess,
+} from '../../api/auth';
 
 import {
   Department,
@@ -30,6 +36,9 @@ import {
   FullWidthInput,
   FullWidthSelect,
   TwoColumnGrid,
+  DrawerSection,
+  DrawerSectionTitle,
+  FullWidthActionButton,
 } from './styles';
 
 export interface EmployeeEditValues {
@@ -79,6 +88,46 @@ export function EmployeeEditDrawer({
     employee.fixedEndTime ?? '17:00',
   );
   const [error, setError] = useState<string | null>(null);
+  const [accessBusy, setAccessBusy] = useState(false);
+  const [invitation, setInvitation] =
+    useState<IssuedActivationInvitation | null>(null);
+  const [copyFeedback, setCopyFeedback] = useState('');
+
+  const issueAccess = async () => {
+    setAccessBusy(true);
+    setInvitation(null);
+    setCopyFeedback('');
+    setError(null);
+    try {
+      const next = employee.isLinked
+        ? await resetEmployeeAccess(employee.id)
+        : await issueEmployeeActivationInvitation(employee.id);
+      setInvitation(next);
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Не удалось выдать приглашение.',
+      );
+    } finally {
+      setAccessBusy(false);
+    }
+  };
+
+  const activationUrl = invitation
+    ? window.location.origin +
+      '/login?activation=' +
+      encodeURIComponent(invitation.token)
+    : '';
+
+  const copyValue = async (value: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopyFeedback(label + ' скопирован');
+    } catch {
+      setCopyFeedback('Не удалось скопировать автоматически');
+    }
+  };
 
   const submit = () => {
     const name = displayName.trim();
@@ -217,6 +266,80 @@ export function EmployeeEditDrawer({
         <DrawerFieldError role={error ? 'alert' : undefined} aria-live="polite">
           {error || '\u00a0'}
         </DrawerFieldError>
+
+        <DrawerSection>
+          <DrawerSectionTitle>Доступ к аккаунту</DrawerSectionTitle>
+          <TinyText>
+            {employee.isLinked
+              ? 'Аккаунт уже активирован. Сброс отзовёт текущие Passkey и активные сессии.'
+              : 'Выдайте сотруднику одноразовое приглашение для создания Passkey.'}
+          </TinyText>
+
+          <FullWidthActionButton
+            type="button"
+            onClick={() => void issueAccess()}
+            disabled={busy || accessBusy}
+            $variant={employee.isLinked ? 'danger' : 'primary'}
+          >
+            {employee.isLinked ? <RefreshCw size={16} /> : <KeyRound size={16} />}
+            {accessBusy
+              ? 'Готовлю приглашение…'
+              : employee.isLinked
+                ? 'Сбросить доступ и выдать приглашение'
+                : 'Выдать приглашение'}
+          </FullWidthActionButton>
+
+          {invitation && (
+            <DrawerNotice>
+              <TinyText>
+                Покажите эти данные только сотруднику. После успешной активации
+                приглашение станет недействительным.
+              </TinyText>
+              <FormGroup>
+                <FormLabel>Резервный код</FormLabel>
+                <FullWidthInput
+                  value={invitation.shortCode}
+                  readOnly
+                  aria-label="Резервный код активации"
+                />
+                <ActionButton
+                  type="button"
+                  onClick={() =>
+                    void copyValue(invitation.shortCode, 'Код')
+                  }
+                >
+                  <Copy size={15} />
+                  Копировать код
+                </ActionButton>
+              </FormGroup>
+
+              <FormGroup>
+                <FormLabel>Ссылка активации</FormLabel>
+                <FullWidthInput
+                  value={activationUrl}
+                  readOnly
+                  aria-label="Ссылка активации"
+                />
+                <ActionButton
+                  type="button"
+                  onClick={() => void copyValue(activationUrl, 'Ссылка')}
+                >
+                  <Copy size={15} />
+                  Копировать ссылку
+                </ActionButton>
+              </FormGroup>
+
+              <TinyText aria-live="polite">
+                {copyFeedback ||
+                  'Действует до ' +
+                    new Date(invitation.expiresAt).toLocaleTimeString('ru-RU', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+              </TinyText>
+            </DrawerNotice>
+          )}
+        </DrawerSection>
 
         <DrawerActionsGrid>
           <ActionButton
