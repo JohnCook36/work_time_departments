@@ -199,6 +199,13 @@ export class PasskeyService {
   ) {
     await this.currentManager(tx, admin, employee.departmentId);
 
+    await tx.$queryRaw<Array<{ locked: number }>>`
+      SELECT 1::int AS locked
+      FROM (
+        SELECT pg_advisory_xact_lock(hashtext(${employee.id}))
+      ) AS employee_activation_lock
+    `;
+
     const now = new Date();
     await tx.activationInvitation.updateMany({
       where: {
