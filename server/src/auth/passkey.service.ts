@@ -57,10 +57,10 @@ function invitationSecretHashes(secret: string) {
 
 function createShortCode(): string {
   let value = '';
-  for (let index = 0; index < 8; index += 1) {
+  for (let index = 0; index < 10; index += 1) {
     value += SHORT_CODE_ALPHABET[randomInt(0, SHORT_CODE_ALPHABET.length)];
   }
-  return value.slice(0, 4) + '-' + value.slice(4);
+  return value.slice(0, 5) + '-' + value.slice(5);
 }
 
 function safeInvitation(invitation: {
