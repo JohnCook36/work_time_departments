@@ -232,6 +232,28 @@ function verifyAuthenticatorHeader(
   };
 }
 
+export function registrationResponseChallenge(
+  response: RegistrationResponseJSON,
+  expectedOrigin: string,
+): string {
+  return parseClientData(
+    response.response?.clientDataJSON,
+    'webauthn.create',
+    expectedOrigin,
+  ).challenge;
+}
+
+export function authenticationResponseChallenge(
+  response: AuthenticationResponseJSON,
+  expectedOrigin: string,
+): string {
+  return parseClientData(
+    response.response?.clientDataJSON,
+    'webauthn.get',
+    expectedOrigin,
+  ).challenge;
+}
+
 export function verifyRegistrationResponse(input: {
   response: RegistrationResponseJSON;
   expectedChallenge: string;
