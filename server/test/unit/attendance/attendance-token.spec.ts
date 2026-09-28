@@ -46,8 +46,11 @@ describe('attendance QR signing contract', () => {
       .toThrow(UnauthorizedException);
   });
 
-  it('fails closed without a separate signing secret', () => {
+  it('fails closed without a separate signing secret or with a short secret', () => {
     delete process.env.ATTENDANCE_QR_SECRET;
+    expect(() => issueAttendanceToken('department-a', now)).toThrow(ServiceUnavailableException);
+
+    process.env.ATTENDANCE_QR_SECRET = 'too-short';
     expect(() => issueAttendanceToken('department-a', now)).toThrow(ServiceUnavailableException);
   });
 });
