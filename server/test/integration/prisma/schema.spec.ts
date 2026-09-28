@@ -76,12 +76,14 @@ describe('Prisma schema invariants', () => {
     expect(department).toMatch(/memberships\s+Membership\[\]/);
   });
 
-  it('keeps authenticated users unique by phone and active by default', () => {
+  it('supports phone-free Passkey users while keeping optional phone and user-handle identity unique', () => {
     const user = block('model', 'User');
 
-    expect(user).toMatch(/phoneE164\s+String\s+@unique\s+@db\.VarChar\(32\)/);
+    expect(user).toMatch(/phoneE164\s+String\?\s+@unique\s+@db\.VarChar\(32\)/);
+    expect(user).toMatch(/webauthnUserHandle\s+Bytes\?\s+@unique/);
     expect(user).toMatch(/isActive\s+Boolean\s+@default\(true\)/);
     expect(user).toMatch(/memberships\s+Membership\[\]/);
+    expect(user).toMatch(/passkeyCredentials\s+PasskeyCredential\[\]/);
   });
 
   it('keeps membership activity and role lookup contracts', () => {
