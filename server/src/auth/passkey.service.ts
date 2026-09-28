@@ -284,6 +284,15 @@ export class PasskeyService {
             select: {
               isActive: true,
               webauthnUserHandle: true,
+              memberships: {
+                where: { isActive: true },
+                select: {
+                  role: true,
+                  permissions: {
+                    select: { capability: true },
+                  },
+                },
+              },
             },
           },
         },
@@ -302,6 +311,21 @@ export class PasskeyService {
       if (employee.userId === currentAdmin.id) {
         throw new ConflictException(
           'Use your authenticated credential management flow for your own account',
+        );
+      }
+
+      const targetHasManagementAccess = employee.user.memberships.some(
+        membership =>
+          membership.role === RoleType.SUPER_ADMIN ||
+          membership.role === RoleType.DEPARTMENT_ADMIN ||
+          membership.permissions.length > 0,
+      );
+      if (
+        targetHasManagementAccess &&
+        !this.authorization.isSuperAdmin(currentAdmin)
+      ) {
+        throw new ConflictException(
+          'Only Super Admin can reset access for a management account',
         );
       }
 
