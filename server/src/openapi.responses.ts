@@ -1,5 +1,5 @@
 import type { SchemaObject } from '@nestjs/swagger';
-import { AbsenceType, AuditAction, AuditEntityType, DepartmentKind, EmployeeScheduleMode, NotificationCategory, NotificationEntityType, OnboardingRequestStatus, OnboardingRequestType, PermissionCapability, RoleType, ScheduleRuleKind, ScheduleRuleScope, ScheduleRuleSeverity, ShiftChangeRequestEventType, ShiftChangeRequestKind, ShiftChangeRequestStatus, WorkSessionEventType, WorkSessionSource } from '@prisma/client';
+import { ActivationInvitationPurpose, AbsenceType, AuditAction, AuditEntityType, DepartmentKind, EmployeeScheduleMode, NotificationCategory, NotificationEntityType, OnboardingRequestStatus, OnboardingRequestType, PermissionCapability, RoleType, ScheduleRuleKind, ScheduleRuleScope, ScheduleRuleSeverity, ShiftChangeRequestEventType, ShiftChangeRequestKind, ShiftChangeRequestStatus, WorkSessionEventType, WorkSessionSource } from '@prisma/client';
 
 // Wire response shapes selected/serialized by the services, never database records or fixtures.
 const text: SchemaObject = { type: 'string' };
@@ -69,7 +69,7 @@ const workPattern = {
 };
 export const employeeResponse = object({ ...employeeSummaryResponse.properties, ...workPattern, position: integer, isActive: boolean, isLinked: boolean, updatedAt: timestamp });
 export const currentUserResponse = object({
-  id: text, phoneE164: text,
+  id: text, phoneE164: nullable(text),
   employee: nullable(object({ ...employeeSummaryResponse.properties, departmentName: text, ...workPattern })),
   memberships: arrayOf(object({
     id: text,
@@ -140,8 +140,74 @@ export const notificationPreferenceResponse = object({
 });
 export const notificationPreferencesResponse = arrayOf(notificationPreferenceResponse);
 
+export const activationInvitationInfoResponse = object({
+  invitationId: text,
+  purpose: enumeration(ActivationInvitationPurpose),
+  expiresAt: timestamp,
+  employee: object({
+    id: text,
+    displayName: text,
+    departmentId: text,
+    departmentName: text,
+  }),
+});
+export const issuedActivationInvitationResponse = object({
+  ...activationInvitationInfoResponse.properties,
+  token: {
+    type: 'string',
+    description: 'One-time high-entropy activation secret. Returned only when the manager creates the invitation.',
+  },
+  shortCode: {
+    type: 'string',
+    description: 'One-time fallback activation code. Returned only when the manager creates the invitation.',
+  },
+});
+export const passkeyRegistrationOptionsResponse = object({
+  challenge: text,
+  rp: object({ id: text, name: text }),
+  user: object({ id: text, name: text, displayName: text }),
+  pubKeyCredParams: arrayOf(object({ type: text, alg: integer })),
+  timeout: integer,
+  attestation: text,
+  authenticatorSelection: object({
+    residentKey: text,
+    requireResidentKey: boolean,
+    userVerification: text,
+  }),
+  excludeCredentials: arrayOf(object({
+    id: text,
+    type: text,
+    transports: arrayOf(text),
+  })),
+});
+export const passkeyAuthenticationOptionsResponse = object({
+  challenge: text,
+  rpId: text,
+  timeout: integer,
+  userVerification: text,
+});
+export const passkeyRegistrationVerifiedResponse = object({
+  expiresAt: timestamp,
+  user: object({
+    id: text,
+    phoneE164: nullable(text),
+    onboardingRequired: boolean,
+  }),
+});
+export const passkeyAuthenticationVerifiedResponse = object({
+  expiresAt: timestamp,
+  userId: text,
+});
+export const passkeyCredentialSummaryResponse = object({
+  id: text,
+  createdAt: timestamp,
+  lastUsedAt: nullable(timestamp),
+  transports: arrayOf(text),
+});
+export const passkeyCredentialListResponse = arrayOf(passkeyCredentialSummaryResponse);
+
 export const codeSentResponse = object({ status: { type: 'string', enum: ['sent'] }, expiresInSeconds: integer });
-export const verifyCodeResponse = object({ expiresAt: timestamp, user: object({ id: text, phoneE164: text, onboardingRequired: boolean }) });
+export const verifyCodeResponse = object({ expiresAt: timestamp, user: object({ id: text, phoneE164: nullable(text), onboardingRequired: boolean }) });
 export const onboardingResponse = object({
   id: text, type: enumeration(OnboardingRequestType), status: enumeration(OnboardingRequestStatus),
   departmentId: text, employeeId: nullable(text), requestedDisplayName: nullable(text),

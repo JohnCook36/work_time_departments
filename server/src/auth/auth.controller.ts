@@ -14,7 +14,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 
-import { AuthService } from './auth.service';
+import { AuthService, SESSION_TTL_SECONDS } from './auth.service';
 import {
   extractSessionToken,
   resolveAuthRequestSource,
@@ -118,13 +118,26 @@ export class AuthController {
   @ApiSecurity('sessionBearer')
   @ApiUnauthorizedResponse({ description: 'Invalid/expired code or missing/invalid session.' })
   @Get('me')
-  getCurrentUser(
-    @Headers('authorization') authorization?: string,
-    @Headers('cookie') cookie?: string,
+  async getCurrentUser(
+    @Headers('authorization') authorization: string | undefined,
+    @Headers('cookie') cookie: string | undefined,
+    @Res({ passthrough: true }) response: HeaderResponse,
   ) {
-    return this.authService.getCurrentUser(
-      requiredSessionToken({ authorization, cookie }),
-    );
+    const token = requiredSessionToken({ authorization, cookie });
+    const user = await this.authService.getCurrentUser(token);
+
+    if (extractSessionToken({ cookie }) === token) {
+      response.setHeader(
+        'Set-Cookie',
+        serializeSessionCookie(
+          token,
+          SESSION_TTL_SECONDS,
+          process.env.NODE_ENV === 'production',
+        ),
+      );
+    }
+
+    return user;
   }
 
   @ApiOperation({ summary: 'Revoke the session and clear its cookie' })

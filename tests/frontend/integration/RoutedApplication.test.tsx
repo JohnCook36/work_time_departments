@@ -6,6 +6,7 @@ import MyScheduleScreen from '../../../src/screens/my-schedule/MyScheduleScreen'
 import { TodayScreen } from '../../../src/screens/management/TodayScreen';
 import { useAuthUser } from '../../../src/auth/AuthContext';
 import * as api from '../../../src/api/auth';
+import * as passkeyBrowser from '../../../src/auth/passkeyBrowser';
 import { RoutedApplication } from '../../../src/router/RoutedApplication';
 
 vi.mock('../../../src/screens/planner/PlannerScreen', () => ({ default: vi.fn() }));
@@ -169,22 +170,84 @@ describe('Routing foundation with real session provider and ErrorBoundary', () =
     expect(window.location.pathname).toBe('/today');
   });
 
-  it.each([true, false])('refreshes canonical session after OTP login (linked=%s)', async linked => {
-    vi.mocked(api.getMe).mockRejectedValueOnce(new api.ApiError('Unauthorized', 401))
-      .mockResolvedValue({ ...user, employee: linked ? user.employee : null });
-    vi.spyOn(api, 'requestOtp').mockResolvedValue({ status: 'sent', expiresInSeconds: 300 });
-    vi.spyOn(api, 'verifyOtp').mockResolvedValue({ expiresAt: '2030-01-01', user: {
-      id: user.id, phoneE164: user.phoneE164, onboardingRequired: !linked,
-    } });
+  it('refreshes canonical session after Passkey activation', async () => {
+    vi.mocked(api.getMe)
+      .mockRejectedValueOnce(new api.ApiError('Unauthorized', 401))
+      .mockResolvedValue({ ...user, phoneE164: null });
+
+    vi.spyOn(api, 'resolveActivationInvitation').mockResolvedValue({
+      invitationId: 'invitation-1',
+      purpose: 'ACTIVATION',
+      expiresAt: '2030-01-01T00:00:00.000Z',
+      employee: {
+        id: user.employee!.id,
+        displayName: user.employee!.displayName,
+        departmentId: user.employee!.departmentId,
+        departmentName: 'Front Office',
+      },
+    });
+    vi.spyOn(api, 'getPasskeyRegistrationOptions').mockResolvedValue({
+      challenge: 'challenge',
+      rp: { id: 'localhost', name: 'Work Time Departments' },
+      user: {
+        id: 'user-handle',
+        name: 'wtd-user',
+        displayName: 'wtd-user',
+      },
+      pubKeyCredParams: [{ type: 'public-key', alg: -7 }],
+      timeout: 60_000,
+      attestation: 'none',
+      authenticatorSelection: {
+        residentKey: 'required',
+        requireResidentKey: true,
+        userVerification: 'required',
+      },
+      excludeCredentials: [],
+    });
+    vi.spyOn(passkeyBrowser, 'createPasskey').mockResolvedValue({
+      id: 'credential-1',
+      rawId: 'credential-1',
+      type: 'public-key',
+      response: {
+        clientDataJSON: 'client-data',
+        attestationObject: 'attestation',
+        transports: ['internal'],
+      },
+    });
+    vi.spyOn(api, 'verifyPasskeyRegistration').mockResolvedValue({
+      expiresAt: '2030-01-01T00:00:00.000Z',
+      user: {
+        id: user.id,
+        phoneE164: null,
+        onboardingRequired: false,
+      },
+    });
+
     open('/login');
-    fireEvent.change(await screen.findByLabelText('Номер телефона'), { target: { value: user.phoneE164 } });
-    fireEvent.click(screen.getByRole('button', { name: 'Получить код' }));
-    fireEvent.change(await screen.findByLabelText('Код подтверждения'), { target: { value: '123456' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Войти' }));
-    expect(await screen.findByText(linked ? 'Personal schedule: example-user' : 'Нет профиля в графике?')).toBeInTheDocument();
-    expect(window.location.pathname).toBe(linked ? '/my-schedule' : '/onboarding');
-    expect(api.requestOtp).toHaveBeenCalledWith(user.phoneE164);
-    expect(api.verifyOtp).toHaveBeenCalledWith(user.phoneE164, '123456');
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Активировать аккаунт' }),
+    );
+    fireEvent.change(screen.getByLabelText('Код активации'), {
+      target: { value: 'ABCDE-FGHIJ' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Продолжить' }));
+
+    expect(
+      await screen.findByText(/Example · Front Office/),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Создать Passkey и войти' }),
+    );
+
+    expect(
+      await screen.findByText('Personal schedule: example-user'),
+    ).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/my-schedule');
+    expect(api.resolveActivationInvitation).toHaveBeenCalledWith(
+      'ABCDE-FGHIJ',
+    );
+    expect(api.verifyPasskeyRegistration).toHaveBeenCalled();
     expect(api.getMe).toHaveBeenCalledTimes(2);
   });
 

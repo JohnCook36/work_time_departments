@@ -1,6 +1,6 @@
 # Work time departments backend
 
-Backend на NestJS, PostgreSQL и Prisma. Frontend использует phone OTP/session API, onboarding и server-backed planner endpoints.
+Backend на NestJS, PostgreSQL и Prisma. Основной auth-flow: manager-issued activation + Passkey/WebAuthn + HttpOnly session; legacy phone OTP остаётся только как migration/development fallback.
 
 ## Локальный запуск
 
@@ -39,22 +39,29 @@ npm run typecheck
 npm run build
 ```
 
-## Авторизация по телефону — текущий этап
+## Passkey/WebAuthn — основной auth-flow
 
-Backend содержит OTP/session foundation:
+Канонический сценарий описан в [docs/passkey-auth.md](../docs/passkey-auth.md).
 
-- `POST /auth/request-code`
-- `POST /auth/verify-code`
-- `GET /auth/me`
-- `POST /auth/logout`
+Основные маршруты:
 
-Для локальной разработки development OTP работает только при явном `AUTH_ALLOW_DEV_OTP=true` и настроенном `AUTH_DEV_OTP_CODE`. Код не возвращается API и не логируется. При `NODE_ENV=production` development OTP всегда отключён независимо от флага. Если opt-in флаг отсутствует, backend fail-closed и требует реального SMS-провайдера.
+- `POST /auth/activation/employees/:employeeId/invitation` — manager-issued activation;
+- `POST /auth/activation/employees/:employeeId/recovery` — scoped recovery/reset;
+- `POST /auth/activation/resolve`;
+- `POST /auth/passkey/registration/options`;
+- `POST /auth/passkey/registration/verify`;
+- `POST /auth/passkey/authentication/options`;
+- `POST /auth/passkey/authentication/verify`;
+- `GET /auth/passkeys`;
+- `DELETE /auth/passkeys/:credentialId`;
+- `GET /auth/me`;
+- `POST /auth/logout`.
 
-`AUTH_OTP_PEPPER` обязателен и должен быть уникальным секретом окружения длиной не менее 32 символов.
+Для production обязательны `WEBAUTHN_RP_ID`, точный HTTPS `WEBAUTHN_ORIGIN` и корректная cookie/reverse-proxy topology. Passkey login создаёт 90-дневную server-side session. Новый manager QR не нужен после обычного logout/истечения local state, если у пользователя остаётся активный Passkey.
 
-`POST /auth/request-code` защищён двумя DB-backed ограничениями: 60-секундным cooldown для одного телефона и source-level лимитом успешных отправок OTP. По умолчанию source-level лимит — 20 отправок за 10 минут. В БД хранится только HMAC-отпечаток источника, сырой IP не сохраняется. `X-Forwarded-For` не доверяется автоматически: `AUTH_TRUST_PROXY_HOPS` по умолчанию равен `0` и должен меняться только под известную reverse-proxy topology.
+Первый уже существующий management-account без Passkey активируется server-shell командой `npm run auth:bootstrap-passkey -- <employee-id>` с явным `AUTH_BOOTSTRAP_CONFIRM=INITIAL_PASSKEY_BOOTSTRAP`.
 
-При локальном `npm run start:dev` backend автоматически загружает `server/.env`. Существующие переменные окружения процесса имеют приоритет над значениями из файла.
+Legacy OTP endpoints сохранены временно для migration/development compatibility. Development OTP остаётся fail-closed без явного `AUTH_ALLOW_DEV_OTP=true`; production pilot не требует SMS provider.
 
 ## Фактическое время · backend foundation #75
 
@@ -98,7 +105,7 @@ SchedulePublication, не подменяя planned hours и не считая ф
 
 Документ генерируется из существующих Nest controllers и Swagger metadata; отдельного файла со списком маршрутов нет. Описаны health, auth, onboarding, departments, employees, schedules (`/schedule-data`), shift-change-requests и wishes.
 
-Схема `session` использует каноническую HttpOnly cookie `wtd_session`. Вход выполняется через существующий OTP flow; браузер получает cookie после `POST /auth/verify-code`. Swagger UI не может вручную установить HttpOnly Cookie через Authorize. Альтернативная схема `sessionBearer` описывает уже поддерживаемый transport того же непрозрачного session token, не JWT. Guards и role/scope checks остаются обязательными. Содержимое сессий, секреты, коды и реальные персональные примеры в документацию не включаются.
+Схема `session` использует каноническую HttpOnly cookie `wtd_session`. Основной вход создаёт cookie после успешной WebAuthn registration/authentication verification; legacy `POST /auth/verify-code` сохранён только как совместимый fallback. Swagger UI не может вручную установить HttpOnly Cookie через Authorize. Альтернативная схема `sessionBearer` описывает уже поддерживаемый transport того же непрозрачного session token, не JWT. Guards и role/scope checks остаются обязательными. Содержимое сессий, секреты, коды и реальные персональные примеры в документацию не включаются.
 
 DTO используются только как metadata в `@ApiBody`: runtime validation и optional/nullable semantics остаются в существующих controllers/services. Для Employee/Department update/deactivate обязательна версия `expectedUpdatedAt`. Для Schedule cell: отсутствие поля не задаёт version precondition, `null` требует отсутствия ячейки, строка должна точно совпасть с `Shift.updatedAt`. Одобрение shift-change request атомарно применяет SWAP/COVER к сохранённым **mutable draft Shift** в Serializable transaction и затем переводит request в `MANAGER_APPROVED`; stale/scope/destination conflicts возвращают 409. Существующие `SchedulePublication` immutable и меняются только через отдельный обычный publish новой версии.
 

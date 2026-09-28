@@ -1,6 +1,6 @@
 # Gate A evidence record
 
-Use this file as a copyable template for the final pilot candidate. Do not commit real phone numbers, OTP values, session cookies, provider tokens, database credentials, backup encryption identities or private employee data.
+Use this file as a copyable template for the final pilot candidate. Do not commit activation tokens/codes, WebAuthn credential material, session cookies, database credentials, backup encryption identities or private employee data.
 
 ## Candidate
 
@@ -19,24 +19,23 @@ Use this file as a copyable template for the final pilot candidate. Do not commi
 
 ## Production auth acceptance (#05)
 
-Run:
-
-```bash
-AUTH_SMOKE_BASE_URL='https://api.example.test' \
-AUTH_SMOKE_PHONE='<pilot-test-number>' \
-node scripts/gate-a-auth-smoke.mjs
-```
-
-Prefer entering the OTP interactively. If automation requires `AUTH_SMOKE_CODE`, inject it from ephemeral secret storage and never persist it in shell history, CI artifacts or this record.
+Use a synthetic pilot employee and the real HTTPS frontend/backend pair.
 
 Record only:
 
-- Provider:
-- Smoke timestamp (UTC):
-- Desktop browser/session smoke: PASS / FAIL
-- Mobile browser/session smoke: PASS / FAIL
-- request -> provider delivery -> verify -> /auth/me -> logout -> revoked reuse: PASS / FAIL
+- WebAuthn RP ID:
+- WebAuthn frontend origin:
+- Activation smoke timestamp (UTC):
+- Manager creates one-time invitation: PASS / FAIL
+- Desktop QR/code -> Passkey registration -> /auth/me: PASS / FAIL
+- Mobile QR/code -> Passkey registration -> /auth/me: PASS / FAIL
+- Logout -> Passkey re-login without a new invitation: PASS / FAIL
+- Recovery revokes old sessions/Passkeys and issues a fresh invitation: PASS / FAIL
+- Management-account reset scope protection: PASS / FAIL
+- Initial management bootstrap used: NO / YES + reason
 - Cookie/TLS/proxy/origin configuration reviewed: PASS / FAIL
+
+Do not store the raw activation token/code, WebAuthn response, credential public key, authenticator user handle or session cookie in this record.
 
 ## Backup/restore acceptance (#25)
 
@@ -64,7 +63,7 @@ Record only:
 ## Final security/release acceptance (#43/#86)
 
 - Production-like secrets inventory reviewed: PASS / FAIL
-- Dev OTP disabled: PASS / FAIL
+- Legacy/dev OTP not used as the pilot authentication mechanism: PASS / FAIL
 - Exact FRONTEND_ORIGIN verified: PASS / FAIL
 - TLS/reverse proxy/trusted proxy configuration verified: PASS / FAIL
 - Final Critical/High retest: PASS / FAIL

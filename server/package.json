@@ -15,7 +15,8 @@
     "prisma:generate": "prisma generate",
     "prisma:validate": "prisma validate",
     "prisma:migrate:dev": "prisma migrate dev",
-    "demo:seed": "ts-node src/demo/seed-owner-demo.cli.ts"
+    "demo:seed": "ts-node src/demo/seed-owner-demo.cli.ts",
+    "auth:bootstrap-passkey": "ts-node src/auth/passkey-bootstrap.cli.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.11",

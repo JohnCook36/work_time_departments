@@ -25,11 +25,12 @@ const OTP_REQUEST_COOLDOWN_MS = 60 * 1000;
 const OTP_MAX_ATTEMPTS = 5;
 const DEFAULT_OTP_SOURCE_WINDOW_SECONDS = 10 * 60;
 const DEFAULT_OTP_SOURCE_MAX_REQUESTS = 20;
-const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+export const SESSION_TTL_SECONDS = 90 * 24 * 60 * 60;
+const SESSION_TTL_MS = SESSION_TTL_SECONDS * 1000;
 
 export interface AuthUserContext {
   id: string;
-  phoneE164: string;
+  phoneE164: string | null;
   employee: {
     id: string;
     displayName: string;
@@ -175,7 +176,7 @@ export class AuthService {
     expiresAt: string;
     user: {
       id: string;
-      phoneE164: string;
+      phoneE164: string | null;
       onboardingRequired: boolean;
     };
   }> {
@@ -351,9 +352,13 @@ export class AuthService {
       throw new UnauthorizedException('Session is invalid or expired');
     }
 
+    const now = new Date();
     await this.prisma.authSession.update({
       where: { id: session.id },
-      data: { lastSeenAt: new Date() },
+      data: {
+        lastSeenAt: now,
+        expiresAt: new Date(now.getTime() + SESSION_TTL_MS),
+      },
     });
 
     return {
