@@ -1,5 +1,5 @@
 import type { SchemaObject } from '@nestjs/swagger';
-import { AbsenceType, AuditAction, AuditEntityType, DepartmentKind, EmployeeScheduleMode, NotificationCategory, NotificationEntityType, OnboardingRequestStatus, OnboardingRequestType, PermissionCapability, RoleType, ScheduleRuleKind, ScheduleRuleScope, ScheduleRuleSeverity, ShiftChangeRequestEventType, ShiftChangeRequestKind, ShiftChangeRequestStatus } from '@prisma/client';
+import { AbsenceType, AuditAction, AuditEntityType, DepartmentKind, EmployeeScheduleMode, NotificationCategory, NotificationEntityType, OnboardingRequestStatus, OnboardingRequestType, PermissionCapability, RoleType, ScheduleRuleKind, ScheduleRuleScope, ScheduleRuleSeverity, ShiftChangeRequestEventType, ShiftChangeRequestKind, ShiftChangeRequestStatus, WorkSessionEventType, WorkSessionSource } from '@prisma/client';
 
 // Wire response shapes selected/serialized by the services, never database records or fixtures.
 const text: SchemaObject = { type: 'string' };
@@ -24,6 +24,34 @@ export const auditPageResponse = object({
   items: arrayOf(auditEventResponse),
   nextCursor: nullable(text),
 });
+
+export const attendanceQrResponse = object({
+  token: { type: 'string', description: 'Short-lived signed QR. Contains no employee or phone identifier.' },
+  expiresAt: timestamp,
+});
+const workSessionEventResponse = object({
+  id: text,
+  type: enumeration(WorkSessionEventType),
+  oldCheckInAt: nullable(timestamp),
+  oldCheckOutAt: nullable(timestamp),
+  checkInAt: timestamp,
+  checkOutAt: nullable(timestamp),
+  reason: nullable(text),
+  createdAt: timestamp,
+});
+export const workSessionResponse = object({
+  id: text,
+  employeeId: text,
+  displayName: text,
+  departmentId: text,
+  source: enumeration(WorkSessionSource),
+  checkInAt: timestamp,
+  checkOutAt: nullable(timestamp),
+  createdAt: timestamp,
+  updatedAt: timestamp,
+  history: arrayOf(workSessionEventResponse),
+});
+export const workSessionListResponse = arrayOf(workSessionResponse);
 
 export const okResponse = object({ status: { type: 'string', enum: ['ok'] } });
 export const reorderResponse = object({ ...okResponse.properties, reordered: integer });

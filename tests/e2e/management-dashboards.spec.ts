@@ -239,6 +239,12 @@ for (const viewport of [
     ).toBeVisible();
     await expect(page.getByText('Норма', { exact: true })).toBeVisible();
 
+    const table = page.locator('table').first();
+    const shell = table.locator('xpath=..');
+    if (viewport.width === 390) {
+      expect(await shell.evaluate(element => element.scrollWidth > element.clientWidth)).toBe(true);
+      expect((await shell.boundingBox())?.width).toBeLessThan(viewport.width);
+    }
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= window.innerWidth,

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { AbsencesModule } from './absences/absences.module';
+import { AttendanceModule } from './attendance/attendance.module';
 import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
 import { DepartmentsModule } from './departments/departments.module';
@@ -22,6 +23,7 @@ import { WishesModule } from './wishes/wishes.module';
   imports: [
     PrismaModule,
     AbsencesModule,
+    AttendanceModule,
     AuditModule,
     HealthModule,
     AuthModule,

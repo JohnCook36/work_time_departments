@@ -17,7 +17,10 @@ export type PermissionCapability =
   | 'AUDIT_READ'
   | 'PRIVATE_PROFILE_READ'
   | 'PRIVATE_PROFILE_EDIT'
-  | 'ROLE_MANAGE';
+  | 'ROLE_MANAGE'
+  | 'ATTENDANCE_READ'
+  | 'ATTENDANCE_QR_MANAGE'
+  | 'ATTENDANCE_CORRECT';
 
 export interface MembershipAssignment {
   id: string;

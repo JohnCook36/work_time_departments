@@ -64,6 +64,9 @@ const CAPABILITY_LABELS: Record<PermissionCapability, string> = {
   PRIVATE_PROFILE_READ: 'Просмотр приватного профиля',
   PRIVATE_PROFILE_EDIT: 'Изменение приватного профиля',
   ROLE_MANAGE: 'Управление ролями',
+  ATTENDANCE_READ: 'Просмотр явки и фактических сессий',
+  ATTENDANCE_QR_MANAGE: 'Выдача QR для отметки явки',
+  ATTENDANCE_CORRECT: 'Корректировка фактического времени',
 };
 
 const ALL_CAPABILITIES = Object.keys(

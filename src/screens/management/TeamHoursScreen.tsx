@@ -17,6 +17,7 @@ import { ActionButton, TextInput } from '../../theme/styles';
 import {
   CardMeta,
   FilterRow,
+  NormFilterRow,
   FilterSelect,
   HoursTable,
   HoursTableShell,
@@ -100,7 +101,7 @@ export function TeamHoursScreen() {
         </FilterRow>
 
         {data && departmentId && (
-          <FilterRow>
+          <NormFilterRow>
             <TextInput
               aria-label="Норма отдела на полную ставку"
               type="number"
@@ -153,7 +154,7 @@ export function TeamHoursScreen() {
             >
               {savingNorm ? 'Сохраняю…' : 'Сохранить норму отдела'}
             </ActionButton>
-          </FilterRow>
+          </NormFilterRow>
         )}
 
         {!data ? (

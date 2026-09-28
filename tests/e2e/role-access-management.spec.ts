@@ -134,6 +134,9 @@ for (const viewport of [
       };
       expect(body.expectedUpdatedAt).toBe(assignment.updatedAt);
       expect(body.permissions).toContain('AUDIT_READ');
+      expect(body.permissions).toContain('ATTENDANCE_READ');
+      expect(body.permissions).toContain('ATTENDANCE_QR_MANAGE');
+      expect(body.permissions).toContain('ATTENDANCE_CORRECT');
       assignment = {
         ...assignment,
         permissions: body.permissions,
@@ -172,6 +175,9 @@ for (const viewport of [
     await expect(card.getByText('Заместитель')).toBeVisible();
 
     await card.getByLabel('Просмотр журнала').check();
+    await card.getByLabel('Просмотр явки и фактических сессий').check();
+    await card.getByLabel('Выдача QR для отметки явки').check();
+    await card.getByLabel('Корректировка фактического времени').check();
     await card.getByRole('button', { name: 'Сохранить права' }).click();
     await expect(page.getByText('Права заместителя обновлены.')).toBeVisible();
 
