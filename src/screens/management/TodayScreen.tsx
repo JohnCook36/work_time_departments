@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { getManagementToday, ManagementTodayResponse } from '../../api/management';
 import { AppSectionNav } from '../../components/navigation/AppSectionNav';
@@ -25,11 +25,6 @@ import {
   QuickLinks,
 } from './ManagementDashboard.styles';
 
-function localDate(): string {
-  const now = new Date();
-  const offset = now.getTimezoneOffset() * 60_000;
-  return new Date(now.getTime() - offset).toISOString().slice(0, 10);
-}
 
 function shiftLabel(start: string | null, end: string | null, code: string | null) {
   if (!start || !end) return code || 'Смена';
@@ -59,13 +54,12 @@ function attendanceLabel(
 }
 
 export function TodayScreen() {
-  const date = useMemo(localDate, []);
   const [data, setData] = useState<ManagementTodayResponse | null>(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
     let active = true;
-    void getManagementToday(date)
+    void getManagementToday()
       .then((result) => {
         if (active) setData(result);
       })
@@ -75,7 +69,7 @@ export function TodayScreen() {
     return () => {
       active = false;
     };
-  }, [date]);
+  }, []);
 
   return (
     <SectionPage>
@@ -83,7 +77,7 @@ export function TodayScreen() {
         <SectionHeader>
           <SectionTitle>Сегодня</SectionTitle>
           <SectionSubtitle>
-            Операционная картина на {date}: опубликованный план, фактические
+            Операционная картина на {data?.date ?? 'сегодня'}: опубликованный план, фактические
             отметки, отсутствия и запросы руководителю.
           </SectionSubtitle>
           <AppSectionNav />
