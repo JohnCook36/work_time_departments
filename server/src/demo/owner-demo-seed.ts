@@ -1,3 +1,4 @@
+import type { Employee, User } from '@prisma/client';
 import {
   AbsenceType,
   DepartmentKind,
@@ -192,8 +193,8 @@ export async function seedOwnerDemo(
     [DEMO_AGENT_C_PHONE, 'Демо Агент В'],
   ] as const;
 
-  const users = [];
-  const employees = [];
+  const users: User[] = [];
+  const employees: Employee[] = [];
   for (const [phoneE164, displayName] of userSpecs) {
     const user = await tx.user.upsert({
       where: { phoneE164 },
