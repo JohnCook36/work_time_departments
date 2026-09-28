@@ -421,7 +421,7 @@ describeLive('live PostgreSQL passkey activation', () => {
     const targetUser = await prisma.user.create({
       data: {
         phoneE164: '+12025551002',
-        webauthnUserHandle: Buffer.alloc(32, 7),
+        webauthnUserHandle: new Uint8Array(new ArrayBuffer(32)).fill(7),
       },
     });
     await prisma.employee.update({
