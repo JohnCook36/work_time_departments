@@ -69,7 +69,7 @@ const workPattern = {
 };
 export const employeeResponse = object({ ...employeeSummaryResponse.properties, ...workPattern, position: integer, isActive: boolean, isLinked: boolean, updatedAt: timestamp });
 export const currentUserResponse = object({
-  id: text, phoneE164: text,
+  id: text, phoneE164: nullable(text),
   employee: nullable(object({ ...employeeSummaryResponse.properties, departmentName: text, ...workPattern })),
   memberships: arrayOf(object({
     id: text,
@@ -141,7 +141,7 @@ export const notificationPreferenceResponse = object({
 export const notificationPreferencesResponse = arrayOf(notificationPreferenceResponse);
 
 export const codeSentResponse = object({ status: { type: 'string', enum: ['sent'] }, expiresInSeconds: integer });
-export const verifyCodeResponse = object({ expiresAt: timestamp, user: object({ id: text, phoneE164: text, onboardingRequired: boolean }) });
+export const verifyCodeResponse = object({ expiresAt: timestamp, user: object({ id: text, phoneE164: nullable(text), onboardingRequired: boolean }) });
 export const onboardingResponse = object({
   id: text, type: enumeration(OnboardingRequestType), status: enumeration(OnboardingRequestStatus),
   departmentId: text, employeeId: nullable(text), requestedDisplayName: nullable(text),
