@@ -2,7 +2,7 @@ import { getRuntimeConfig } from '../config/runtime';
 
 export interface AuthUser {
   id: string;
-  phoneE164: string;
+  phoneE164: string | null;
   employee: {
     id: string;
     displayName: string;
@@ -127,6 +127,112 @@ export function verifyOtp(phone: string, code: string) {
     method: 'POST',
     body: JSON.stringify({ phone, code }),
   });
+}
+
+export interface ActivationInvitationInfo {
+  invitationId: string;
+  purpose: 'ACTIVATION' | 'RECOVERY';
+  expiresAt: string;
+  employee: {
+    id: string;
+    displayName: string;
+    departmentId: string;
+    departmentName: string;
+  };
+}
+
+export interface IssuedActivationInvitation extends ActivationInvitationInfo {
+  token: string;
+  shortCode: string;
+}
+
+export interface PasskeyCredentialSummary {
+  id: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+  transports: string[];
+}
+
+export function issueEmployeeActivationInvitation(employeeId: string) {
+  return apiRequest<IssuedActivationInvitation>(
+    '/auth/activation/employees/' +
+      encodeURIComponent(employeeId) +
+      '/invitation',
+    { method: 'POST' },
+  );
+}
+
+export function resetEmployeeAccess(employeeId: string) {
+  return apiRequest<IssuedActivationInvitation>(
+    '/auth/activation/employees/' +
+      encodeURIComponent(employeeId) +
+      '/recovery',
+    { method: 'POST' },
+  );
+}
+
+export function resolveActivationInvitation(secret: string) {
+  return apiRequest<ActivationInvitationInfo>('/auth/activation/resolve', {
+    method: 'POST',
+    body: JSON.stringify({ secret }),
+  });
+}
+
+export function getPasskeyRegistrationOptions(secret: string) {
+  return apiRequest<import('../auth/passkeyBrowser').RegistrationOptionsJSON>(
+    '/auth/passkey/registration/options',
+    {
+      method: 'POST',
+      body: JSON.stringify({ secret }),
+    },
+  );
+}
+
+export function verifyPasskeyRegistration(
+  secret: string,
+  response: Record<string, unknown>,
+) {
+  return apiRequest<{
+    expiresAt: string;
+    user: {
+      id: string;
+      phoneE164: string | null;
+      onboardingRequired: boolean;
+    };
+  }>('/auth/passkey/registration/verify', {
+    method: 'POST',
+    body: JSON.stringify({ secret, response }),
+  });
+}
+
+export function getPasskeyAuthenticationOptions() {
+  return apiRequest<import('../auth/passkeyBrowser').AuthenticationOptionsJSON>(
+    '/auth/passkey/authentication/options',
+    { method: 'POST' },
+  );
+}
+
+export function verifyPasskeyAuthentication(
+  response: Record<string, unknown>,
+) {
+  return apiRequest<{ expiresAt: string; userId: string }>(
+    '/auth/passkey/authentication/verify',
+    {
+      method: 'POST',
+      body: JSON.stringify({ response }),
+    },
+  );
+}
+
+export function getPasskeys() {
+  return apiRequest<PasskeyCredentialSummary[]>('/auth/passkeys');
+}
+
+export function revokePasskey(credentialId: string) {
+  return apiRequest<{ status: 'ok' }>(
+    '/auth/passkeys/' + encodeURIComponent(credentialId),
+    { method: 'DELETE' },
+  );
 }
 
 export function getMe() {
