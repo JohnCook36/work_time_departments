@@ -30,6 +30,15 @@ export function assertPasskeyBootstrapInput(input: {
   }
 }
 
+function prismaBytes(
+  value: Uint8Array<ArrayBufferLike>,
+): Uint8Array<ArrayBuffer> {
+  const buffer = new ArrayBuffer(value.byteLength);
+  const copy = new Uint8Array(buffer);
+  copy.set(value);
+  return copy;
+}
+
 function shortCode() {
   let value = '';
   for (let index = 0; index < 10; index += 1) {
@@ -106,7 +115,7 @@ async function main() {
       if (!employee.user.webauthnUserHandle) {
         await tx.user.update({
           where: { id: employee.userId },
-          data: { webauthnUserHandle: userHandle },
+          data: { webauthnUserHandle: prismaBytes(userHandle) },
         });
       }
 
@@ -132,7 +141,7 @@ async function main() {
           purpose: ActivationInvitationPurpose.RECOVERY,
           tokenHash: sha256Hex(token),
           shortCodeHash: sha256Hex(code.replace('-', '')),
-          userHandle,
+          userHandle: prismaBytes(userHandle),
           expiresAt: new Date(Date.now() + TTL_MS),
         },
       });
