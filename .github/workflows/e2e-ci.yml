@@ -76,7 +76,7 @@ jobs:
               planner=true
             fi
 
-            if grep -Eq '^tests/e2e/(mobile-bottom-navigation|onboarding-acceptance|role-access-management)\.spec\.ts$|^src/(auth|router)/|^src/components/navigation/|^src/screens/(auth|onboarding|roles)/|^src/pages/(Login|Onboarding)' <<<"$changed"; then
+            if grep -Eq '^tests/e2e/(mobile-bottom-navigation|onboarding-acceptance|role-access-management|passkey-auth)\.spec\.ts$|^src/(auth|router)/|^src/components/navigation/|^src/screens/(auth|onboarding|roles)/|^src/pages/(Login|Onboarding)' <<<"$changed"; then
               auth_nav=true
             fi
 
@@ -138,6 +138,7 @@ jobs:
                 tests/e2e/mobile-bottom-navigation.spec.ts
                 tests/e2e/onboarding-acceptance.spec.ts
                 tests/e2e/role-access-management.spec.ts
+                tests/e2e/passkey-auth.spec.ts
               )
             fi
 
