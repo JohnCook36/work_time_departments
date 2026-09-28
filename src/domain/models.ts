@@ -31,6 +31,7 @@ export interface Employee {
   scheduleMode?: EmployeeScheduleMode;
   fixedStartTime?: string;
   fixedEndTime?: string;
+  isLinked?: boolean;
 }
 
 export interface EmployeeWish {
