@@ -400,6 +400,7 @@ export function mapEmployeeResponse(
     ...(employee.fixedEndTime
       ? { fixedEndTime: employee.fixedEndTime }
       : {}),
+    isLinked: employee.isLinked ?? false,
   };
 }
 
