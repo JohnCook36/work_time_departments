@@ -667,6 +667,7 @@ export class PasskeyService {
           select: {
             id: true,
             isActive: true,
+            webauthnUserHandle: true,
             employee: {
               select: { id: true, isActive: true },
             },
@@ -679,9 +680,18 @@ export class PasskeyService {
       !credential ||
       credential.revokedAt ||
       !credential.user.isActive ||
-      !credential.user.employee?.isActive
+      !credential.user.employee?.isActive ||
+      !credential.user.webauthnUserHandle
     ) {
       throw new UnauthorizedException('Passkey is not active');
+    }
+
+    const responseUserHandle = response.response?.userHandle;
+    if (
+      typeof responseUserHandle !== 'string' ||
+      responseUserHandle !== toBase64Url(credential.user.webauthnUserHandle)
+    ) {
+      throw new UnauthorizedException('Passkey user handle mismatch');
     }
 
     let verified;
@@ -729,7 +739,6 @@ export class PasskeyService {
       }
       if (
         currentCredential.counter > 0n &&
-        verified.newCounter > 0n &&
         verified.newCounter <= currentCredential.counter
       ) {
         throw new UnauthorizedException('Passkey counter is stale');
