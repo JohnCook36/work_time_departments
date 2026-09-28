@@ -53,6 +53,7 @@ describe('OpenAPI documentation', () => {
     ['/schedule-data/department', 'get'], ['/schedule-data/me', 'get'],
     ['/schedule-data/department/validation', 'get'],
     ['/management/today', 'get'], ['/management/hours', 'get'],
+    ['/management/plan-actual', 'get'],
     ['/management/hours/norm', 'put'],
     ['/attendance/qr', 'post'], ['/attendance/check-in', 'post'], ['/attendance/check-out', 'post'],
     ['/attendance/me', 'get'], ['/attendance/department', 'get'],
