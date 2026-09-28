@@ -15,7 +15,7 @@
     "prisma:generate": "prisma generate",
     "prisma:validate": "prisma validate",
     "prisma:migrate:dev": "prisma migrate dev",
-    "demo:seed": "ts-node scripts/seed-owner-demo.ts"
+    "demo:seed": "ts-node src/demo/seed-owner-demo.cli.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.11",
