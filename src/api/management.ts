@@ -3,11 +3,15 @@ import { apiRequest } from './auth';
 export interface ManagementTodayResponse {
   date: string;
   attendanceAvailable: boolean;
+  attendanceBusinessTimeZone: string | null;
   totals: {
     plannedShifts: number;
     activeAbsences: number;
     pendingRequests: number;
     unpublishedDepartments: number;
+    checkedIn: number;
+    completed: number;
+    noMark: number;
   };
   departments: Array<{
     id: string;
