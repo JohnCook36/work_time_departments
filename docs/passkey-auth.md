@@ -20,7 +20,7 @@ The QR is rendered inside the WTD frontend. The activation URL is not sent to a 
 
 The login screen requests a discoverable WebAuthn credential. Face ID, Touch ID, Windows Hello, Android screen lock or another compatible authenticator performs user verification.
 
-A normal reboot, browser restart, phone update or temporary loss of connectivity does not revoke the server session. A fresh manager invitation is not required for ordinary re-login while at least one active Passkey remains.
+A normal reboot, browser restart, phone update or temporary loss of connectivity does not revoke the server session. The authenticated `/auth/me` flow renews both the server expiry and the same HttpOnly cookie for another 90 days, so an actively used account does not hit a fixed 90-day logout. A fresh manager invitation is not required for ordinary re-login while at least one active Passkey remains.
 
 ## Recovery
 
