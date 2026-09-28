@@ -445,7 +445,6 @@ export function verifyAuthenticationResponse(input: {
 
   if (
     input.credential.counter > 0n &&
-    header.counter > 0n &&
     header.counter <= input.credential.counter
   ) {
     throw new Error('WebAuthn signature counter did not advance');
