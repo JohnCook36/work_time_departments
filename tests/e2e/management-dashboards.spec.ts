@@ -206,7 +206,7 @@ for (const viewport of [
     await expect(page.getByText('Опубликована версия v4')).toBeVisible();
     await expect(page.getByText('Иванов И.И.').first()).toBeVisible();
     await expect(page.getByText('Петров П.П.').first()).toBeVisible();
-    await expect(page.getByText(/Явка не показывается/)).toBeVisible();
+    await expect(page.getByText(/опубликованный план, фактические/)).toBeVisible();
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= window.innerWidth,
