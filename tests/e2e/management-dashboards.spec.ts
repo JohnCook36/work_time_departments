@@ -207,6 +207,9 @@ for (const viewport of [
     await expect(page.getByText('Иванов И.И.').first()).toBeVisible();
     await expect(page.getByText('Петров П.П.').first()).toBeVisible();
     await expect(page.getByText(/опубликованный план, фактические/)).toBeVisible();
+    for (const href of ['/today', '/team-hours', '/plan-actual', '/planner']) {
+      await expect(page.locator('a[href="' + href + '"]').first()).toBeAttached();
+    }
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= window.innerWidth,
