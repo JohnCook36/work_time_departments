@@ -149,6 +149,76 @@ describeLive('live PostgreSQL attendance lifecycle and scope', () => {
     expect(await prisma.workSession.count()).toBe(1);
   });
 
+  it('separates attendance read and QR-management capabilities for deputies', async () => {
+    const issued = await service.issueQr(manager, departmentId);
+    await service.checkIn(first, issued.token);
+    const day = new Date().toISOString().slice(0, 10);
+
+    const deputyUser = await prisma.user.create({
+      data: { phoneE164: '+79990001006' },
+    });
+    const deputyMembership = await prisma.membership.create({
+      data: {
+        userId: deputyUser.id,
+        departmentId,
+        role: RoleType.DEPUTY,
+        permissions: {
+          create: [{ capability: PermissionCapability.ATTENDANCE_READ }],
+        },
+      },
+      include: {
+        permissions: { select: { capability: true } },
+      },
+    });
+    const deputy: AuthUserContext = {
+      id: deputyUser.id,
+      phoneE164: deputyUser.phoneE164,
+      employee: null,
+      memberships: [
+        {
+          id: deputyMembership.id,
+          role: deputyMembership.role,
+          departmentId: deputyMembership.departmentId,
+          permissions: deputyMembership.permissions.map(item => item.capability),
+        },
+      ],
+    };
+
+    expect(await service.department(deputy, departmentId, day, day))
+      .toHaveLength(1);
+    await expect(service.issueQr(deputy, departmentId))
+      .rejects.toBeInstanceOf(ForbiddenException);
+
+    await prisma.membershipPermission.create({
+      data: {
+        membershipId: deputyMembership.id,
+        capability: PermissionCapability.ATTENDANCE_QR_MANAGE,
+      },
+    });
+
+    const refreshedDeputy: AuthUserContext = {
+      ...deputy,
+      memberships: [
+        {
+          ...deputy.memberships[0],
+          permissions: [
+            PermissionCapability.ATTENDANCE_READ,
+            PermissionCapability.ATTENDANCE_QR_MANAGE,
+          ],
+        },
+      ],
+    };
+
+    expect((await service.issueQr(refreshedDeputy, departmentId)).token)
+      .toBeTruthy();
+    await expect(service.createCorrection(refreshedDeputy, {
+      employeeId: first.employee!.id,
+      checkInAt: '2026-09-01T08:00:00.000Z',
+      checkOutAt: '2026-09-01T17:00:00.000Z',
+      reason: 'Should require correction capability',
+    })).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
   it('keeps historical attendance in its original management scope after an employee transfers', async () => {
     const issued = await service.issueQr(manager, departmentId);
     const session = await service.checkIn(first, issued.token);
