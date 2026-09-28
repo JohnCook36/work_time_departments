@@ -23,7 +23,11 @@ export interface ManagementPlanActualResponse {
     actualCheckInAt: string | null;
     actualCheckOutAt: string | null;
     plannedMinutes: number;
+    plannedDayMinutes: number;
+    plannedNightMinutes: number;
     actualMinutes: number | null;
+    actualDayMinutes: number | null;
+    actualNightMinutes: number | null;
     deltaMinutes: number | null;
     latenessMinutes: number;
     earlyLeaveMinutes: number | null;
