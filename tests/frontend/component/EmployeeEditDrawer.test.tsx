@@ -141,12 +141,10 @@ describe('EmployeeEditDrawer', () => {
       'ABCDE-FGHIJ',
     );
     const activationLink = screen.getByLabelText('Ссылка активации');
-    expect(activationLink).toHaveValue(
-      expect.stringContaining(
-        '/login?activation=opaque-activation-token',
-      ),
+    expect((activationLink as HTMLInputElement).value).toContain(
+      '/login?activation=opaque-activation-token',
     );
-    expect(String((activationLink as HTMLInputElement).value)).not.toContain(
+    expect((activationLink as HTMLInputElement).value).not.toContain(
       'Тестовый сотрудник',
     );
 
