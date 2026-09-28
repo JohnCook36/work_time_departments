@@ -45,9 +45,14 @@ describe('ManagementInsightsService', () => {
     assertCapability: jest.fn(),
   };
 
+  const planActual = {
+    read: jest.fn(),
+  };
+
   const service = new ManagementInsightsService(
     prisma as never,
     authorization as never,
+    planActual as never,
   );
 
   beforeEach(() => {
@@ -68,6 +73,10 @@ describe('ManagementInsightsService', () => {
     prisma.employee.findMany.mockResolvedValue([]);
     prisma.shift.findMany.mockResolvedValue([]);
     prisma.departmentHoursNorm.findMany.mockResolvedValue([]);
+    planActual.read.mockResolvedValue({
+      businessTimeZone: 'Europe/Moscow',
+      rows: [],
+    });
     prisma.$transaction.mockImplementation(
       async (callback: (tx: typeof prisma) => Promise<unknown>) =>
         callback(prisma),
@@ -165,7 +174,7 @@ describe('ManagementInsightsService', () => {
         deltaHours: -80,
       }),
     );
-    expect(result.departments[0]).toEqual(
+    expect(withAttendance.departments[0]).toEqual(
       expect.objectContaining({
         productionNormHours: 88,
         departmentNormHours: 80,
@@ -248,12 +257,34 @@ describe('ManagementInsightsService', () => {
 
     const result = await service.today(admin(), '2026-09-25');
 
-    expect(result.attendanceAvailable).toBe(false);
-    expect(result.totals).toEqual({
+    planActual.read.mockResolvedValue({
+      businessTimeZone: 'Europe/Moscow',
+      rows: [
+        {
+          shiftId: 'shift-1',
+          date: '2026-09-25',
+          status: 'IN_PROGRESS',
+          actualCheckInAt: '2026-09-25T05:05:00.000Z',
+          actualCheckOutAt: null,
+          latenessMinutes: 5,
+          earlyLeaveMinutes: null,
+          overtimeMinutes: null,
+        },
+      ],
+    });
+
+    const withAttendance = await service.today(admin(), '2026-09-25');
+
+    expect(withAttendance.attendanceAvailable).toBe(true);
+    expect(withAttendance.attendanceBusinessTimeZone).toBe('Europe/Moscow');
+    expect(withAttendance.totals).toEqual({
       plannedShifts: 1,
       activeAbsences: 1,
       pendingRequests: 1,
       unpublishedDepartments: 0,
+      checkedIn: 1,
+      completed: 0,
+      noMark: 0,
     });
     expect(result.departments[0]).toEqual(
       expect.objectContaining({
@@ -264,6 +295,10 @@ describe('ManagementInsightsService', () => {
             displayName: 'Employee 1',
             startTime: '08:00',
             endTime: '17:00',
+            attendance: expect.objectContaining({
+              status: 'IN_PROGRESS',
+              latenessMinutes: 5,
+            }),
           }),
         ],
       }),
