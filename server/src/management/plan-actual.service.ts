@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { PermissionCapability, Prisma } from '@prisma/client';
 
 import type { AuthUserContext } from '../auth/auth.service';
@@ -14,10 +14,10 @@ import { parseSchedulePublicationSnapshot } from '../schedules/schedule-publicat
 
 function assertPeriod(year: number, month: number): void {
   if (!Number.isInteger(year) || year < 1970 || year > 9999) {
-    throw new ForbiddenException('Invalid year');
+    throw new BadRequestException('Invalid year');
   }
   if (!Number.isInteger(month) || month < 1 || month > 12) {
-    throw new ForbiddenException('Invalid month');
+    throw new BadRequestException('Invalid month');
   }
 }
 
@@ -214,6 +214,7 @@ export class PlanActualService {
             const candidates = sessions
               .filter(
                 session =>
+                  !matched.has(session.id) &&
                   session.departmentId === department.id &&
                   session.employeeId === shift.employeeId,
               )
