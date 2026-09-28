@@ -78,6 +78,7 @@ describe('mapDepartmentScheduleResponses', () => {
         scheduleMode: 'fixed-weekdays',
         fixedStartTime: '08:00',
         fixedEndTime: '17:00',
+        isLinked: false,
       },
     ]);
   });
