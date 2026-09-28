@@ -103,14 +103,14 @@ export interface BusinessIntervalMinutes {
 }
 
 function localDateText(date: Date, timeZone: string): string {
-  const value = new Intl.DateTimeFormat('en-CA', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(date);
-  const [year, month, day] = value.split('-');
-  return year + '-' + month + '-' + day;
+  const value = parts(date, timeZone);
+  return (
+    String(value.year).padStart(4, '0') +
+    '-' +
+    String(value.month).padStart(2, '0') +
+    '-' +
+    String(value.day).padStart(2, '0')
+  );
 }
 
 function overlapMinutes(
