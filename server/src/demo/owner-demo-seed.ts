@@ -58,9 +58,11 @@ export function assertDemoSeedEnvironment(input: {
     throw new Error('DATABASE_URL is required');
   }
   const name = databaseName(input.databaseUrl);
-  if (!/(demo|test)/i.test(name)) {
+  const safeName =
+    /^(?:demo|test)(?:$|[_-])|(?:^|[_-])(?:demo|test)(?:$|[_-])/i;
+  if (!safeName.test(name)) {
     throw new Error(
-      'Owner demo seed requires a database name containing demo or test',
+      'Owner demo seed requires demo or test as a database-name segment',
     );
   }
 }
