@@ -175,6 +175,7 @@ describe('management dashboards', () => {
     renderScreen(<TodayScreen />);
 
     expect(await screen.findByText('Иванов И.И.')).toBeInTheDocument();
+    expect(getManagementToday).toHaveBeenCalledWith();
     expect(screen.getByText('Петров П.П.')).toBeInTheDocument();
     expect(screen.getByText('Опубликована версия v3')).toBeInTheDocument();
     expect(screen.getByText(/опубликованный план, фактические отметки/)).toBeInTheDocument();
