@@ -174,7 +174,7 @@ describe('ManagementInsightsService', () => {
         deltaHours: -80,
       }),
     );
-    expect(withAttendance.departments[0]).toEqual(
+    expect(result.departments[0]).toEqual(
       expect.objectContaining({
         productionNormHours: 88,
         departmentNormHours: 80,
