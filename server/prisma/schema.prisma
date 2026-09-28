@@ -413,7 +413,7 @@ model ActivationInvitation {
   purpose         ActivationInvitationPurpose @default(ACTIVATION)
   tokenHash       String                      @unique @db.VarChar(64)
   shortCodeHash   String                      @unique @db.VarChar(64)
-  userHandle      Bytes                       @unique
+  userHandle      Bytes
   expiresAt       DateTime
   consumedAt      DateTime?
   revokedAt       DateTime?
