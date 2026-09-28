@@ -15,6 +15,7 @@ import { appendAuditLog } from '../audit/audit-log';
 import { AuthUserContext } from '../auth/auth.service';
 import { AuthorizationService } from '../auth/authorization.service';
 import { calculatePlannedShiftHours, getMonthlyProductionNormHours } from '../hours/schedule-hours';
+import { businessDateText } from '../hours/business-time';
 import { PrismaService } from '../prisma/prisma.service';
 import { parseSchedulePublicationSnapshot } from '../schedules/schedule-publications.service';
 import { PlanActualService } from './plan-actual.service';
@@ -128,7 +129,8 @@ export class ManagementInsightsService {
     });
   }
 
-  async today(admin: AuthUserContext, dateText: string) {
+  async today(admin: AuthUserContext, requestedDate?: string) {
+    const dateText = requestedDate?.trim() || businessDateText();
     const date = parseDateOnly(dateText);
     const year = date.getUTCFullYear();
     const month = date.getUTCMonth() + 1;
