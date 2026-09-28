@@ -346,3 +346,10 @@ export const OccupiedShiftNotice = styled('div')(({ theme }) => ({
   lineHeight: '18px',
   fontWeight: 700,
 }));
+
+
+export const ActivationQrSlot = styled('div')({
+  display: 'grid',
+  placeItems: 'center',
+  minHeight: 212,
+});
