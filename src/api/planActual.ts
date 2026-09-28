@@ -17,6 +17,8 @@ export interface ManagementPlanActualResponse {
     startTime: string;
     endTime: string;
     workSessionId: string | null;
+    workSessionIds: string[];
+    workSessionCount: number;
     status: 'NO_MARK' | 'IN_PROGRESS' | 'COMPLETED';
     plannedStartAt: string;
     plannedEndAt: string;
