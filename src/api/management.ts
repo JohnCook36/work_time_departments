@@ -30,6 +30,14 @@ export interface ManagementTodayResponse {
       code: string | null;
       startTime: string | null;
       endTime: string | null;
+      attendance: {
+        status: 'NO_MARK' | 'IN_PROGRESS' | 'COMPLETED';
+        actualCheckInAt: string | null;
+        actualCheckOutAt: string | null;
+        latenessMinutes: number;
+        earlyLeaveMinutes: number | null;
+        overtimeMinutes: number | null;
+      } | null;
     }>;
     absences: Array<{
       id: string;
