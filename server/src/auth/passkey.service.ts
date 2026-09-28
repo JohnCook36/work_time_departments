@@ -188,13 +188,24 @@ export class PasskeyService {
   ) {
     await this.currentManager(tx, admin, employee.departmentId);
 
+    const now = new Date();
     await tx.activationInvitation.updateMany({
       where: {
         employeeId: employee.id,
         consumedAt: null,
         revokedAt: null,
       },
-      data: { revokedAt: new Date() },
+      data: { revokedAt: now },
+    });
+    await tx.activationInvitation.deleteMany({
+      where: {
+        employeeId: employee.id,
+        OR: [
+          { consumedAt: { not: null } },
+          { revokedAt: { not: null } },
+          { expiresAt: { lte: now } },
+        ],
+      },
     });
 
     const token = randomBase64Url(32);
@@ -338,9 +349,8 @@ export class PasskeyService {
         });
       }
 
-      await tx.passkeyCredential.updateMany({
-        where: { userId: employee.userId, revokedAt: null },
-        data: { revokedAt: new Date() },
+      await tx.passkeyCredential.deleteMany({
+        where: { userId: employee.userId },
       });
       await tx.authSession.updateMany({
         where: { userId: employee.userId, revokedAt: null },
@@ -366,6 +376,10 @@ export class PasskeyService {
   }
 
   private async findActiveInvitation(secret: string) {
+    const now = new Date();
+    await this.prisma.activationInvitation.deleteMany({
+      where: { expiresAt: { lte: now } },
+    });
     const hashes = invitationSecretHashes(secret);
     const invitation = await this.prisma.activationInvitation.findFirst({
       where: {
@@ -375,7 +389,7 @@ export class PasskeyService {
         ],
         consumedAt: null,
         revokedAt: null,
-        expiresAt: { gt: new Date() },
+        expiresAt: { gt: now },
       },
       include: {
         employee: {
@@ -623,6 +637,10 @@ export class PasskeyService {
         departmentId: currentEmployee.departmentId,
       });
 
+      await tx.activationInvitation.delete({
+        where: { id: invitation.id },
+      });
+
       return {
         token: rawSession,
         expiresAt: expiresAt.toISOString(),
@@ -821,13 +839,12 @@ export class PasskeyService {
       );
     }
 
-    const result = await this.prisma.passkeyCredential.updateMany({
+    const result = await this.prisma.passkeyCredential.deleteMany({
       where: {
         id: credentialId,
         userId: user.id,
         revokedAt: null,
       },
-      data: { revokedAt: new Date() },
     });
     if (result.count !== 1) throw new NotFoundException('Passkey not found');
 
