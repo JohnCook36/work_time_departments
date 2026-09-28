@@ -55,6 +55,15 @@ function invitationSecretHashes(secret: string) {
   };
 }
 
+function prismaBytes(
+  value: Uint8Array<ArrayBufferLike>,
+): Uint8Array<ArrayBuffer> {
+  const buffer = new ArrayBuffer(value.byteLength);
+  const copy = new Uint8Array(buffer);
+  copy.set(value);
+  return copy;
+}
+
 function createShortCode(): string {
   let value = '';
   for (let index = 0; index < 10; index += 1) {
@@ -181,7 +190,9 @@ export class PasskeyService {
     admin: AuthUserContext,
     employee: {
       id: string;
+      displayName: string;
       departmentId: string;
+      department: { id: string; name: string };
     },
     purpose: ActivationInvitationPurpose,
     userHandle?: Buffer,
@@ -217,17 +228,8 @@ export class PasskeyService {
         purpose,
         tokenHash: sha256Hex(token),
         shortCodeHash: sha256Hex(normalizeShortCode(shortCode)),
-        userHandle: userHandle ?? randomBytes(32),
+        userHandle: prismaBytes(userHandle ?? randomBytes(32)),
         expiresAt: new Date(Date.now() + INVITATION_TTL_MS),
-      },
-      include: {
-        employee: {
-          select: {
-            id: true,
-            displayName: true,
-            department: { select: { id: true, name: true } },
-          },
-        },
       },
     });
 
@@ -240,7 +242,14 @@ export class PasskeyService {
     });
 
     return {
-      ...safeInvitation(invitation),
+      ...safeInvitation({
+        ...invitation,
+        employee: {
+          id: employee.id,
+          displayName: employee.displayName,
+          department: employee.department,
+        },
+      }),
       token,
       shortCode,
     };
@@ -255,9 +264,11 @@ export class PasskeyService {
         where: { id: employeeId },
         select: {
           id: true,
+          displayName: true,
           departmentId: true,
           isActive: true,
           userId: true,
+          department: { select: { id: true, name: true } },
         },
       });
 
@@ -345,7 +356,7 @@ export class PasskeyService {
       if (!employee.user.webauthnUserHandle) {
         await tx.user.update({
           where: { id: employee.userId },
-          data: { webauthnUserHandle: userHandle },
+          data: { webauthnUserHandle: prismaBytes(userHandle) },
         });
       }
 
@@ -370,7 +381,7 @@ export class PasskeyService {
         admin,
         employee,
         ActivationInvitationPurpose.RECOVERY,
-        Buffer.from(userHandle),
+        prismaBytes(userHandle),
       );
     });
   }
@@ -565,7 +576,7 @@ export class PasskeyService {
         const user = await tx.user.create({
           data: {
             phoneE164: null,
-            webauthnUserHandle: Buffer.from(invitation.userHandle),
+            webauthnUserHandle: prismaBytes(invitation.userHandle),
           },
           select: { id: true },
         });
@@ -615,7 +626,7 @@ export class PasskeyService {
         data: {
           userId,
           credentialId: verified.credentialId,
-          publicKey: verified.publicKey,
+          publicKey: prismaBytes(verified.publicKey),
           counter: verified.counter,
           transports: verified.transports,
         },
