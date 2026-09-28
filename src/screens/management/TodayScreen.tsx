@@ -36,6 +36,28 @@ function shiftLabel(start: string | null, end: string | null, code: string | nul
   return (code ? code + ' · ' : '') + start + '–' + end;
 }
 
+function attendanceLabel(
+  attendance: ManagementTodayResponse['departments'][number]['plannedShifts'][number]['attendance'],
+) {
+  if (!attendance) return 'Явка недоступна';
+  if (attendance.status === 'NO_MARK') return 'Нет отметки';
+  if (attendance.status === 'IN_PROGRESS') {
+    return attendance.latenessMinutes > 0
+      ? 'На смене · опоздание ' + attendance.latenessMinutes + ' мин'
+      : 'На смене';
+  }
+  if ((attendance.earlyLeaveMinutes ?? 0) > 0) {
+    return 'Завершена · ранний уход ' + attendance.earlyLeaveMinutes + ' мин';
+  }
+  if ((attendance.overtimeMinutes ?? 0) > 0) {
+    return 'Завершена · переработка ' + attendance.overtimeMinutes + ' мин';
+  }
+  if (attendance.latenessMinutes > 0) {
+    return 'Завершена · опоздание ' + attendance.latenessMinutes + ' мин';
+  }
+  return 'Завершена по плану';
+}
+
 export function TodayScreen() {
   const date = useMemo(localDate, []);
   const [data, setData] = useState<ManagementTodayResponse | null>(null);
@@ -61,8 +83,8 @@ export function TodayScreen() {
         <SectionHeader>
           <SectionTitle>Сегодня</SectionTitle>
           <SectionSubtitle>
-            Операционная картина на {date}. Явка не показывается до появления
-            отдельного источника фактического времени.
+            Операционная картина на {date}: опубликованный план, фактические
+            отметки, отсутствия и запросы руководителю.
           </SectionSubtitle>
           <AppSectionNav />
         </SectionHeader>
@@ -88,6 +110,18 @@ export function TodayScreen() {
                 <MetricValue>{data.totals.unpublishedDepartments}</MetricValue>
                 <MetricLabel>отделов без публикации</MetricLabel>
               </MetricCard>
+              {data.attendanceAvailable && (
+                <>
+                  <MetricCard>
+                    <MetricValue>{data.totals.checkedIn}</MetricValue>
+                    <MetricLabel>отметились</MetricLabel>
+                  </MetricCard>
+                  <MetricCard>
+                    <MetricValue>{data.totals.noMark}</MetricValue>
+                    <MetricLabel>без отметки</MetricLabel>
+                  </MetricCard>
+                </>
+              )}
             </MetricsGrid>
 
             <QuickLinks>
@@ -118,6 +152,9 @@ export function TodayScreen() {
                         <ItemRow key={shift.id}>
                           <strong>{shift.displayName}</strong>
                           <span>{shiftLabel(shift.startTime, shift.endTime, shift.code)}</span>
+                          {data.attendanceAvailable && (
+                            <span>{attendanceLabel(shift.attendance)}</span>
+                          )}
                         </ItemRow>
                       ))
                     )}
