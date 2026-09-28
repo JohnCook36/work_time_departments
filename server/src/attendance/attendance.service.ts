@@ -179,7 +179,12 @@ export class AttendanceService {
       throw new BadRequestException('departmentId is required');
     }
     return this.prisma.$transaction(async tx => {
-      await this.currentManager(tx, admin, departmentId.trim());
+      await this.currentManager(
+        tx,
+        admin,
+        departmentId.trim(),
+        PermissionCapability.ATTENDANCE_QR_MANAGE,
+      );
       const department = await tx.department.findFirst({
         where: { id: departmentId.trim(), isActive: true },
         select: { id: true },
@@ -302,7 +307,12 @@ export class AttendanceService {
     }
     const period = range(from, to);
     return this.prisma.$transaction(async tx => {
-      await this.currentManager(tx, admin, departmentId.trim(), PermissionCapability.SCHEDULE_READ);
+      await this.currentManager(
+        tx,
+        admin,
+        departmentId.trim(),
+        PermissionCapability.ATTENDANCE_READ,
+      );
       const rows = await tx.workSession.findMany({
         where: { departmentId: departmentId.trim(), checkInAt: period },
         orderBy: { checkInAt: 'desc' },
