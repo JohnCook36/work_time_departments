@@ -86,7 +86,7 @@ for (const viewport of [
           return reply(route, {
             invitationId: 'invitation-1',
             purpose: 'ACTIVATION',
-            expiresAt: '2026-09-28T18:00:00.000Z',
+            expiresAt: new Date(Date.now() + 20 * 60 * 1000).toISOString(),
             employee: {
               id: 'employee-1',
               displayName: 'Иванов И.И.',
