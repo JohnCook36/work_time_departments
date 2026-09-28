@@ -187,15 +187,15 @@ function setFunctionPatterns(matrix: Cell[][]) {
   setFinder(matrix, SIZE - 7, 0);
   setFinder(matrix, 0, SIZE - 7);
 
-  for (let index = 8; index < SIZE - 8; index += 1) {
-    if (matrix[6][index] === null) matrix[6][index] = index % 2 === 0;
-    if (matrix[index][6] === null) matrix[index][6] = index % 2 === 0;
-  }
-
   for (const row of ALIGNMENT_CENTERS) {
     for (const col of ALIGNMENT_CENTERS) {
       setAlignment(matrix, row, col);
     }
+  }
+
+  for (let index = 8; index < SIZE - 8; index += 1) {
+    if (matrix[6][index] === null) matrix[6][index] = index % 2 === 0;
+    if (matrix[index][6] === null) matrix[index][6] = index % 2 === 0;
   }
 
   const version = versionBits();
