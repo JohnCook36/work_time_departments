@@ -1,9 +1,18 @@
-import { publishedShiftInterval } from '../../../src/hours/business-time';
+import { businessDateText, publishedShiftInterval } from '../../../src/hours/business-time';
 import { comparePlanActual } from '../../../src/hours/plan-actual';
 
 describe('plan actual comparison', () => {
   beforeEach(() => {
     process.env.BUSINESS_TIME_ZONE = 'Europe/Moscow';
+  });
+
+  it('resolves the canonical business date independently of caller timezone', () => {
+    expect(
+      businessDateText(
+        new Date('2026-09-28T21:30:00.000Z'),
+        'Europe/Moscow',
+      ),
+    ).toBe('2026-09-29');
   });
 
   it('keeps overnight shifts on one interval', () => {
