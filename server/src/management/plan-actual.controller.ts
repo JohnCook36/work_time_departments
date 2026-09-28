@@ -1,9 +1,22 @@
 import { BadRequestException, Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { ApiOperation, ApiQuery, ApiResponse, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
 import type { AuthUserContext } from '../auth/auth.service';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { SessionAuthGuard } from '../auth/session-auth.guard';
 import { PlanActualService } from './plan-actual.service';
+
+const planActualResponse = {
+  type: 'object',
+  required: ['period', 'businessTimeZone', 'payableAvailable', 'rows', 'unplannedSessions'],
+  properties: {
+    period: { type: 'object', properties: { year: { type: 'integer' }, month: { type: 'integer' } } },
+    businessTimeZone: { type: 'string' },
+    payableAvailable: { type: 'boolean', enum: [false] },
+    rows: { type: 'array', items: { type: 'object', additionalProperties: true } },
+    unplannedSessions: { type: 'array', items: { type: 'object', additionalProperties: true } },
+  },
+} as const;
 
 function toInteger(value: string | undefined, field: string): number {
   const parsed = Number(value);
@@ -13,11 +26,21 @@ function toInteger(value: string | undefined, field: string): number {
   return parsed;
 }
 
+@ApiTags('management')
+@ApiSecurity('session')
+@ApiSecurity('sessionBearer')
 @Controller('management')
 @UseGuards(SessionAuthGuard)
 export class PlanActualController {
   constructor(private readonly planActual: PlanActualService) {}
 
+  @ApiOperation({
+    summary: 'Compare immutable published shifts with actual work sessions; payable time is not inferred',
+  })
+  @ApiQuery({ name: 'year', required: true })
+  @ApiQuery({ name: 'month', required: true })
+  @ApiQuery({ name: 'departmentId', required: false })
+  @ApiResponse({ status: 200, schema: planActualResponse })
   @Get('plan-actual')
   read(
     @CurrentUser() user: AuthUserContext,
