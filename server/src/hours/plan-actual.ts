@@ -1,4 +1,4 @@
-import { businessTimeZone, intervalMinutes } from './business-time';
+import { businessTimeZone, intervalMinutes, splitBusinessInterval } from './business-time';
 
 export type PlanActualStatus = 'NO_MARK' | 'IN_PROGRESS' | 'COMPLETED';
 
@@ -9,7 +9,11 @@ export interface PlanActualResult {
   actualCheckInAt: string | null;
   actualCheckOutAt: string | null;
   plannedMinutes: number;
+  plannedDayMinutes: number;
+  plannedNightMinutes: number;
   actualMinutes: number | null;
+  actualDayMinutes: number | null;
+  actualNightMinutes: number | null;
   deltaMinutes: number | null;
   latenessMinutes: number;
   earlyLeaveMinutes: number | null;
@@ -24,6 +28,7 @@ export function comparePlanActual(
   actual: { checkInAt: Date; checkOutAt: Date | null } | null,
   _timeZone = businessTimeZone(),
 ): PlanActualResult {
+  const plannedBreakdown = splitBusinessInterval(plannedStartAt, plannedEndAt, _timeZone);
   const plannedMinutes = intervalMinutes(plannedStartAt, plannedEndAt);
 
   if (!actual) {
@@ -34,7 +39,11 @@ export function comparePlanActual(
       actualCheckInAt: null,
       actualCheckOutAt: null,
       plannedMinutes,
+      plannedDayMinutes: plannedBreakdown.dayMinutes,
+      plannedNightMinutes: plannedBreakdown.nightMinutes,
       actualMinutes: null,
+      actualDayMinutes: null,
+      actualNightMinutes: null,
       deltaMinutes: null,
       latenessMinutes: 0,
       earlyLeaveMinutes: null,
@@ -57,7 +66,11 @@ export function comparePlanActual(
       actualCheckInAt: actual.checkInAt.toISOString(),
       actualCheckOutAt: null,
       plannedMinutes,
+      plannedDayMinutes: plannedBreakdown.dayMinutes,
+      plannedNightMinutes: plannedBreakdown.nightMinutes,
       actualMinutes: null,
+      actualDayMinutes: null,
+      actualNightMinutes: null,
       deltaMinutes: null,
       latenessMinutes,
       earlyLeaveMinutes: null,
@@ -67,6 +80,7 @@ export function comparePlanActual(
     };
   }
 
+  const actualBreakdown = splitBusinessInterval(actual.checkInAt, actual.checkOutAt, _timeZone);
   const actualMinutes = intervalMinutes(actual.checkInAt, actual.checkOutAt);
   const deltaMinutes = actualMinutes - plannedMinutes;
   return {
@@ -76,7 +90,11 @@ export function comparePlanActual(
     actualCheckInAt: actual.checkInAt.toISOString(),
     actualCheckOutAt: actual.checkOutAt.toISOString(),
     plannedMinutes,
+    plannedDayMinutes: plannedBreakdown.dayMinutes,
+    plannedNightMinutes: plannedBreakdown.nightMinutes,
     actualMinutes,
+    actualDayMinutes: actualBreakdown.dayMinutes,
+    actualNightMinutes: actualBreakdown.nightMinutes,
     deltaMinutes,
     latenessMinutes,
     earlyLeaveMinutes: Math.max(
