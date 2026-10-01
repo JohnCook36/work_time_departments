@@ -2,11 +2,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Info,
-  CalendarDays,
-  ClipboardList,
-  Moon,
-  Sun,
-  UserRound,
 } from 'lucide-react';
 
 import { AdminOnboardingPanel } from '../onboarding/AdminOnboardingPanel';
@@ -25,20 +20,16 @@ import {
   Muted,
   PanelTitle,
   PanelTitleRow,
-  ThemeButton,
   TinyText,
 } from '../../theme/styles';
 import { MONTH_NAMES } from '../../utils/calendar';
 import { PlannerServerStatus } from '../../hooks/usePlannerServerSync';
 import {
-  HeaderRouteLink,
   ServerModeCard,
   ServerModeDescription,
 } from './PlannerHeaderScreen.styles';
 
 interface PlannerHeaderScreenProps {
-  themeMode: 'light' | 'dark';
-  onToggleTheme: () => void;
   year: number;
   month: number;
   onPrevMonth: () => void;
@@ -54,8 +45,6 @@ interface PlannerHeaderScreenProps {
 }
 
 export function PlannerHeaderScreen({
-  themeMode,
-  onToggleTheme,
   year,
   month,
   onPrevMonth,
@@ -74,17 +63,6 @@ export function PlannerHeaderScreen({
       <HeaderCard>
         <HeaderRow>
           <HeaderLeft>
-            <ThemeButton
-              type="button"
-              onClick={onToggleTheme}
-              title={
-                themeMode === 'light'
-                  ? 'Включить тёмную тему'
-                  : 'Включить светлую тему'
-              }
-            >
-              {themeMode === 'light' ? <Moon size={19} /> : <Sun size={19} />}
-            </ThemeButton>
 
             <BrandBlock>
               <BrandTitle>🏨 Планировщик смен</BrandTitle>
@@ -115,15 +93,7 @@ export function PlannerHeaderScreen({
               <ChevronRight size={19} />
             </IconButton>
 
-            <HeaderRouteLink to="/my-schedule" title="Мои смены">
-              <CalendarDays size={18} />
-            </HeaderRouteLink>
-            <HeaderRouteLink to="/tasks" title="Задачи">
-              <ClipboardList size={18} />
-            </HeaderRouteLink>
-            <HeaderRouteLink to="/profile" title="Профиль">
-              <UserRound size={18} />
-            </HeaderRouteLink>
+
             {canManagePlanner && <AdminOnboardingPanel />}
 
             {canManagePlanner && (
