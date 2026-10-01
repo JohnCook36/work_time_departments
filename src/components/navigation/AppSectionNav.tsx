@@ -5,234 +5,207 @@ import {
   Clock3,
   Gauge,
   LayoutDashboard,
+  LogOut,
   Menu,
+  Moon,
   Repeat2,
   ScrollText,
   ShieldCheck,
+  Sun,
   UserRound,
+  X,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
+import { logout } from '../../api/auth';
 import {
   hasCapability,
   hasManagementAccess,
   useAuthUser,
 } from '../../auth/AuthContext';
+import { useOptionalAuthSession } from '../../auth/AuthSessionProvider';
+import { useOptionalAppTheme } from '../../theme/AppThemeProvider';
 import {
-  MobileMoreBackdrop,
-  MobileMoreLink,
-  MobileMoreSheet,
-  MobileNavigationBar,
-  MobileNavigationButton,
-  MobileNavigationLink,
-  NavigationBar,
-  NavigationLink,
+  DrawerAction,
+  DrawerBackdrop,
+  DrawerCloseButton,
+  DrawerGroup,
+  DrawerGroupLabel,
+  DrawerHeader,
+  DrawerLink,
+  DrawerPanel,
+  DrawerTitle,
+  MenuButton,
+  MenuButtonRow,
 } from './AppSectionNav.styles';
 
 export function AppSectionNav() {
   const user = useAuthUser();
   const location = useLocation();
+  const authSession = useOptionalAuthSession();
+  const appTheme = useOptionalAppTheme();
+  const themeMode = appTheme?.themeMode ?? 'light';
   const canManagePlanner = hasManagementAccess(user);
   const canReadAudit = hasCapability(user, 'AUDIT_READ');
   const canManageRoles = hasCapability(user, 'ROLE_MANAGE');
-  const hasSecondaryManagement = canReadAudit || canManageRoles;
-  const [moreOpen, setMoreOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const drawerId = useId();
 
   useEffect(() => {
-    setMoreOpen(false);
+    setMenuOpen(false);
   }, [location.pathname]);
 
-  const managerMobile = canManagePlanner || hasSecondaryManagement;
-  const moreRouteActive = [
-    '/notifications',
-    '/profile',
-    '/roles-access',
-    '/audit',
-    '/my-schedule',
-    '/planner',
-    '/team-hours',
-    '/plan-actual',
-  ].includes(location.pathname) && managerMobile;
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setMenuOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [menuOpen]);
+
+  const handleLogout = async () => {
+    if (authSession) {
+      await authSession.signOut();
+      return;
+    }
+
+    await logout();
+  };
 
   return (
     <>
+      <MenuButtonRow>
+        <MenuButton
+          type="button"
+          aria-expanded={menuOpen}
+          aria-controls={drawerId}
+          onClick={() => setMenuOpen(true)}
+        >
+          <Menu size={19} />
+          Меню
+        </MenuButton>
+      </MenuButtonRow>
 
-      <NavigationBar aria-label="Основная навигация">
-        <NavigationLink to="/my-schedule">
-          <CalendarDays size={16} />
-          Мои смены
-        </NavigationLink>
-
-        <NavigationLink to="/tasks">
-          <ClipboardList size={16} />
-          Задачи
-        </NavigationLink>
-
-        <NavigationLink to="/shift-requests">
-          <Repeat2 size={16} />
-          Обмен сменами
-        </NavigationLink>
-
-        <NavigationLink to="/notifications">
-          <Bell size={16} />
-          Уведомления
-        </NavigationLink>
-
-        <NavigationLink to="/profile">
-          <UserRound size={16} />
-          Профиль
-        </NavigationLink>
-
-        {canManageRoles && (
-          <NavigationLink to="/roles-access">
-            <ShieldCheck size={16} />
-            Роли и доступ
-          </NavigationLink>
-        )}
-
-        {canReadAudit && (
-          <NavigationLink to="/audit">
-            <ScrollText size={16} />
-            Журнал
-          </NavigationLink>
-        )}
-
-        {canManagePlanner && (
-          <>
-            <NavigationLink to="/today">
-              <Gauge size={16} />
-              Сегодня
-            </NavigationLink>
-            <NavigationLink to="/team-hours">
-              <Clock3 size={16} />
-              Часы команды
-            </NavigationLink>
-            <NavigationLink to="/plan-actual">
-              <Clock3 size={16} />
-              План / факт
-            </NavigationLink>
-            <NavigationLink to="/planner">
-              <LayoutDashboard size={16} />
-              Планировщик
-            </NavigationLink>
-          </>
-        )}
-      </NavigationBar>
-
-      {managerMobile ? (
-        <MobileNavigationBar aria-label="Мобильная навигация">
-          {canManagePlanner ? (
-            <MobileNavigationLink to="/today">
-              <Gauge size={20} />
-              Сегодня
-            </MobileNavigationLink>
-          ) : (
-            <MobileNavigationLink to="/my-schedule">
-              <CalendarDays size={20} />
-              Смены
-            </MobileNavigationLink>
-          )}
-
-          <MobileNavigationLink to="/shift-requests">
-            <Repeat2 size={20} />
-            Запросы
-          </MobileNavigationLink>
-
-          <MobileNavigationLink to="/tasks">
-            <ClipboardList size={20} />
-            Задачи
-          </MobileNavigationLink>
-
-          <MobileNavigationButton
-            type="button"
-            $active={moreRouteActive}
-            aria-expanded={moreOpen}
-            aria-controls="mobile-more-navigation"
-            onClick={() => setMoreOpen(current => !current)}
-          >
-            <Menu size={20} />
-            Ещё
-          </MobileNavigationButton>
-        </MobileNavigationBar>
-      ) : (
-        <MobileNavigationBar aria-label="Мобильная навигация">
-          <MobileNavigationLink to="/my-schedule">
-            <CalendarDays size={20} />
-            Смены
-          </MobileNavigationLink>
-          <MobileNavigationLink to="/tasks">
-            <ClipboardList size={20} />
-            Задачи
-          </MobileNavigationLink>
-          <MobileNavigationLink
-            to="/shift-requests"
-            aria-label="Обмен сменами"
-          >
-            <Repeat2 size={20} />
-            Обмен
-          </MobileNavigationLink>
-          <MobileNavigationLink to="/profile">
-            <UserRound size={20} />
-            Профиль
-          </MobileNavigationLink>
-        </MobileNavigationBar>
-      )}
-
-      {managerMobile && moreOpen && (
+      {menuOpen && (
         <>
-          <MobileMoreBackdrop
+          <DrawerBackdrop
             type="button"
-            aria-label="Закрыть дополнительную навигацию"
-            onClick={() => setMoreOpen(false)}
+            aria-label="Закрыть меню"
+            onClick={() => setMenuOpen(false)}
           />
-          <MobileMoreSheet
-            id="mobile-more-navigation"
-            aria-label="Дополнительная навигация"
+
+          <DrawerPanel
+            id={drawerId}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Навигация"
           >
-            <MobileMoreLink to="/notifications">
-              <Bell size={18} />
-              Уведомления
-            </MobileMoreLink>
-            <MobileMoreLink to="/profile">
-              <UserRound size={18} />
-              Профиль
-            </MobileMoreLink>
-            {canManageRoles && (
-              <MobileMoreLink to="/roles-access">
-                <ShieldCheck size={18} />
-                Роли и доступ
-              </MobileMoreLink>
-            )}
-            {canReadAudit && (
-              <MobileMoreLink to="/audit">
-                <ScrollText size={18} />
-                Журнал
-              </MobileMoreLink>
-            )}
-            {canManagePlanner && (
-              <>
-                <MobileMoreLink to="/planner">
+            <DrawerHeader>
+              <DrawerTitle>Навигация</DrawerTitle>
+              <DrawerCloseButton
+                type="button"
+                aria-label="Закрыть меню"
+                onClick={() => setMenuOpen(false)}
+              >
+                <X size={20} />
+              </DrawerCloseButton>
+            </DrawerHeader>
+
+            <DrawerGroup aria-label="Основное">
+              <DrawerGroupLabel>Основное</DrawerGroupLabel>
+              <DrawerLink to="/my-schedule">
+                <CalendarDays size={18} />
+                Мои смены
+              </DrawerLink>
+              {canManagePlanner && (
+                <DrawerLink to="/today">
+                  <Gauge size={18} />
+                  Сегодня
+                </DrawerLink>
+              )}
+              {canManagePlanner && (
+                <DrawerLink to="/planner">
                   <LayoutDashboard size={18} />
                   Планировщик
-                </MobileMoreLink>
-                <MobileMoreLink to="/team-hours">
-                  <Clock3 size={18} />
-                  Часы команды
-                </MobileMoreLink>
-                <MobileMoreLink to="/plan-actual">
+                </DrawerLink>
+              )}
+              {canManagePlanner && (
+                <DrawerLink to="/plan-actual">
                   <Clock3 size={18} />
                   План / факт
-                </MobileMoreLink>
-                {location.pathname !== '/my-schedule' && (
-                  <MobileMoreLink to="/my-schedule">
-                    <CalendarDays size={18} />
-                    Мои смены
-                  </MobileMoreLink>
+                </DrawerLink>
+              )}
+              {canManagePlanner && (
+                <DrawerLink to="/team-hours">
+                  <Clock3 size={18} />
+                  Часы команды
+                </DrawerLink>
+              )}
+            </DrawerGroup>
+
+            <DrawerGroup aria-label="Работа">
+              <DrawerGroupLabel>Работа</DrawerGroupLabel>
+              <DrawerLink to="/tasks">
+                <ClipboardList size={18} />
+                Задачи
+              </DrawerLink>
+              <DrawerLink to="/shift-requests">
+                <Repeat2 size={18} />
+                Обмен сменами
+              </DrawerLink>
+              <DrawerLink to="/notifications">
+                <Bell size={18} />
+                Уведомления
+              </DrawerLink>
+            </DrawerGroup>
+
+            {(canManageRoles || canReadAudit) && (
+              <DrawerGroup aria-label="Администрирование">
+                <DrawerGroupLabel>Администрирование</DrawerGroupLabel>
+                {canManageRoles && (
+                  <DrawerLink to="/roles-access">
+                    <ShieldCheck size={18} />
+                    Роли и доступ
+                  </DrawerLink>
                 )}
-              </>
+                {canReadAudit && (
+                  <DrawerLink to="/audit">
+                    <ScrollText size={18} />
+                    Журнал
+                  </DrawerLink>
+                )}
+              </DrawerGroup>
             )}
-          </MobileMoreSheet>
+
+            <DrawerGroup aria-label="Аккаунт">
+              <DrawerGroupLabel>Аккаунт</DrawerGroupLabel>
+              <DrawerLink to="/profile">
+                <UserRound size={18} />
+                Профиль
+              </DrawerLink>
+              <DrawerAction type="button" onClick={() => appTheme?.toggleTheme()}>
+                {themeMode === 'light' ? <Moon size={18} /> : <Sun size={18} />}
+                {themeMode === 'light' ? 'Тёмная тема' : 'Светлая тема'}
+              </DrawerAction>
+              <DrawerAction type="button" onClick={() => void handleLogout()}>
+                <LogOut size={18} />
+                Выйти
+              </DrawerAction>
+            </DrawerGroup>
+          </DrawerPanel>
         </>
       )}
     </>

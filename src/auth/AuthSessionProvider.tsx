@@ -22,6 +22,10 @@ export function useAuthSession(): AuthSession {
   return session;
 }
 
+export function useOptionalAuthSession(): AuthSession | null {
+  return useContext(AuthSessionContext);
+}
+
 // One canonical session state; route guards own page selection and redirects.
 export function AuthSessionProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);

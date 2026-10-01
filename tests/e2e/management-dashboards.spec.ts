@@ -207,9 +207,12 @@ for (const viewport of [
     await expect(page.getByText('Иванов И.И.').first()).toBeVisible();
     await expect(page.getByText('Петров П.П.').first()).toBeVisible();
     await expect(page.getByText(/опубликованный план, фактические/)).toBeVisible();
+    await page.getByRole('button', { name: 'Меню' }).click();
+    const navigation = page.getByRole('dialog', { name: 'Навигация' });
     for (const href of ['/today', '/team-hours', '/plan-actual', '/planner']) {
-      await expect(page.locator('a[href="' + href + '"]').first()).toBeAttached();
+      await expect(navigation.locator('a[href="' + href + '"]').first()).toBeAttached();
     }
+    await navigation.getByRole('button', { name: 'Закрыть меню' }).click();
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= window.innerWidth,

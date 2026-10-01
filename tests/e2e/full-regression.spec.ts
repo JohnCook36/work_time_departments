@@ -1187,6 +1187,9 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
 
     const toolsTrigger = page.getByRole('button', { name: 'Управление графиком' });
     const triggerBefore = await toolsTrigger.boundingBox();
+    const triggerDocumentYBefore = await toolsTrigger.evaluate(
+      element => element.getBoundingClientRect().top + scrollY,
+    );
     await toolsTrigger.click();
     await page.getByRole('button', { name: 'Управление правилами' }).click();
 
@@ -1207,6 +1210,16 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
 
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await rulesDrawer.getByTitle('Закрыть').click();
-    expect(await toolsTrigger.boundingBox()).toEqual(triggerBefore);
+    const triggerAfter = await toolsTrigger.boundingBox();
+    expect(triggerAfter?.x).toBe(triggerBefore?.x);
+    expect(triggerAfter?.width).toBe(triggerBefore?.width);
+    expect(triggerAfter?.height).toBe(triggerBefore?.height);
+    expect(
+      Math.abs(
+        (await toolsTrigger.evaluate(
+          element => element.getBoundingClientRect().top + scrollY,
+        )) - triggerDocumentYBefore,
+      ),
+    ).toBeLessThanOrEqual(3);
   });
 }

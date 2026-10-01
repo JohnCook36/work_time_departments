@@ -60,3 +60,7 @@ export function useAppTheme() {
 
   return context;
 }
+
+export function useOptionalAppTheme() {
+  return useContext(AppThemeContext);
+}
