@@ -1,31 +1,132 @@
 import styled from '@emotion/styled';
 import { NavLink } from 'react-router-dom';
 
-export const NavigationBar = styled('nav')(({ theme }) => ({
+export const MenuButtonRow = styled('div')(() => ({
   display: 'flex',
-  alignItems: 'center',
-  gap: 8,
-  flexWrap: 'wrap',
-  padding: 10,
-  borderRadius: 14,
+  justifyContent: 'flex-end',
+}));
+
+export const MenuButton = styled('button')(({ theme }) => ({
+  minHeight: 42,
+  padding: '0 14px',
+  borderRadius: 12,
   border: '1px solid ' + theme.colors.border,
   background: theme.colors.surface,
-  '@media (max-width: 720px)': {
-    display: 'none',
+  color: theme.colors.text,
+  font: 'inherit',
+  fontSize: 13,
+  fontWeight: 800,
+  cursor: 'pointer',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 8,
+  transition: 'background 120ms ease, color 120ms ease, border-color 120ms ease',
+  ':hover': {
+    color: theme.colors.primary,
+    background: theme.colors.totalSoft,
+  },
+  ':focus-visible': {
+    outline: '2px solid ' + theme.colors.focusRing,
+    outlineOffset: 2,
   },
 }));
 
-export const NavigationLink = styled(NavLink)(({ theme }) => ({
-  minHeight: 36,
+export const DrawerBackdrop = styled('button')(({ theme }) => ({
+  position: 'fixed',
+  inset: 0,
+  zIndex: 980,
+  border: 0,
+  padding: 0,
+  background: theme.colors.overlay,
+  cursor: 'default',
+}));
+
+export const DrawerPanel = styled('nav')(({ theme }) => ({
+  position: 'fixed',
+  top: 0,
+  right: 0,
+  bottom: 0,
+  zIndex: 990,
+  width: 'min(360px, calc(100vw - 24px))',
+  padding: 18,
+  overflowY: 'auto',
+  background: theme.colors.surface,
+  borderLeft: '1px solid ' + theme.colors.border,
+  boxShadow: theme.shadows.drawerMobile,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 18,
+  '@media (max-width: 720px)': {
+    width: 'min(340px, calc(100vw - 16px))',
+    padding: 14,
+  },
+}));
+
+export const DrawerHeader = styled('div')(({ theme }) => ({
+  minHeight: 44,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 12,
+  paddingBottom: 12,
+  borderBottom: '1px solid ' + theme.colors.border,
+}));
+
+export const DrawerTitle = styled('div')(({ theme }) => ({
+  color: theme.colors.text,
+  fontSize: 18,
+  fontWeight: 900,
+}));
+
+export const DrawerCloseButton = styled('button')(({ theme }) => ({
+  width: 40,
+  height: 40,
+  flex: '0 0 auto',
+  borderRadius: 10,
+  border: '1px solid ' + theme.colors.border,
+  background: theme.colors.surface,
+  color: theme.colors.textMuted,
   display: 'inline-flex',
   alignItems: 'center',
-  gap: 7,
-  padding: '0 11px',
-  borderRadius: 10,
-  border: '1px solid transparent',
+  justifyContent: 'center',
+  cursor: 'pointer',
+  ':hover': {
+    color: theme.colors.primary,
+    background: theme.colors.totalSoft,
+  },
+  ':focus-visible': {
+    outline: '2px solid ' + theme.colors.focusRing,
+    outlineOffset: 2,
+  },
+}));
+
+export const DrawerGroup = styled('section')(() => ({
+  display: 'grid',
+  gap: 6,
+}));
+
+export const DrawerGroupLabel = styled('div')(({ theme }) => ({
+  padding: '0 10px 4px',
   color: theme.colors.textMuted,
+  fontSize: 11,
+  lineHeight: 1.2,
+  fontWeight: 900,
+  textTransform: 'uppercase',
+  letterSpacing: '0.06em',
+}));
+
+export const DrawerLink = styled(NavLink)(({ theme }) => ({
+  minHeight: 46,
+  padding: '0 12px',
+  borderRadius: 11,
+  border: '1px solid transparent',
+  color: theme.colors.text,
   textDecoration: 'none',
-  fontSize: 13,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 10,
+  fontSize: 14,
   fontWeight: 800,
   transition: 'background 120ms ease, color 120ms ease, border-color 120ms ease',
   '&.active': {
@@ -35,126 +136,10 @@ export const NavigationLink = styled(NavLink)(({ theme }) => ({
   },
   ':hover': {
     color: theme.colors.primary,
-    borderColor: theme.colors.border,
-  },
-}));
-
-export const MobileNavigationBar = styled('nav')(({ theme }) => ({
-  display: 'none',
-  '@media (max-width: 720px)': {
-    position: 'fixed',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 900,
-    minHeight: 'calc(64px + env(safe-area-inset-bottom))',
-    padding:
-      '6px 8px calc(6px + env(safe-area-inset-bottom))',
-    borderTop: '1px solid ' + theme.colors.border,
-    background: theme.colors.surface,
-    gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-    display: 'grid',
-    alignItems: 'stretch',
-  },
-}));
-
-export const MobileNavigationLink = styled(NavLink)(({ theme }) => ({
-  minWidth: 0,
-  minHeight: 52,
-  padding: '5px 4px',
-  borderRadius: 10,
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: 3,
-  color: theme.colors.textMuted,
-  textDecoration: 'none',
-  fontSize: 10,
-  lineHeight: 1.15,
-  fontWeight: 800,
-  textAlign: 'center',
-  '&.active': {
-    color: theme.colors.primary,
     background: theme.colors.totalSoft,
   },
   ':focus-visible': {
     outline: '2px solid ' + theme.colors.focusRing,
-    outlineOffset: -2,
-  },
-}));
-
-export const MobileNavigationButton = styled('button')<{ $active?: boolean }>(({ theme, $active }) => ({
-  minWidth: 0,
-  minHeight: 52,
-  padding: '5px 4px',
-  border: 0,
-  borderRadius: 10,
-  background: $active ? theme.colors.totalSoft : 'transparent',
-  color: $active ? theme.colors.primary : theme.colors.textMuted,
-  font: 'inherit',
-  fontSize: 10,
-  lineHeight: 1.15,
-  fontWeight: 800,
-  cursor: 'pointer',
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: 3,
-  ':focus-visible': {
-    outline: '2px solid ' + theme.colors.focusRing,
-    outlineOffset: -2,
-  },
-}));
-
-export const MobileMoreBackdrop = styled('button')(({ theme }) => ({
-  display: 'none',
-  '@media (max-width: 720px)': {
-    display: 'block',
-    position: 'fixed',
-    inset: 0,
-    zIndex: 880,
-    border: 0,
-    padding: 0,
-    background: theme.colors.overlay,
-  },
-}));
-
-export const MobileMoreSheet = styled('section')(({ theme }) => ({
-  display: 'none',
-  '@media (max-width: 720px)': {
-    display: 'grid',
-    position: 'fixed',
-    left: 10,
-    right: 10,
-    bottom: 'calc(70px + env(safe-area-inset-bottom))',
-    zIndex: 890,
-    padding: 10,
-    gap: 6,
-    borderRadius: 14,
-    border: '1px solid ' + theme.colors.border,
-    background: theme.colors.surface,
-    boxShadow: theme.shadows.drawerMobile,
-  },
-}));
-
-export const MobileMoreLink = styled(NavLink)(({ theme }) => ({
-  minHeight: 44,
-  padding: '0 12px',
-  borderRadius: 10,
-  color: theme.colors.text,
-  textDecoration: 'none',
-  display: 'flex',
-  alignItems: 'center',
-  gap: 9,
-  fontSize: 13,
-  fontWeight: 800,
-  '&.active': {
-    color: theme.colors.primary,
-    background: theme.colors.totalSoft,
-  },
-  ':focus-visible': {
-    outline: '2px solid ' + theme.colors.focusRing,
+    outlineOffset: 2,
   },
 }));
