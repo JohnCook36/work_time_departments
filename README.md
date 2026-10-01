@@ -64,7 +64,11 @@ npm run build
 
 `npm run build` генерирует `dist/`. Netlify использует эту команду и SPA fallback из `netlify.toml`; backend разворачивается отдельно. `dist/` и `node_modules/` не хранятся в Git. Старый standalone-прототип `site/` удалён; актуальное приложение запускается через Vite и использует backend auth.
 
-Для production frontend build необходимо явно задать HTTPS `VITE_API_URL` реального backend и canonical server mode `VITE_SERVER_PLANNER_READ=1`, `VITE_SERVER_PLANNER_WRITE=1`; иначе `VITE_API_URL` fallback'ится в `http://localhost:3000`. Backend production требует точный `FRONTEND_ORIGIN`. Session cookie сейчас `HttpOnly; SameSite=Lax; Secure` в production, поэтому frontend/backend origin topology должна быть проверена реальным браузером: предпочтительно same-site custom domains либо отдельно спроектированный и протестированный cross-site cookie flow. Зелёный Netlify build сам по себе runtime-связность не подтверждает.
+Для production frontend build необходимо явно задать HTTPS `VITE_API_URL` реального backend и canonical server mode `VITE_SERVER_PLANNER_WRITE=1` (read включается вместе с write; `VITE_SERVER_PLANNER_READ=1` можно задать явно). При отсутствии обязательной production-конфигурации приложение должно fail closed, а не откатываться на localhost/localStorage.
+
+Backend production требует точный `FRONTEND_ORIGIN`, `WEBAUTHN_RP_ID` и HTTPS `WEBAUTHN_ORIGIN`, соответствующие реальному frontend host. Session cookie сейчас `HttpOnly; SameSite=Lax; Secure` в production, поэтому frontend/backend topology должна быть проверена реальным браузером: предпочтительно same-site custom domains либо отдельно спроектированный и протестированный cross-site cookie flow. Production SMS provider не является Gate A requirement: канонический MVP flow — manager invitation → Passkey/WebAuthn. Зелёный Netlify build и виртуальный authenticator CI сами по себе runtime-связность и platform Passkey acceptance не подтверждают.
+
+Финальные требования к production-like smoke и backup/restore evidence описаны в `docs/gate-a-pilot-acceptance.md`.
 
 ## Excel export
 
