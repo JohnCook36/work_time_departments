@@ -4,10 +4,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock3,
-  LogOut,
-  Moon,
   RefreshCw,
-  Sun,
 } from 'lucide-react';
 import { ShiftRequestComposer, eligibleSourceShifts } from '../shift-requests/ShiftRequestComposer';
 import { RequestDrawer, RequestOverlay } from '../shift-requests/ShiftRequestsScreen.styles';
@@ -19,7 +16,6 @@ import {
   acknowledgeMySchedule,
   getMySchedule,
   getMyScheduleAcknowledgement,
-  logout,
 } from '../../api/auth';
 import { useAuthUser } from '../../auth/AuthContext';
 import { AppSectionNav } from '../../components/navigation/AppSectionNav';
@@ -31,7 +27,6 @@ import {
 import { calculateShiftHours } from '../../domain/schedule/shiftHours';
 import { Container, IconButton, Page } from '../../theme/styles';
 import { DAY_NAMES_SHORT, MONTH_NAMES } from '../../utils/calendar';
-import { useAppTheme } from '../../theme/AppThemeProvider';
 import {
   AcknowledgementButton,
   AcknowledgementCopy,
@@ -43,7 +38,6 @@ import {
   EmployeeSummary,
   EmptySchedule,
   InheritedLabel,
-  LogoutButton,
   PeriodLabel,
   PeriodNavigation,
   ScheduleCard,
@@ -65,7 +59,6 @@ import {
   ShiftMeta,
   ShiftRow,
   ShiftTitle,
-  ThemeToggleButton,
   TotalCard,
   TotalLabel,
   TotalsGrid,
@@ -96,7 +89,6 @@ export function MyScheduleScreen() {
   const [acknowledgedAt, setAcknowledgedAt] = useState<string | null>(null);
   const [ackBusy, setAckBusy] = useState(false);
   const [ackError, setAckError] = useState<string | null>(null);
-  const { themeMode, toggleTheme } = useAppTheme();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -201,10 +193,6 @@ export function MyScheduleScreen() {
     }
   };
 
-  const handleLogout = async () => {
-    await logout();
-    await refreshSession();
-  };
 
   return (
     <Page>
@@ -218,25 +206,10 @@ export function MyScheduleScreen() {
             </SchedulePageHeading>
 
             <ScheduleHeaderActions>
-              <ThemeToggleButton
-                type="button"
-                onClick={toggleTheme}
-                title={
-                  themeMode === 'light'
-                    ? 'Включить тёмную тему'
-                    : 'Включить светлую тему'
-                }
-              >
-                {themeMode === 'light' ? <Moon size={18} /> : <Sun size={18} />}
-              </ThemeToggleButton>
-              <LogoutButton type="button" onClick={() => void handleLogout()}>
-                <LogOut size={15} />
-                Выйти
-              </LogoutButton>
+              <AppSectionNav />
             </ScheduleHeaderActions>
           </SchedulePageHeader>
 
-          <AppSectionNav />
 
           <ScheduleCard>
             <PeriodNavigation>
