@@ -99,7 +99,11 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
     await dialog.getByLabel('Сотрудник', { exact: true }).selectOption('employee-b');
     await dialog.getByRole('button', { name: 'Отправить запрос' }).click();
     expect(Math.abs((await trigger.boundingBox())!.x - before!.x)).toBeLessThanOrEqual(3);
-    await page.getByRole('link', { name: 'Обмен сменами' }).click();
+    await page.getByRole('button', { name: 'Меню' }).click();
+    await page
+      .getByRole('dialog', { name: 'Навигация' })
+      .getByRole('link', { name: 'Обмен сменами' })
+      .click();
     await expect(page.getByText('Ожидает ответа сотрудника')).toBeVisible();
     await workflow.become('target');
     await expect(page.getByRole('button', { name: 'Согласиться' })).toBeVisible();
