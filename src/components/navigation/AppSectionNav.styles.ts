@@ -116,7 +116,7 @@ export const DrawerGroupLabel = styled('div')(({ theme }) => ({
   letterSpacing: '0.06em',
 }));
 
-export const DrawerLink = styled(NavLink)(({ theme }) => ({
+const drawerItemStyles = ({ theme }: { theme: any }) => ({
   minHeight: 46,
   padding: '0 12px',
   borderRadius: 11,
@@ -129,11 +129,6 @@ export const DrawerLink = styled(NavLink)(({ theme }) => ({
   fontSize: 14,
   fontWeight: 800,
   transition: 'background 120ms ease, color 120ms ease, border-color 120ms ease',
-  '&.active': {
-    color: theme.colors.primary,
-    background: theme.colors.totalSoft,
-    borderColor: theme.colors.border,
-  },
   ':hover': {
     color: theme.colors.primary,
     background: theme.colors.totalSoft,
@@ -142,4 +137,22 @@ export const DrawerLink = styled(NavLink)(({ theme }) => ({
     outline: '2px solid ' + theme.colors.focusRing,
     outlineOffset: 2,
   },
+});
+
+export const DrawerLink = styled(NavLink)(({ theme }) => ({
+  ...drawerItemStyles({ theme }),
+  '&.active': {
+    color: theme.colors.primary,
+    background: theme.colors.totalSoft,
+    borderColor: theme.colors.border,
+  },
+}));
+
+export const DrawerAction = styled('button')(({ theme }) => ({
+  ...drawerItemStyles({ theme }),
+  width: '100%',
+  background: 'transparent',
+  font: 'inherit',
+  cursor: 'pointer',
+  textAlign: 'left',
 }));
