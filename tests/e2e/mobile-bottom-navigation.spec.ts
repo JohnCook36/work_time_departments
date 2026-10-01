@@ -160,69 +160,79 @@ async function mockSession(
   });
 }
 
-test('employee mobile bottom navigation has four stable tabs', async ({ page }) => {
+test('employee uses one burger drawer without management routes', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.clock.setFixedTime(new Date('2026-09-25T12:00:00Z'));
   await mockSession(page, 'EMPLOYEE');
 
   await page.goto('http://127.0.0.1:4174/my-schedule');
 
-  const nav = page.getByRole('navigation', { name: 'Мобильная навигация' });
-  await expect(nav).toBeVisible();
-  await expect(nav.getByRole('link')).toHaveCount(4);
-  await expect(nav.getByText('Смены', { exact: true })).toBeVisible();
-  await expect(nav.getByText('Задачи', { exact: true })).toBeVisible();
-  await expect(nav.getByText('Обмен', { exact: true })).toBeVisible();
-  await expect(nav.getByText('Профиль', { exact: true })).toBeVisible();
+  const menu = page.getByRole('button', { name: 'Меню' });
+  await expect(menu).toBeVisible();
+  const menuBox = await menu.boundingBox();
+  expect(menuBox?.height ?? 0).toBeGreaterThanOrEqual(40);
+  await expect(
+    page.getByRole('navigation', { name: 'Мобильная навигация' }),
+  ).toHaveCount(0);
 
-  const active = nav.getByRole('link', { name: /Смены/ });
-  await expect(active).toHaveClass(/active/);
+  await menu.click();
+  const drawer = page.getByRole('dialog', { name: 'Навигация' });
+  await expect(drawer).toBeVisible();
+  await expect(drawer.getByText('Основное', { exact: true })).toBeVisible();
+  await expect(drawer.getByText('Работа', { exact: true })).toBeVisible();
+  await expect(drawer.getByText('Аккаунт', { exact: true })).toBeVisible();
+  await expect(drawer.getByRole('link', { name: /Мои смены/ })).toHaveClass(/active/);
+  await expect(drawer.getByRole('link', { name: /Задачи/ })).toBeVisible();
+  await expect(drawer.getByRole('link', { name: /Обмен сменами/ })).toBeVisible();
+  await expect(drawer.getByRole('link', { name: /Уведомления/ })).toBeVisible();
+  await expect(drawer.getByRole('link', { name: /Профиль/ })).toBeVisible();
+  await expect(drawer.getByRole('button', { name: /тема/i })).toBeVisible();
+  await expect(drawer.getByRole('button', { name: /Выйти/ })).toBeVisible();
+  await expect(drawer.getByRole('link', { name: /Сегодня/ })).toHaveCount(0);
+  await expect(drawer.getByRole('link', { name: /Планировщик/ })).toHaveCount(0);
+  await expect(drawer.getByRole('link', { name: /Роли и доступ/ })).toHaveCount(0);
+  await expect(drawer.getByRole('link', { name: /Журнал/ })).toHaveCount(0);
 
-  const box = await active.boundingBox();
-  expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+  await page.keyboard.press('Escape');
+  await expect(drawer).toHaveCount(0);
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
   ).toBe(true);
 });
 
-test('manager mobile navigation uses More for secondary routes', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
+test('manager burger drawer exposes management and administration routes', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
   await page.clock.setFixedTime(new Date('2026-09-25T12:00:00Z'));
   await mockSession(page, 'DEPARTMENT_ADMIN');
 
   await page.goto('http://127.0.0.1:4174/today');
+  await page.getByRole('button', { name: 'Меню' }).click();
 
-  const nav = page.getByRole('navigation', { name: 'Мобильная навигация' });
-  await expect(nav.getByText('Сегодня', { exact: true })).toBeVisible();
-  await expect(nav.getByText('Запросы', { exact: true })).toBeVisible();
-  await expect(nav.getByText('Задачи', { exact: true })).toBeVisible();
-  await expect(nav.getByText('Ещё', { exact: true })).toBeVisible();
-  await expect(nav.getByRole('link', { name: /Сегодня/ })).toHaveClass(/active/);
+  const drawer = page.getByRole('dialog', { name: 'Навигация' });
+  await expect(drawer).toBeVisible();
+  await expect(drawer.getByRole('link', { name: /Сегодня/ })).toHaveClass(/active/);
+  await expect(drawer.getByRole('link', { name: /Планировщик/ })).toBeVisible();
+  await expect(drawer.getByRole('link', { name: /План \/ факт/ })).toBeVisible();
+  await expect(drawer.getByRole('link', { name: /Часы команды/ })).toBeVisible();
+  await expect(drawer.getByText('Администрирование', { exact: true })).toBeVisible();
+  await expect(drawer.getByRole('link', { name: /Роли и доступ/ })).toBeVisible();
+  await expect(drawer.getByRole('link', { name: /Журнал/ })).toBeVisible();
 
-  await nav.getByRole('button', { name: /Ещё/ }).click();
-  const more = page.getByRole('region', { name: 'Дополнительная навигация' });
-  await expect(more).toBeVisible();
-  await expect(more.getByRole('link', { name: /Уведомления/ })).toBeVisible();
-  await expect(more.getByRole('link', { name: /Профиль/ })).toBeVisible();
-
-  expect(
-    await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
-  ).toBe(true);
+  await drawer.getByRole('button', { name: 'Закрыть меню' }).click();
+  await expect(drawer).toHaveCount(0);
 });
 
-test('deputy capability navigation never grants Planner implicitly', async ({ page }) => {
+test('deputy capability drawer never grants Planner implicitly', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.clock.setFixedTime(new Date('2026-09-25T12:00:00Z'));
   await mockSession(page, 'DEPUTY');
 
   await page.goto('http://127.0.0.1:4174/my-schedule');
+  await page.getByRole('button', { name: 'Меню' }).click();
 
-  const nav = page.getByRole('navigation', { name: 'Мобильная навигация' });
-  await expect(nav.getByText('Смены', { exact: true })).toBeVisible();
-  await expect(nav.getByText('Сегодня', { exact: true })).toHaveCount(0);
-
-  await nav.getByRole('button', { name: /Ещё/ }).click();
-  const more = page.getByRole('region', { name: 'Дополнительная навигация' });
-  await expect(more.getByRole('link', { name: /Журнал/ })).toBeVisible();
-  await expect(more.getByRole('link', { name: /Планировщик/ })).toHaveCount(0);
+  const drawer = page.getByRole('dialog', { name: 'Навигация' });
+  await expect(drawer.getByRole('link', { name: /Журнал/ })).toBeVisible();
+  await expect(drawer.getByRole('link', { name: /Планировщик/ })).toHaveCount(0);
+  await expect(drawer.getByRole('link', { name: /Сегодня/ })).toHaveCount(0);
+  await expect(drawer.getByRole('link', { name: /Роли и доступ/ })).toHaveCount(0);
 });
