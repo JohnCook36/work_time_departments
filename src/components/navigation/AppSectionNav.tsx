@@ -5,22 +5,29 @@ import {
   Clock3,
   Gauge,
   LayoutDashboard,
+  LogOut,
   Menu,
+  Moon,
   Repeat2,
   ScrollText,
   ShieldCheck,
+  Sun,
   UserRound,
   X,
 } from 'lucide-react';
 import { useEffect, useId, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
+import { logout } from '../../api/auth';
 import {
   hasCapability,
   hasManagementAccess,
   useAuthUser,
 } from '../../auth/AuthContext';
+import { useAuthSession } from '../../auth/AuthSessionProvider';
+import { useAppTheme } from '../../theme/AppThemeProvider';
 import {
+  DrawerAction,
   DrawerBackdrop,
   DrawerCloseButton,
   DrawerGroup,
@@ -36,6 +43,8 @@ import {
 export function AppSectionNav() {
   const user = useAuthUser();
   const location = useLocation();
+  const { refresh: refreshSession } = useAuthSession();
+  const { themeMode, toggleTheme } = useAppTheme();
   const canManagePlanner = hasManagementAccess(user);
   const canReadAudit = hasCapability(user, 'AUDIT_READ');
   const canManageRoles = hasCapability(user, 'ROLE_MANAGE');
@@ -65,6 +74,11 @@ export function AppSectionNav() {
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [menuOpen]);
+
+  const handleLogout = async () => {
+    await logout();
+    await refreshSession();
+  };
 
   return (
     <>
@@ -177,6 +191,14 @@ export function AppSectionNav() {
                 <UserRound size={18} />
                 Профиль
               </DrawerLink>
+              <DrawerAction type="button" onClick={toggleTheme}>
+                {themeMode === 'light' ? <Moon size={18} /> : <Sun size={18} />}
+                {themeMode === 'light' ? 'Тёмная тема' : 'Светлая тема'}
+              </DrawerAction>
+              <DrawerAction type="button" onClick={() => void handleLogout()}>
+                <LogOut size={18} />
+                Выйти
+              </DrawerAction>
             </DrawerGroup>
           </DrawerPanel>
         </>
