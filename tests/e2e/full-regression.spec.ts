@@ -3,10 +3,7 @@ import ExcelJS from 'exceljs';
 
 const STORAGE_KEY = 'hotel-shift-planner:user:e2e-admin-user';
 
-function periodKey(): string {
-  const now = new Date();
-  return now.getUTCFullYear() + '-' + String(now.getUTCMonth() + 1).padStart(2, '0');
-}
+const TEST_PERIOD_KEY = '2026-09';
 
 function state(options?: {
   departments?: Array<{ id: string; name: string; kind: 'general' }>;
@@ -30,7 +27,7 @@ function state(options?: {
         employmentRate: 1,
       },
     ],
-    schedules: { [periodKey()]: options?.schedule || {} },
+    schedules: { [TEST_PERIOD_KEY]: options?.schedule || {} },
     wishes: {},
     collapsedDepartments: [],
   };
@@ -439,6 +436,7 @@ test('employee drag to another department survives reload', async ({ page }) => 
 });
 
 test('night shift shows working time instead of internal N code', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-09-15T12:00:00Z'));
   await seed(
     page,
     state({
@@ -475,6 +473,7 @@ test('shift editor saves the 08:00-17:00 preset into the cell', async ({ page })
 });
 
 test('Excel preview protects a cell and allows confirmed overwrite', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-09-15T12:00:00Z'));
   await seed(
     page,
     state({
@@ -757,6 +756,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
 }
 
 test('employment rate changes the weekly norm', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-09-15T12:00:00Z'));
   const weekSchedule: Record<number, unknown> = {};
   for (const day of [7, 8, 9, 10, 11]) {
     weekSchedule[day] = {
