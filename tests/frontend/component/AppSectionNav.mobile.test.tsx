@@ -43,29 +43,48 @@ const employee: AuthUser = {
   ],
 };
 
-function mobileNav() {
-  const nav = document.querySelector(
-    'nav[aria-label="Мобильная навигация"]',
-  );
-  if (!(nav instanceof HTMLElement)) {
-    throw new Error('Mobile navigation was not rendered');
-  }
-  return nav;
+function openDrawer() {
+  fireEvent.click(screen.getByRole('button', { name: 'Меню' }));
+  return screen.getByRole('dialog', { name: 'Навигация' });
 }
 
-describe('AppSectionNav mobile model', () => {
-  it('keeps the employee mobile baseline to four labelled destinations', () => {
+describe('AppSectionNav drawer model', () => {
+  it('keeps employee navigation compact and excludes management routes', () => {
     renderNav(employee);
 
-    const mobile = mobileNav();
-    expect(mobile).toHaveTextContent('Смены');
-    expect(mobile).toHaveTextContent('Задачи');
-    expect(mobile).toHaveTextContent('Обмен');
-    expect(mobile).toHaveTextContent('Профиль');
-    expect(mobile).not.toHaveTextContent('Ещё');
+    expect(screen.queryByRole('navigation', { name: 'Мобильная навигация' })).not.toBeInTheDocument();
+    const drawer = openDrawer();
+
+    expect(within(drawer).getByRole('link', { name: /Мои смены/ })).toBeInTheDocument();
+    expect(within(drawer).getByRole('link', { name: /Задачи/ })).toBeInTheDocument();
+    expect(within(drawer).getByRole('link', { name: /Обмен сменами/ })).toBeInTheDocument();
+    expect(within(drawer).getByRole('link', { name: /Уведомления/ })).toBeInTheDocument();
+    expect(within(drawer).getByRole('link', { name: /Профиль/ })).toBeInTheDocument();
+    expect(within(drawer).queryByRole('link', { name: /Сегодня/ })).not.toBeInTheDocument();
+    expect(within(drawer).queryByRole('link', { name: /Планировщик/ })).not.toBeInTheDocument();
   });
 
-  it('uses Today / Requests / Tasks / More for a department admin', () => {
+  it('exposes management routes for a department admin', () => {
+    renderNav({
+      ...employee,
+      memberships: [
+        {
+          id: 'membership-admin',
+          role: 'DEPARTMENT_ADMIN',
+          departmentId: 'department-a',
+          permissions: [],
+        },
+      ],
+    }, '/today');
+
+    const drawer = openDrawer();
+    expect(within(drawer).getByRole('link', { name: /Сегодня/ })).toHaveClass('active');
+    expect(within(drawer).getByRole('link', { name: /Планировщик/ })).toBeInTheDocument();
+    expect(within(drawer).getByRole('link', { name: /План \/ факт/ })).toBeInTheDocument();
+    expect(within(drawer).getByRole('link', { name: /Часы команды/ })).toBeInTheDocument();
+  });
+
+  it('exposes administration links for a department admin', () => {
     renderNav({
       ...employee,
       memberships: [
@@ -78,71 +97,14 @@ describe('AppSectionNav mobile model', () => {
       ],
     });
 
-    const mobile = mobileNav();
-    expect(mobile).toHaveTextContent('Сегодня');
-    expect(mobile).toHaveTextContent('Запросы');
-    expect(mobile).toHaveTextContent('Задачи');
-    expect(mobile).toHaveTextContent('Ещё');
-
-    fireEvent.click(
-      within(mobile).getByRole('button', { name: /Ещё/, hidden: true }),
-    );
-
-    const more = document.querySelector(
-      'section[aria-label="Дополнительная навигация"]',
-    );
-    expect(more).toBeInstanceOf(HTMLElement);
-    expect(
-      within(more as HTMLElement).getByRole('link', {
-        name: /Уведомления/,
-        hidden: true,
-      }),
-    ).toBeInTheDocument();
-    expect(
-      within(more as HTMLElement).getByRole('link', {
-        name: /Профиль/,
-        hidden: true,
-      }),
-    ).toBeInTheDocument();
+    const drawer = openDrawer();
+    expect(within(drawer).getByRole('link', { name: /Журнал/ })).toBeInTheDocument();
+    expect(within(drawer).getByRole('link', { name: /Роли и доступ/ })).toBeInTheDocument();
+    expect(within(drawer).getByRole('button', { name: /тема/i })).toBeInTheDocument();
+    expect(within(drawer).getByRole('button', { name: /Выйти/ })).toBeInTheDocument();
   });
 
-  it('exposes department-admin secondary management links', () => {
-    renderNav({
-      ...employee,
-      memberships: [
-        {
-          id: 'membership-admin',
-          role: 'DEPARTMENT_ADMIN',
-          departmentId: 'department-a',
-          permissions: [],
-        },
-      ],
-    });
-
-    const mobile = mobileNav();
-    fireEvent.click(
-      within(mobile).getByRole('button', { name: /Ещё/, hidden: true }),
-    );
-
-    const more = document.querySelector(
-      'section[aria-label="Дополнительная навигация"]',
-    );
-    expect(more).toBeInstanceOf(HTMLElement);
-    expect(
-      within(more as HTMLElement).getByRole('link', {
-        name: /Журнал/,
-        hidden: true,
-      }),
-    ).toBeInTheDocument();
-    expect(
-      within(more as HTMLElement).getByRole('link', {
-        name: /Роли и доступ/,
-        hidden: true,
-      }),
-    ).toBeInTheDocument();
-  });
-
-  it('gives a capability-bearing deputy a More sheet without planner access', () => {
+  it('gives an audit-capable deputy the journal without planner access', () => {
     renderNav({
       ...employee,
       memberships: [
@@ -155,23 +117,10 @@ describe('AppSectionNav mobile model', () => {
       ],
     });
 
-    const mobile = mobileNav();
-    expect(mobile).toHaveTextContent('Смены');
-    expect(mobile).not.toHaveTextContent('Сегодня');
-
-    fireEvent.click(
-      within(mobile).getByRole('button', { name: /Ещё/, hidden: true }),
-    );
-
-    const more = document.querySelector(
-      'section[aria-label="Дополнительная навигация"]',
-    );
-    expect(more).toBeInstanceOf(HTMLElement);
-    expect(
-      within(more as HTMLElement).getByRole('link', {
-        name: /Журнал/,
-        hidden: true,
-      }),
-    ).toBeInTheDocument();
+    const drawer = openDrawer();
+    expect(within(drawer).getByRole('link', { name: /Журнал/ })).toBeInTheDocument();
+    expect(within(drawer).queryByRole('link', { name: /Планировщик/ })).not.toBeInTheDocument();
+    expect(within(drawer).queryByRole('link', { name: /Сегодня/ })).not.toBeInTheDocument();
+    expect(within(drawer).queryByRole('link', { name: /Роли и доступ/ })).not.toBeInTheDocument();
   });
 });
