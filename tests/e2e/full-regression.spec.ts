@@ -3,10 +3,7 @@ import ExcelJS from 'exceljs';
 
 const STORAGE_KEY = 'hotel-shift-planner:user:e2e-admin-user';
 
-function periodKey(): string {
-  const now = new Date();
-  return now.getUTCFullYear() + '-' + String(now.getUTCMonth() + 1).padStart(2, '0');
-}
+const TEST_PERIOD_KEY = '2026-09';
 
 function state(options?: {
   departments?: Array<{ id: string; name: string; kind: 'general' }>;
@@ -30,7 +27,7 @@ function state(options?: {
         employmentRate: 1,
       },
     ],
-    schedules: { [periodKey()]: options?.schedule || {} },
+    schedules: { [TEST_PERIOD_KEY]: options?.schedule || {} },
     wishes: {},
     collapsedDepartments: [],
   };
