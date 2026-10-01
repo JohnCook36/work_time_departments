@@ -24,8 +24,8 @@ import {
   hasManagementAccess,
   useAuthUser,
 } from '../../auth/AuthContext';
-import { useAuthSession } from '../../auth/AuthSessionProvider';
-import { useAppTheme } from '../../theme/AppThemeProvider';
+import { useOptionalAuthSession } from '../../auth/AuthSessionProvider';
+import { useOptionalAppTheme } from '../../theme/AppThemeProvider';
 import {
   DrawerAction,
   DrawerBackdrop,
@@ -43,8 +43,9 @@ import {
 export function AppSectionNav() {
   const user = useAuthUser();
   const location = useLocation();
-  const { refresh: refreshSession } = useAuthSession();
-  const { themeMode, toggleTheme } = useAppTheme();
+  const authSession = useOptionalAuthSession();
+  const appTheme = useOptionalAppTheme();
+  const themeMode = appTheme?.themeMode ?? 'light';
   const canManagePlanner = hasManagementAccess(user);
   const canReadAudit = hasCapability(user, 'AUDIT_READ');
   const canManageRoles = hasCapability(user, 'ROLE_MANAGE');
@@ -76,8 +77,12 @@ export function AppSectionNav() {
   }, [menuOpen]);
 
   const handleLogout = async () => {
+    if (authSession) {
+      await authSession.signOut();
+      return;
+    }
+
     await logout();
-    await refreshSession();
   };
 
   return (
@@ -191,7 +196,7 @@ export function AppSectionNav() {
                 <UserRound size={18} />
                 Профиль
               </DrawerLink>
-              <DrawerAction type="button" onClick={toggleTheme}>
+              <DrawerAction type="button" onClick={() => appTheme?.toggleTheme()}>
                 {themeMode === 'light' ? <Moon size={18} /> : <Sun size={18} />}
                 {themeMode === 'light' ? 'Тёмная тема' : 'Светлая тема'}
               </DrawerAction>
